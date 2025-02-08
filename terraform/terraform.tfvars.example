@@ -1,1 +1,2 @@
 cloudflare_api_token = "API_TOKEN_HERE"
+proxmox_api_token = "API_TOKEN_HERE"
