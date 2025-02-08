@@ -9,6 +9,11 @@ terraform {
       source  = "bpg/proxmox"
       version = "0.70.1"
     }
+
+    talos = {
+      source  = "siderolabs/talos"
+      version = "0.7.1"
+    }
   }
 }
 
@@ -23,6 +28,8 @@ provider "proxmox" {
   insecure  = true # Self signed certificate
 
   ssh {
-    agent = true
+    agent       = true
+    username    = var.proxmox_api_token_user
+    private_key = file("~/.ssh/id_ed25519")
   }
 }

@@ -5,6 +5,12 @@ variable "proxmox" {
   })
 }
 
+variable "cluster" {
+  type = object({
+    gateway = string
+  })
+}
+
 variable "image" {
   type = object({
     version = string
