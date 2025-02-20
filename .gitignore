@@ -1,7 +1,2 @@
-*/**/.terraform
-.terraform.lock.hcl
-*.tfstate
-*.tfstate.backup
-*.tfvars
-
+*/**/.direnv
 test-terraform
