@@ -12,4 +12,6 @@ module "vm" {
   providers = {
     proxmox = proxmox
   }
+
+  proxmox = var.proxmox
 }

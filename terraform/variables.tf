@@ -7,13 +7,16 @@ variable "cloudflare_api_token" {
 
 # Proxmox:
 
-variable "proxmox_api_token" {
-  description = "The Proxmox API token to use for authentication"
-  type        = string
-}
+variable "proxmox" {
+  type = object({
+    name    = string
+    host    = string
+    storage = string
+    api = object({
+      user  = string
+      name  = string
+      token = string
+    })
+  })
 
-variable "proxmox_api_token_user" {
-  description = "The proxmox user to use for authentication"
-  type        = string
-  default     = "root"
 }
