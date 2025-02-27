@@ -3,8 +3,4 @@ variable "proxmox" {
     name    = string
     storage = string
   })
-  default = {
-    name    = "proxmox"
-    storage = "hercules"
-  }
 }
