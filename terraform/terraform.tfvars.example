@@ -1,2 +1,12 @@
 cloudflare_api_token = "API_TOKEN_HERE"
-proxmox_api_token = "API_TOKEN_HERE"
+
+proxmox = {
+  name    = "poseidon"
+  host    = "https://10.10.1.1:8006"
+  storage = "hercules"
+  api = {
+    user  = "root"
+    name  = "terraform"
+    token = "API_TOKEN_HERE"
+  }
+}
