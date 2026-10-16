@@ -1,0 +1,145 @@
+---
+# Monitoring & alerting baseline (Phase 6). One HelmRelease brings up the standard
+# kube-prometheus-stack: the prometheus-operator plus Prometheus, Alertmanager, Grafana,
+# node-exporter and kube-state-metrics (spec §4.3). Deliberately minimal and honest for a
+# single-node, no-HA lab (docs/architecture.md §3; risk R11): one replica of everything, no
+# remote-write, no Thanos, no long-term-storage promise.
+#
+# Why this lives here (kubernetes/infrastructure/, not infrastructure/configs/): this release
+# installs the monitoring.coreos.com CRDs (ServiceMonitor/PodMonitor/PrometheusRule). Flux
+# dry-runs a whole Kustomization before applying any of it, so a CR cannot share a
+# Kustomization with the crds-installing release that creates its own kind (the lab hit exactly
+# that: see kubernetes/README.md and docs/runbooks/phase-reports/). The starter alerts below are
+# therefore supplied as Helm values (additionalPrometheusRulesMap) and rendered BY the release —
+# no separate PrometheusRule CR is reconciled by kustomize, so there is nothing to dry-run early.
+#
+# Secrets: Grafana admin credentials are NOT created here — see the grafana block below.
+# Persistence: no StorageClass exists yet; metrics and Grafana state are ephemeral — see the
+# storage comments below.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-prometheus-stack
+  namespace: monitoring
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      version: 92.10.0
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+  install:
+    crds: CreateReplace
+  upgrade:
+    crds: CreateReplace
+  values:
+    # --- No HA: one replica of each component (architecture §3; risk R11). -----------------
+    # All nodes run on one physical host, so extra replicas buy no real availability here.
+    prometheus:
+      prometheusSpec:
+        replicas: 1
+        # No remote-write, no Thanos, no long-term storage (spec §7: no LTS promise).
+        # With no StorageClass available, Prometheus keeps samples on ephemeral emptyDir and
+        # loses them when the pod restarts.
+        # TODO(Phase 5 storage): move to a PVC once a StorageClass is chosen.
+        storageSpec: {}
+    alertmanager:
+      alertmanagerSpec:
+        replicas: 1
+        # Same as above: silences/notification state are ephemeral (emptyDir).
+        # TODO(Phase 5 storage): move to a PVC once a StorageClass is chosen.
+        storage: {}
+    grafana:
+      # Use an externally-managed admin Secret. This ALSO stops the chart from generating a
+      # random admin password into an in-repo-created Secret.
+      # TODO(secrets workstream — docs/secrets-and-state.md): create this Secret out-of-band
+      # (SOPS-encrypted), in the `monitoring` namespace, with keys `admin-user` and
+      # `admin-password`. Until it exists the Grafana pod will NOT become Ready — that is
+      # intentional: we never commit or auto-generate a credential.
+      admin:
+        existingSecret: grafana-admin
+      # Grafana state is disposable and there is no StorageClass yet.
+      persistence:
+        enabled: false
+
+    # --- Control-plane targets that do not exist on Talos --------------------------------
+    # Talos runs etcd and the control-plane components outside the normal scrape surface:
+    # etcd metrics on :2381 need mTLS cert extraction, and controller-manager (:10257) /
+    # scheduler (:10259) bind to 127.0.0.1. Their default ServiceMonitors would never be
+    # reachable, so the matching default alerts (KubeEtcdDown, KubeControllerManagerDown,
+    # KubeSchedulerDown, KubeProxyDown) would fire forever on a healthy cluster. Disable them
+    # and their rule groups; re-enable only after metrics are deliberately exposed.
+    # kube-apiserver, kubelet and CoreDNS remain scraped.
+    kubeEtcd:
+      enabled: false
+    kubeScheduler:
+      enabled: false
+    kubeControllerManager:
+      enabled: false
+    kubeProxy:
+      enabled: false
+    defaultRules:
+      rules:
+        etcd: false
+        kubeSchedulerAlerting: false
+        kubeSchedulerRecording: false
+        kubeControllerManager: false
+        kubeProxy: false
+
+    # --- Starter alerts (spec §7.8; docs/backup-policy.md §7) -----------------------------
+    # The chart already ships a broad, maintained rule set (defaultRules.create=true),
+    # including KubeNodeNotReady, KubeNodePressure (kubelet DiskPressure) and
+    # NodeFilesystemAlmostOutOfSpace. Only add what those do not cover for this lab.
+    additionalPrometheusRulesMap:
+      homelab-starters:
+        groups:
+          - name: homelab.node
+            rules:
+              - alert: NodeRootDiskSpacePressure
+                # Proactive disk warning. The chart's default filesystem alerts only fire at
+                # <5% free (<3% critical); the compute host has a single SSD and no ZFS
+                # (risk R1), so warn earlier at ~85% used. Pseudo filesystems are excluded;
+                # verify the real mountpoints on the live Talos node when it exists.
+                expr: |
+                  (
+                    node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs|overlay|squashfs"}
+                    /
+                    node_filesystem_size_bytes{fstype!~"tmpfs|ramfs|overlay|squashfs"}
+                    * 100
+                  ) < 15
+                for: 30m
+                labels:
+                  severity: warning
+                annotations:
+                  summary: "Node filesystem is above 85% used."
+                  description: "{{ $labels.instance }} mount {{ $labels.mountpoint }} has less than 15% free."
+              - alert: HomelabNodeNotReady
+                # Complements the chart's KubeNodeNotReady, which is gated on
+                # kube_node_spec_unschedulable == 0 and so stays silent for a cordoned node.
+                # This fires for any NotReady node. On this single-host, no-HA cluster
+                # (architecture §3; risk R11) a NotReady node is a full outage.
+                expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+                for: 10m
+                labels:
+                  severity: critical
+                annotations:
+                  summary: "Node {{ $labels.node }} is NotReady."
+                  description: "{{ $labels.node }} has reported NotReady for more than 10 minutes."
+          - name: homelab.backup
+            rules:
+              - alert: BackupStale
+                # PLACEHOLDER — deliberately inert until the backup workstream (Phase 8)
+                # exposes a "last successful backup" timestamp. Nothing exports
+                # `backup_last_success_timestamp_seconds` today, so this expression yields
+                # no series and never fires; it records the alert the backup system must
+                # eventually satisfy (docs/backup-policy.md §7; spec §7.8).
+                expr: (time() - backup_last_success_timestamp_seconds) > 60 * 60 * 36
+                for: 15m
+                labels:
+                  severity: critical
+                annotations:
+                  summary: "Backup is stale."
+                  description: "No successful backup has been recorded for more than 36 hours."

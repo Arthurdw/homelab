@@ -41,6 +41,7 @@ helm_charts:
   metallb: "0.16.1"              # https://metallb.github.io/metallb
   traefik: "42.0.0"              # https://traefik.github.io/charts
   cert_manager: "1.21.2"         # https://charts.jetstack.io
+  kube_prometheus_stack: "92.10.0"  # https://prometheus-community.github.io/helm-charts
   technitium_dnsserver: "1.13.4"  # https://charts.obeone.cloud
   immich: "0.13.2"               # oci://ghcr.io/immich-app/immich-charts/immich
   audiobookshelf: "2.5.1"        # https://charts.christianhuth.de
