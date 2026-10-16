@@ -22,6 +22,7 @@
 | R15 | **Offsite destination unconfirmed** (family home) | No independent copy for Tier-1 data | Medium | Phase 2 evaluation; cost/bandwidth/power assessment | Open |
 | R16 | Workstation is disk/RAM constrained for a lab | Limited local TDD capacity | Medium | Clean up disk; add NVMe; or dedicate a lab host | Open |
 | R17 | Unknowns in the audit (UniFi config, ACLs, tags) | Wrong assumptions in design | Medium | Finish capture; verify before depending on any value | Open |
+| R19 | **UniFi API key is full-access** (cannot be read-only) | A leak or mistaken apply can take the house network offline | Medium | Plan-only applies from a trusted host; additive-only; export before change; rotate; re-check for a limited local admin (`docs/secrets-and-state.md` §4) | Open |
 | R18 | "Greenfield wipe" may destroy unbacked-up data if assumptions are wrong | Irreversible data loss | Low–Med | Owner-driven reset; verify backups of Tier-1 **before** any wipe (spec §3.2/§6.2) | Open |
 
 ## Assumptions not yet verified

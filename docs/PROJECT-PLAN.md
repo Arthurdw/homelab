@@ -142,12 +142,15 @@ We will not test against live hardware. Tests run in layers:
    with a fresh config export and a written rollback, approved at a gate.
 4. Take a UniFi config export before any change; keep the previous one until validated.
 5. IPv6 DNS behaviour must be checked so it doesn't silently bypass the internal resolver.
+6. The UniFi API key is **full-access** (no read-only option), so these rules are enforced by **process**:
+   plan-only by default, applies are manual with the owner present, and the key lives outside the repo
+   (see `docs/secrets-and-state.md` §4).
 
 ---
 
 ## 5. Target repo structure
 
-```
+```text
 homelab/
 ├── README.md  CONTRIBUTING.md  SECURITY.md  LICENSE
 ├── versions.yaml
@@ -268,6 +271,7 @@ age + size anomalies.
 |---|---|---|
 | 2026-10-16 | **Greenfield rebuild**: no import/adoption; wipe both hosts once ready | owner intent; simplifies IaC |
 | 2026-10-16 | **Owner performs the host reset; agents are read-only** until the owner opens a gate | owner instruction; hosts treated as production |
+| 2026-10-16 | **UniFi key is full-access → process-enforced least privilege** (plan-only, additive-only, key off-repo) | provider offers no read-only keys |
 | 2026-10-16 | **UniFi additive-only**, non-breaking migration | must not disrupt house appliances |
 | 2026-10-16 | **Layered lab testing** (§4.3); no live testing without gate | safety + reproducibility |
 | 2026-10-16 | Raw discovery data kept in gitignored `docs/private/` | repo is public |
@@ -291,10 +295,11 @@ age + size anomalies.
 | 2026-10-16 | 0 | Plan document + `.gitignore` created. Greenfield + UniFi additive-only + lab-testing decisions logged. |
 | 2026-10-16 | 0 | Governing spec captured as `docs/SPEC.md`; "owner resets hosts, agents read-only" rule recorded. |
 | 2026-10-16 | 0 | Phase 0 docs drafted (hardware/network/storage/risk/lab) + `versions.yaml` (latest versions verified 2026-10-16). |
+| 2026-10-16 | 1 | Target architecture + repo foundation (README, CONTRIBUTING, SECURITY, CI, linting, secret scanning) + `docs/secrets-and-state.md`. |
 
 ## 12. Phase report template (`docs/runbooks/phase-reports/phase-NN.md`)
 
-```
+```text
 1. What was inspected
 2. What changed (files only)
 3. Design rationale
