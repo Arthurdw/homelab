@@ -77,20 +77,41 @@ secrets-verify:
   ./scripts/secrets/verify.sh
 
 # Render kustomizations and validate (if any exist)
+# Build every kustomization and schema-check it. Mirrors the CI `kubernetes` job — if you
+# change one, change the other.
+# Fixed 2026-10-16: this recipe ran `kustomize <dir>` instead of `kustomize build <dir>` and
+# had no `set -euo pipefail`, so kustomize errored, the pipe to kubeconform masked the exit
+# status, and the recipe returned 0 having validated NOTHING (`Valid: 0` per directory). A
+# validation gate that silently passes is worse than no gate, because it is trusted.
 k8s-validate:
   #!/usr/bin/env bash
-  KUSTOMIZE="kustomize"
-  command -v kustomize >/dev/null 2>&1 || KUSTOMIZE="kubectl kustomize"
-  mapfile -t dirs < <(find kubernetes -name kustomization.yaml -exec dirname {} \; 2>/dev/null)
+  set -euo pipefail
+  if command -v kustomize >/dev/null 2>&1; then
+    render() { kustomize build "$1"; }
+  elif command -v kubectl >/dev/null 2>&1; then
+    render() { kubectl kustomize "$1"; }
+  else
+    echo "ERROR: need kustomize or kubectl on PATH" >&2; exit 1
+  fi
+  mapfile -t dirs < <(find kubernetes -name kustomization.yaml -exec dirname {} \; 2>/dev/null | sort)
   if [ ${#dirs[@]} -eq 0 ]; then echo "no kustomizations yet"; exit 0; fi
+  rc=0
   for d in "${dirs[@]}"; do
     echo "== build $d =="
+    if ! manifest="$(render "$d")"; then
+      echo "ERROR: $d failed to render" >&2; rc=1; continue
+    fi
+    # An empty render is a failure, not a pass: it is how this recipe previously lied.
+    if [ -z "${manifest//[[:space:]]/}" ]; then
+      echo "ERROR: $d rendered empty" >&2; rc=1; continue
+    fi
     if command -v kubeconform >/dev/null 2>&1; then
-      $KUSTOMIZE "$d" | kubeconform -strict -summary -ignore-missing-schemas -
+      printf '%s\n' "$manifest" | kubeconform -strict -summary -ignore-missing-schemas - || rc=1
     else
-      $KUSTOMIZE "$d" >/dev/null && echo "  rendered ok (install kubeconform for schema checks)"
+      echo "  rendered ok (install kubeconform for schema checks)"
     fi
   done
+  exit "$rc"
 
 # Validate generated Talos machine configs (talosctl validate --mode metal; offline)
 talos-validate:
