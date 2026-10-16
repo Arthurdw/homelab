@@ -1,8 +1,62 @@
 # Proxmox root configuration
 
-Manages Proxmox VE resources (VM lifecycle, supported infra) for the homelab.
+Manages Proxmox VE resources for the homelab — currently the two Talos node VMs via the
+[`talos-vm`](../../../modules/talos-vm/README.md) module.
 
-**Status:** scaffold — no resources defined yet. Provider is pinned; nothing is applied.
+**Status:** VM provisioning authored; **nothing applied**. Provider pinned; state backend
+still TBD (`docs/secrets-and-state.md` §5). `tofu plan`/`apply` need API access we do not
+have yet (see Verification below).
+
+## Decided topology (docs/decisions.md §3.1)
+
+| Guest | vCPUs | RAM | Disk | Datastore |
+|---|---|---|---|---|
+| `talos-cp-1` | 2 | 2 GiB | 20 GiB | `local-lvm` |
+| `talos-wk-1` | 3 | 16 GiB | 80 GiB | `local-lvm` |
+
+**All boot disks live on `local-lvm` (the host SSD)** — never the NAS (§3.2). The old 3 TB
+qcow2 on the NAS is not carried forward. 5 vCPU on 4 host threads is a normal 1.25×
+overcommit; there is **no HA claim** — one host means host loss is cluster loss.
+
+The whole topology is readable in one file: [`talos.tf`](talos.tf).
+
+## The Talos image (explicit + verified)
+
+The OS image is the **Talos Image Factory `nocloud` disk**, fetched by Proxmox itself with
+`proxmox_download_file` and imported per VM:
+
+```text
+https://factory.talos.dev/image/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba/<version>/nocloud-amd64.raw.zst
+```
+
+- `<version>` is parsed from `versions.yaml` (`kubernetes.talos`), so the URL cannot drift
+  from the pin. For `v1.14.4` the URL was verified with `curl -sI` (HTTP 200,
+  `application/octet-stream`, 231366805 bytes) — see the task report.
+- `nocloud` (not `metal`) is the Proxmox platform: Proxmox's cloud-init drive is a NoCloud
+  datasource from which Talos reads its `network-config`.
+- The artifact is compressed (`.raw.zst`), so it is downloaded as `content_type = "iso"`
+  with `decompression_algorithm = "zst"` and passed to the module as `file_id` (compressed
+  images cannot use `import_from`).
+
+## Addressing (environment differences are variables)
+
+Production and lab differ; the code does not hardcode either:
+
+| Variable | Production | Lab (`docs/decisions.md` §2.4) |
+|---|---|---|
+| `vm_bridge` | `vmbr0` (confirm at cutover) | libvirt bridge |
+| `k8s_vlan_id` | `20` | `null` (flat) |
+| `k8s_gateway` | `10.20.0.1` | `10.99.100.1` |
+| `talos_cp_ipv4` / `talos_wk_ipv4` | `10.20.0.11` / `10.20.0.12` | `10.99.100.11` / `10.99.100.12` |
+
+Nodes live in `10.20.0.11–29`; lab nodes in `10.99.100.0/24`. Node addresses reach the
+guest through Proxmox's cloud-init `network-config`.
+
+## Host capacity guard
+
+A `check` block in [`talos.tf`](talos.tf) warns if the sum of guest RAM would eat into the
+reserved headroom (`proxmox_host_memory_reserve_mb`) of the host's 46 GiB. It is a warning,
+not a hard failure — the host headroom is a judgement call (`docs/architecture.md` §3).
 
 ## Usage
 
@@ -15,13 +69,33 @@ export PROXMOX_VE_API_TOKEN='user@realm!tokenid=secret'
 cp terraform.tfvars.example terraform.tfvars   # then edit; tfvars is gitignored
 tofu init -backend=false
 tofu validate
-tofu plan                                      # review only
+tofu plan                                      # review only — needs API access
 ```
 
-**Applies are gated** — see `docs/PROJECT-PLAN.md`. Do not `tofu apply` against live infrastructure without
-explicit owner approval, and never `-auto-approve`.
+**Applies are gated** — see `docs/PROJECT-PLAN.md`. Do not `tofu apply` against live
+infrastructure without explicit owner approval, and never `-auto-approve`.
+
+## Machine config is NOT delivered here
+
+By decision (`docs/architecture.md` §7), OpenTofu owns the VM lifecycle but **Talos
+tooling owns machine config and bootstrap**. The module default is
+`talos_machine_config_delivery = "talosctl"`: the VM boots the nocloud image in maintenance
+mode and `talosctl apply-config` (see `scripts/talos/`) delivers the config. The
+`cloud-init-snippet` mode exists for lab/dev only.
+
+## Out of scope here
+
+TrueNAS and UniFi resources are authored in their own roots — this root does not touch
+them. The NAS remains for backups/ISOs only (never VM disks).
+
+## Verification
+
+- `tofu fmt -check -recursive infrastructure/` — formatting.
+- `tofu validate` — schema/type correctness (backend disabled; no live access).
+- `tofu plan` — **not possible**: it requires Proxmox API access, which we do not have.
+- `curl -sI` on the image URL — confirms the artifact exists for the pinned version.
 
 ## Ownership
 
-OpenTofu owns Proxmox resources + VM lifecycle (see `docs/architecture.md` §7). Kubernetes resources are
-owned by Flux, not here.
+OpenTofu owns Proxmox resources + VM lifecycle (`docs/architecture.md` §7). Kubernetes
+resources are owned by Flux, not here.

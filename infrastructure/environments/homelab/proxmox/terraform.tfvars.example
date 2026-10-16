@@ -1,5 +1,6 @@
 # Copy to `terraform.tfvars` (gitignored) and fill in. NEVER commit real values.
 
+# --- Proxmox API / SSH ---
 # https://<proxmox-host>:8006/
 proxmox_endpoint = "https://CHANGE-ME:8006/"
 
@@ -7,3 +8,51 @@ proxmox_endpoint = "https://CHANGE-ME:8006/"
 proxmox_insecure = true
 
 proxmox_ssh_username = "root"
+
+# --- Proxmox host ---
+# PVE node name (normally the host hostname). TODO(GATE 4): confirm at cutover.
+proxmox_node_name = "poseidon"
+
+# --- Networking (production values; lab overrides in comments) ---
+# Host bridge for the node NICs. TODO(GATE 4): confirm bridge + VLAN-awareness.
+vm_bridge = "vmbr0"
+
+# K8s VLAN 20 (docs/decisions.md §2.1). Lab: set to null on a flat bridge.
+k8s_vlan_id      = 20
+k8s_gateway      = "10.20.0.1"
+k8s_prefix_length = 24
+talos_cp_ipv4    = "10.20.0.11"   # lab: 10.99.100.11
+talos_wk_ipv4    = "10.20.0.12"   # lab: 10.99.100.12
+
+# --- Talos VMIDs ---
+# TODO(GATE 4): confirm at cutover (the temporary live VM uses 100).
+talos_cp_vmid = 110
+talos_wk_vmid = 111
+
+# Optional fixed MACs, keyed by node name. TODO(GATE 4): assign with UniFi reservations.
+# talos_macs = {
+#   talos-cp-1 = "BC:24:11:00:00:11"
+#   talos-wk-1 = "BC:24:11:00:00:12"
+# }
+
+# --- Storage ---
+talos_disk_datastore_id  = "local-lvm"   # host SSD; never the NAS (docs/decisions.md §3.2)
+talos_image_datastore_id = "local"       # needs 'iso' content enabled
+
+# --- Talos image (Image Factory) ---
+# Vanilla schematic (no extensions). Build one at https://factory.talos.dev to add
+# siderolabs/qemu-guest-agent, then paste its id here.
+talos_image_schematic_id = "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"
+talos_image_platform     = "nocloud"   # Proxmox uses the NoCloud datasource
+talos_image_compression  = "zst"
+
+# --- Talos node behaviour ---
+# Only enable the guest agent with an image built with siderolabs/qemu-guest-agent.
+talos_qemu_guest_agent_enabled = false
+
+# "talosctl" keeps the ownership boundary (docs/architecture.md §7).
+talos_machine_config_delivery = "talosctl"
+
+# --- Host capacity check ---
+proxmox_host_memory_mb        = 47104   # 46 GiB usable (docs/hardware.md)
+proxmox_host_memory_reserve_mb = 8192
