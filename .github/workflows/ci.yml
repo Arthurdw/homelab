@@ -84,8 +84,8 @@ jobs:
         run: |
           set -euo pipefail
           npm install -g markdownlint-cli2
-          python3 -m pip install --user yamllint
-          sudo apt-get update && sudo apt-get install -y shellcheck
+          sudo apt-get update
+          sudo apt-get install -y yamllint shellcheck
       - name: markdownlint
         run: markdownlint-cli2 "**/*.md"
       - name: yamllint
