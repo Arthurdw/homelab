@@ -21,7 +21,13 @@ spec:
   upgrade:
     crds: CreateReplace
   values:
-    # TODO(GATE 0): persistence (PVC/storage class), forwarders, and a stable LoadBalancer IP
-    # from the MetalLB pool so clients can use it as their resolver.
+    # The chart (bjw-s "common" library) treats every key under `service` as a service NAME.
+    # So this must be nested as service.main.type — a top-level `service.type` becomes a bogus
+    # service named "type" whose value is a string, which breaks template rendering.
+    # (Found by the lab: "can't evaluate field enabled in type interface {}".)
     service:
-      type: LoadBalancer
+      main:
+        type: LoadBalancer
+    # TODO(GATE 0): persistence (PVC/storage class), upstream forwarders, a stable LoadBalancer IP
+    # from the MetalLB pool so clients can use it as their resolver, and trim the exposed ports
+    # (the chart defaults to web 80/443, DNS 53 tcp+udp, DHCP 67, DoT 853, DoH 8053).

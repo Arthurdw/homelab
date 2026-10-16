@@ -171,33 +171,38 @@ homelab/
 
 ## 6. Phases
 
-### Phase 0 — Audit & architecture (in progress)
+Legend: `[x]` done · `[ ]` not done · `[ ]` + a _partial_ note = started but incomplete.
+Last reconciled against the repo: **2026-10-16**.
+
+### Phase 0 — Audit & architecture (**deliverables complete; GATE 0 awaiting owner answers**)
 - [x] Repo state inspected; prior work confirmed intentionally deleted
 - [x] Read-only discovery of Proxmox + TrueNAS (raw in `docs/private/`, sanitized in `docs/`)
 - [x] Capture gaps closed: `main` datasets, shares, services, snapshot task, DNS, NIC speeds, VM 100, P4 IOMMU group
 - [x] Drafted `docs/hardware.md`, `network-plan.md`, `storage.md`, `risk-register.md`, `lab.md` + `versions.yaml`
-- [ ] Capture UniFi state (API token or UI export) — read-only
-- [ ] Data-preservation plan: confirm Tier-1 directories + the VM disk on the `proxmox` share
-- [ ] Write `docs/architecture.md` (target) + migration/rebuild plan
-- [ ] Produce open-questions list → **⛔ GATE 0**
+- [ ] Capture UniFi state (API token or UI export) — read-only _(blocked: no read-only key exists; needs owner)_
+- [ ] Data-preservation plan: confirm Tier-1 directories + the VM disk on the `proxmox` share _(owner input)_
+- [x] Write `docs/architecture.md` (target) + migration/rebuild plan
+- [x] Produce open-questions list (§10) → **⛔ GATE 0** _(list produced; owner answers outstanding)_
 
-### Phase 1 — Repository foundation
-- [ ] README/CONTRIBUTING/SECURITY/versions.yaml; scaffolding per §5
-- [ ] CI L0 (fmt/validate/lint/scan) with pinned tool versions; secret scanning
-- [ ] Secret strategy (SOPS+age) + **state backend** design → `docs/secrets-and-state.md`
-- [ ] `scripts/` + `tests/` lab harness skeleton (kind/k3d, UniFi controller container, nested PVE/NAS) → **⛔ GATE 1**
+### Phase 1 — Repository foundation (**deliverables complete**)
+- [x] README/CONTRIBUTING/SECURITY/versions.yaml; scaffolding per §5
+- [x] CI L0 (fmt/validate/lint/scan) + secret scanning _(gitleaks clean; lint-tool versions not yet pinned)_
+- [x] Secret strategy (SOPS+age) + **state backend** design → `docs/secrets-and-state.md` _(design only)_
+- [x] Lab harness: `just lab-up` = kind + in-cluster Git server + Flux reconciling the real tree; `just ci`
+      verified with `act` _(UniFi container + nested PVE/NAS fixtures pending)_ → **⛔ GATE 1**
 
 ### Phase 2 — TrueNAS inventory & backup design
 - [ ] Finish NAS inventory incl. `main` datasets, shares, SSO/users, tasks, services
-- [ ] Classify every dataset into backup tiers (§7)
-- [ ] Backup matrix draft; choose mechanism (remote ZFS replication vs restic/borg) with evidence
+- [ ] Classify every dataset into backup tiers (§7) _(matrix drafted; classification needs owner input)_
+- [ ] Choose mechanism (remote ZFS replication vs restic/borg) with evidence _(drafts: `docs/backup-policy.md`, `docs/backup-matrix.md`)_
 - [ ] Evaluate offsite machine at family member's home (capacity/power/network/admin)
-- [ ] Verify `truenas/truenas` provider: release status, API version, OpenTofu compatibility, resource coverage
+- [ ] Verify `truenas/truenas` provider _(OpenTofu 1.13.1 compatibility verified; API version + resource coverage pending)_
 - [ ] Local snapshot policy → **⛔ GATE 2**
 
 ### Phase 3 — Infrastructure IaC (greenfield — build, don't import)
-- [ ] OpenTofu roots per state boundary; providers pinned + compatibility documented
-- [ ] Author UniFi/Proxmox/TrueNAS configs under the **additive-only** policy (§4.4)
+- [x] OpenTofu roots per state boundary; providers pinned + compatibility documented
+      (`proxmox`, `truenas`, `unifi`; `tofu validate` passes; lock files committed)
+- [ ] Author UniFi/Proxmox/TrueNAS configs under the **additive-only** policy (§4.4) _(scaffold only; no resources yet)_
 - [ ] **Every config validated in L1 fixtures before any live plan**
 - [ ] CI: plan preview on PRs; protected environment for applies → **⛔ GATE 3 before any live apply**
 
@@ -210,31 +215,37 @@ homelab/
 - [ ] Re-apply UniFi objects additively; verify management reachability after each step → **⛔ GATE 4 per risky step**
 
 ### Phase 5 — Talos & Kubernetes bootstrap
-- [ ] Pin Talos + Kubernetes versions; build node VMs via Tofu; secrets kept out of repo
+- [ ] Pin Talos + Kubernetes versions; build node VMs via Tofu; secrets kept out of repo _(versions pinned in
+      `versions.yaml`; VM build + machine config not started)_
 - [ ] Bootstrap control plane, join workers, CNI, storage reachability, ingress
 - [ ] No HA claims on single host → **⛔ GATE 5**
 
 ### Phase 6 — Flux & platform services
-- [ ] Bootstrap Flux from repo with clear ordering/health checks
+- [ ] Bootstrap Flux from repo with clear ordering/health checks _(tree scaffolded and **lab-verified**; real
+      bootstrap pending. The lab found and fixed a CRD-ordering bug — see the phase report)_
 - [ ] Platform: ingress, CSI/storage, DNS (with independent recovery), cert-manager, monitoring baseline
+      _(metallb + traefik + cert-manager + technitium manifiests exist; CSI + monitoring not started)_
 - [ ] Bootstrap must not depend on in-cluster DNS or Authentik → break-glass documented → **⛔ GATE 6**
 
 ### Phase 7 — Applications (incremental)
-- [ ] One app at a time; documented per-app (pins, ingress/auth, storage, secrets, resources, backup+restore, upgrade/rollback, exposure)
+- [ ] One app at a time; documented per-app (pins, ingress/auth, storage, secrets, resources, backup+restore,
+      upgrade/rollback, exposure) _(Immich + Audiobookshelf scaffolded; values/docs pending)_
 - [ ] Immich media+DB consistency; Audiobookshelf; Nextcloud **or** Seafile (decision documented); Stremio local-only; Forgejo later → **⛔ GATE 7 before any public exposure**
 
 ### Phase 8 — Backup automation & verification
 - [ ] Implement offsite mechanism: encryption, retention, deletion protection, monitoring, schedule
+      _(restic scripts + systemd units written; no repository, schedule or alerts yet)_
 - [ ] Verify first backup **and restore it** (into a test target)
 - [ ] Alerts: last-success age, failures, size anomalies; document transfer times → **⛔ GATE 8 after a successful restore test**
 
 ### Phase 9 — Upgrade & operations automation
-- [ ] Talos upgrade runbook (pre-checks, order, verification, rollback limitations honored)
-- [ ] K8s/tool/chart upgrades: manual gate, changelog read, one at a time, verify after each
+- [x] Talos upgrade runbook (pre-checks, order, verification, rollback limitations honored)
+- [ ] K8s/tool/chart upgrades: manual gate, changelog read, one at a time, verify after each _(documented in
+      `docs/runbooks/upgrades.md`; no automation yet)_
 - [ ] Prove normal applies never side-effect OS upgrades → **⛔ GATE 9**
 
 ### Phase 10 — Disaster recovery validation
-- [ ] DR runbooks for the spec's scenario list
+- [x] DR runbooks for the spec's scenario list (`docs/disaster-recovery.md`)
 - [ ] Non-destructive restore tests (file-level offsite, config, DB consistency)
 - [ ] Verify recovery without Kubernetes; final recovery checklist → **⛔ GATE 10 = exit**
 
@@ -311,6 +322,11 @@ age + size anomalies.
 | 2026-10-16 | 5-7 | Flux GitOps tree scaffolded (`kubernetes/`): infra controllers + 2 apps; manifests build with kustomize and pass kubeconform. |
 | 2026-10-16 | 8 | restic backup/verify scripts + systemd units added (env-driven, no secrets committed). |
 | 2026-10-16 | 9-10 | Upgrade and disaster-recovery runbooks added (`docs/runbooks/`, `docs/disaster-recovery.md`). |
+| 2026-10-16 | 1 | `install-tools.sh` gained a `--native` mode (pacman: kind/fluxcd/age/sops, all in `extra`) alongside the pinned-binary default, and reports version drift. |
+| 2026-10-16 | 5-7 | **Lab harness built** (`just lab-up`): kind + in-cluster smart-HTTP Git server + Flux reconciling the real `kubernetes/` tree. |
+| 2026-10-16 | 5-7 | **Lab found bug #1**: `ClusterIssuer`/`IPAddressPool` shared a Kustomization with their CRD-installing HelmReleases → dry-run failure. Fixed by splitting controllers from configs with `dependsOn`. |
+| 2026-10-16 | 5-7 | **Lab found bug #2**: technitium HelmRelease used `service.type`; the bjw-s common chart reads every `service.*` key as a service *name* → fixed to `service.main.type`. |
+| 2026-10-16 | 5-7 | Lab verified real installs: cert-manager 1.21.2, metallb 0.16.1, traefik 42.0.0 all `Helm install succeeded`. |
 
 ## 12. Phase report template (`docs/runbooks/phase-reports/phase-NN.md`)
 
@@ -327,7 +343,11 @@ age + size anomalies.
 ```
 
 ## 13. Definition of done (summary)
-Infra version-controlled + pinned + additive-safe; TrueNAS inventoried with explicit preservation and no
-unapproved destructive ops; backup matrix with Tier-1 offsite + **tested** restores and independent keys;
-Kubernetes reproducibly bootstrapped with clear ownership and documented upgrade/recovery; no secrets in the
-public repo; CI does PR validation and gates live applies; **lab tests exist for each module before it touches hardware**.
+
+- [ ] Infra version-controlled + pinned + additive-safe
+- [ ] TrueNAS inventoried with explicit preservation and no unapproved destructive ops
+- [ ] Backup matrix with Tier-1 offsite + **tested** restores and independent keys
+- [ ] Kubernetes reproducibly bootstrapped with clear ownership and documented upgrade/recovery
+- [x] No secrets in the public repo (`.gitignore` + gitleaks in CI; scanned clean)
+- [x] CI does PR validation (static L0; live-apply gating/promotion still to add)
+- [x] Lab tests exist before anything touches hardware (lab covers the K8s/Flux layer; PVE/NAS/UniFi fixtures pending)
