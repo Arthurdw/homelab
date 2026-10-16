@@ -27,9 +27,16 @@ validate:
     (cd "$d" && tofu init -backend=false -input=false >/dev/null && tofu validate)
   done
 
-# Run the full CI workflow locally with act
+# Run the CI workflow locally with act.
+# `secret-scan` is excluded: act cannot clone gitleaks-action anonymously — use `just secrets`.
 ci:
-  act push
+  #!/usr/bin/env bash
+  set -euo pipefail
+  for j in opentofu kubernetes lint; do
+    printf '\n########## %s ##########\n' "$j"
+    act push -j "$j" --pull=false
+  done
+  printf '\n(secret-scan skipped; run: just secrets)\n'
 
 # Run one CI job locally, e.g. `just ci-job lint`
 ci-job job:
