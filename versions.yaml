@@ -45,6 +45,11 @@ helm_charts:
   technitium_dnsserver: "1.13.4"  # https://charts.obeone.cloud
   immich: "0.13.2"               # oci://ghcr.io/immich-app/immich-charts/immich
   audiobookshelf: "2.5.1"        # https://charts.christianhuth.de
+  # NFS CSI driver — dynamic PVCs on the NAS (kubernetes/infrastructure/storage).
+  # Verified 2026-10-16: `helm search repo csi-driver-nfs --versions` → 4.13.5 newest stable
+  # (GitHub release v4.13.5, prerelease=false). Chart repo unique to this project: the upstream
+  # chart lives in the source tree, there is no GitHub Pages index.
+  csi_driver_nfs: "4.13.5"       # https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
 
 ci_tools:
   tflint: "0.64.0"
