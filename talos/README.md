@@ -28,13 +28,14 @@ the client before touching a live node.
 | `inputs.env` | yes | The single place for every undecided value. `TODO(GATE 0)` markers explain each decision. |
 | `patches/common.yaml` | yes | Applied to every node; disables the bundled Flannel. |
 | `patches/controlplane.yaml` | yes | **Comments-only template.** Not applied while empty — see the file. |
-| `patches/worker.yaml` | yes | **Comments-only template.** Not applied while empty — see the file. |
+| `patches/worker.yaml` | yes | **Applied to workers only:** the `local-path-provisioner` user volume. Never applied to the control plane — see the file. |
 | `out/` | **no** (gitignored) | Generated `controlplane.yaml`, `worker.yaml`, `talosconfig`. Contains secrets. |
 
 Patches are Talos 1.14 **multi-document** documents (matched by `apiVersion`/`kind`), not the legacy
 `machine:`/`cluster:` paths — those now collide with the generated documents and make
 `talosctl validate` fail. `gen-configs.sh` only passes a patch file that has non-comment content, which
-is why the control-plane and worker files can sit here as safe, inactive templates.
+is why `patches/controlplane.yaml` can sit here as an inactive template; `patches/worker.yaml` now
+carries real content, so `--config-patch-worker` is applied.
 
 ## Generating and validating
 

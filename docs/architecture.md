@@ -50,8 +50,11 @@ Verified: i5-7400 (4c/4t), 46 GiB RAM, single 489 GiB SSD (SPOF), no ZFS on host
 | Guest (proposal) | vCPU | RAM | Disk |
 |---|---|---|---|
 | Talos control-plane | 2 | 2–4 GiB | 20 GiB (local-lvm) |
-| Talos worker | 2–3 | 6–10 GiB | 40–80 GiB (local-lvm) |
+| Talos worker | 2–3 | 6–10 GiB | 40–80 GiB boot + data (local-lvm) |
 | (later) app/GPU VM | TBD | TBD | TBD |
+
+> The worker also carries a **100 GiB data disk** for the node-local `local-path` StorageClass
+> (`docs/decisions.md` §3.4); the boot column above is deliberately left as the original proposal range.
 
 ## 4. Storage plan (TrueNAS)
 
@@ -85,8 +88,10 @@ See `docs/network-plan.md`. **Decided at GATE 0** (rationale: `docs/decisions.md
 
 - **Talos Linux** (pinned `v1.14.4`, Kubernetes `v1.37.1`) for all nodes; machine configs generated, secrets
   never committed.
-- **Topology:** 1 control plane (2 vCPU / 2 GiB / 20 GiB) + 1 worker (3 vCPU / 16 GiB / 80 GiB); all VM disks
-  on the host SSD, never on the NAS. **No HA claim** — one host means host loss is cluster loss.
+- **Topology:** 1 control plane (2 vCPU / 2 GiB / 20 GiB) + 1 worker (3 vCPU / 16 GiB / 80 GiB boot
+  **+ 100 GiB data disk**); all VM disks on the host SSD, never on the NAS. The worker's data disk exists
+  so the node-local `local-path` StorageClass has a non-system disk to hold its Talos user volume
+  (`docs/decisions.md` §3.4, §4.3). **No HA claim** — one host means host loss is cluster loss.
 - **CNI: Cilium** with kube-proxy replacement (NetworkPolicy support, fewer components on a 4-thread host).
   Provisional — Flannel is the documented fallback if resources prove insufficient.
 - **Flux** (`v2.9.6`) owns all ongoing Kubernetes config; separate `infrastructure/`, `infrastructure/configs/`

@@ -29,22 +29,27 @@ locals {
   # The decided topology (docs/decisions.md §3.1). Sizing is the decision and lives
   # here; addresses are environment inputs (variables) so the lab can differ.
   # The worker is intentionally larger: it runs the CNI and the workloads.
+  # `data_disk_gb` is the dedicated, non-system disk that a Talos user volume is
+  # provisioned on for the node-local `local-path` StorageClass (docs/decisions.md
+  # §3.4, §4.3); the control plane gets none (null).
   talos_nodes = {
     "talos-cp-1" = {
-      vm_id     = var.talos_cp_vmid
-      cpu_cores = 2
-      memory_mb = 2048
-      disk_gb   = 20
-      ipv4      = var.talos_cp_ipv4
-      role      = "controlplane"
+      vm_id        = var.talos_cp_vmid
+      cpu_cores    = 2
+      memory_mb    = 2048
+      disk_gb      = 20
+      data_disk_gb = null
+      ipv4         = var.talos_cp_ipv4
+      role         = "controlplane"
     }
     "talos-wk-1" = {
-      vm_id     = var.talos_wk_vmid
-      cpu_cores = 3
-      memory_mb = 16384
-      disk_gb   = 80
-      ipv4      = var.talos_wk_ipv4
-      role      = "worker"
+      vm_id        = var.talos_wk_vmid
+      cpu_cores    = 3
+      memory_mb    = 16384
+      disk_gb      = 80
+      data_disk_gb = 100
+      ipv4         = var.talos_wk_ipv4
+      role         = "worker"
     }
   }
 
@@ -99,6 +104,13 @@ module "talos" {
   cpu_cores           = each.value.cpu_cores
   memory_dedicated_mb = each.value.memory_mb
   disk_size_gb        = each.value.disk_gb
+
+  # Worker-only data disk for the Talos user volume behind the node-local `local-path`
+  # StorageClass (docs/decisions.md §3.4, §4.3). Null on the control plane, so it gets
+  # only its boot disk. The interface/datastore default in the module.
+  data_disk = each.value.data_disk_gb == null ? null : {
+    size_gb = each.value.data_disk_gb
+  }
 
   disk_datastore_id = var.talos_disk_datastore_id
   os_image_file_id  = proxmox_download_file.talos.id

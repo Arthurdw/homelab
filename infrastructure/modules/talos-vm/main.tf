@@ -60,6 +60,23 @@ resource "proxmox_virtual_environment_vm" "this" {
     ssd         = var.disk_ssd
   }
 
+  # Optional extra disk, separate from the boot disk above (kept as its own block so
+  # the boot-disk handling is untouched). The caller passes `data_disk` only for the
+  # node that needs local storage; the boot disk alone is unchanged.
+  dynamic "disk" {
+    for_each = var.data_disk == null ? [] : [var.data_disk]
+    content {
+      datastore_id = coalesce(disk.value.datastore_id, var.disk_datastore_id)
+      interface    = disk.value.interface
+      size         = disk.value.size_gb
+      # Inherited from the boot disk so the data disk stays on the same datastore with
+      # the same format/SSD/TRIM behaviour (docs/decisions.md §3.2).
+      file_format = var.disk_file_format
+      discard     = var.disk_discard
+      ssd         = var.disk_ssd
+    }
+  }
+
   network_device {
     bridge      = var.bridge
     model       = var.network_model

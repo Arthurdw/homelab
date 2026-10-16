@@ -34,11 +34,12 @@ spec:
   `EPHEMERAL` partition; the chart's default `/opt/local-path-provisioner` is on Talos' read-only
   rootfs and cannot be written at all. We point `nodePathMap` at `/var/mnt/local-path-provisioner`.
   See `release.yaml` for the full evidence trail and URLs.
-- **This release is INERT until a machine-config change exists.** The `/var/mnt/local-path-provisioner`
-  mount comes from a Talos `UserVolumeConfig` on the worker, backed by a **dedicated data disk**.
-  Until `talos/**` + `infrastructure/**` (another workstream) add that disk and document, PVCs will
-  provision under the path but nothing guarantees the mount is a persistent partition. Required
-  change is spelled out in `release.yaml`.
+- **The user volume and its data disk exist** (implemented 2026-10-16, `docs/decisions.md` §3.4).
+  `talos-wk-1` gets a dedicated 100 GiB data disk from OpenTofu, and `talos/patches/worker.yaml`
+  declares the matching `UserVolumeConfig` (`minSize`/`maxSize` 90GiB), which Talos mounts at
+  `/var/mnt/local-path-provisioner`. The name is the contract: it must stay in sync with
+  `nodePathMap` in `release.yaml`, or the provisioner points at a directory on the read-only rootfs.
+  Not runtime-verified — no cluster has been built yet, so this is static verification only.
 - **No HA.** One worker, one host (`docs/decisions.md` §3.1). Rebuild the node, destroy the VM, or
   wipe its data disk and the Local PVs are gone. There is no replica. The only recovery path is the
   scheduled logical database dumps on the NAS — this class protects *latency*, not *durability*.

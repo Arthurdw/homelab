@@ -75,11 +75,15 @@ problem in §6.1 stayed invisible for as long as it did.
 | Guest | vCPU | RAM | Disk |
 |---|---|---|---|
 | `talos-cp-1` | 2 | 2 GiB | 20 GiB |
-| `talos-wk-1` | 3 | 16 GiB | 80 GiB |
+| `talos-wk-1` | 3 | 16 GiB | 80 GiB boot **+ 100 GiB data** |
 
 5 vCPU on 4 threads is a 1.25× overcommit — normal, because idle control planes use very little.
 **No HA claim**: one physical host means host loss is cluster loss. Provisional until the lab measures
 real usage.
+
+> **Amended 2026-10-16 — see §3.4.** The worker's data disk was added after this entry was written, to
+> give the node-local `local-path` StorageClass (§4.3) a non-system disk to provision a Talos user
+> volume on. The control plane still has a single 20 GiB disk.
 
 ### 3.2 — All VM disks live on `local-lvm` (the host SSD) — *decided*
 
@@ -92,6 +96,28 @@ network and the NAS. The SSD is a single point of failure; that is accepted here
 Chosen for **NetworkPolicy** support (a security requirement, not a nice-to-have) and because replacing
 kube-proxy saves resources on a 4-thread host. If RAM/CPU proves insufficient in the lab, the fallback is
 Flannel, recorded as a deviation with the evidence.
+
+### 3.4 — The worker gets a dedicated data disk for node-local databases — *decided 2026-10-16*
+
+Amends §3.1: `talos-wk-1` gains a **100 GiB data disk** in addition to its 80 GiB boot disk. The control
+plane gets none. Sizing lives in `infrastructure/environments/homelab/proxmox/talos.tf`
+(`local.talos_nodes["talos-wk-1"].data_disk_gb`); the module
+(`infrastructure/modules/talos-vm`, variable `data_disk`) attaches the second disk and inherits the boot
+disk's datastore/SSD/TRIM settings.
+
+**Why:** §4.3 places latency-sensitive databases on a node-local `local-path` PV
+(`kubernetes/infrastructure/local-path`). On Talos that PV must be backed by a **user volume**
+(`talos/patches/worker.yaml`, a `UserVolumeConfig` named `local-path-provisioner`, fixed at 90 GiB and
+mounted at `/var/mnt/local-path-provisioner`). A user volume cannot live on the system disk: the boot
+disk's `EPHEMERAL` partition spans the disk and consumes its free space. A dedicated disk also isolates
+database I/O from the OS disk, and is cleaner than re-partitioning the boot disk.
+
+**Honest limits:** the disk is **node-local and NOT replicated** — this is not HA. Losing the worker, or
+recreating it from OpenTofu, loses the Local PVs; the only recovery path is the scheduled logical dumps to
+the NAS in §4.3. The +100 GiB still fits the host SSD's `local-lvm` (360 GiB) after both boot disks
+(20 + 80 GiB) and the capacity reserve for the hypervisor / a non-Kubernetes VM.
+
+**Replaces:** the implicit §3.1 assumption that each VM has exactly one disk (boot only).
 
 ## 4. Storage
 

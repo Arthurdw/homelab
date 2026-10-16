@@ -12,11 +12,15 @@ have yet (see Verification below).
 | Guest | vCPUs | RAM | Disk | Datastore |
 |---|---|---|---|---|
 | `talos-cp-1` | 2 | 2 GiB | 20 GiB | `local-lvm` |
-| `talos-wk-1` | 3 | 16 GiB | 80 GiB | `local-lvm` |
+| `talos-wk-1` | 3 | 16 GiB | 80 GiB boot + **100 GiB data** | `local-lvm` |
 
 **All boot disks live on `local-lvm` (the host SSD)** — never the NAS (§3.2). The old 3 TB
 qcow2 on the NAS is not carried forward. 5 vCPU on 4 host threads is a normal 1.25×
 overcommit; there is **no HA claim** — one host means host loss is cluster loss.
+
+The worker's extra **data disk** (module variable `data_disk`, `data_disk_gb` in
+[`talos.tf`](talos.tf)) backs the Talos user volume for the node-local `local-path`
+StorageClass (§3.4, §4.3); the control plane has none.
 
 The whole topology is readable in one file: [`talos.tf`](talos.tf).
 

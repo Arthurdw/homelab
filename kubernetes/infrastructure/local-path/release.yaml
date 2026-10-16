@@ -76,22 +76,25 @@
 #        `/var/mnt/local-path-provisioner` as the root path for the local storage."
 #       https://docs.siderolabs.com/kubernetes-guides/csi/local-storage.md
 #
-#   REQUIRED MACHINE-CONFIG CHANGE (NOT implemented here — talos/** and infrastructure/** are
-#   owned by another workstream; this release is INERT until it is done):
-#     A dedicated DATA DISK attached to the worker VM, plus this worker machine-config document:
-#       ---
-#       apiVersion: v1alpha1
-#       kind: UserVolumeConfig
-#       name: local-path-provisioner
-#       provisioning:
-#         diskSelector:
-#           match: "!system_disk"
-#         minSize: 40GB
-#         maxSize: 40GB
-#     (`diskSelector: "!system_disk"` requires a SECOND disk — see the Talos "Local Storage"
-#      guide. A single-disk variant is possible by ALSO capping `EPHEMERAL` with a `VolumeConfig`
-#      `maxSize`, but that is only honoured at first provisioning; a dedicated disk is cleaner
-#      and isolates DB I/O from the OS disk. Either way it is a machine-config/VM-topology change.)
+#   THE DATA DISK AND USER VOLUME (implemented 2026-10-16 — docs/decisions.md §3.4):
+#     * `talos-wk-1` has a dedicated 100 GiB DATA disk from OpenTofu
+#       (infrastructure/environments/homelab/proxmox/talos.tf → `data_disk_gb`). The control plane
+#       has none, and must never receive the volume document below.
+#     * `talos/patches/worker.yaml` (worker-only) declares the user volume:
+#         apiVersion: v1alpha1
+#         kind: UserVolumeConfig
+#         name: local-path-provisioner     # => mounted at /var/mnt/local-path-provisioner
+#         provisioning:
+#           diskSelector:
+#             match: "!system_disk"
+#           minSize: 90GiB
+#           maxSize: 90GiB
+#     `minSize`/`maxSize` bound the VOLUME (the partition), not the disk, and `minSize` also
+#     participates in disk SELECTION: a disk is eligible only if it has at least that much free
+#     space. The system disk is excluded twice over — it IS the system disk, and its EPHEMERAL
+#     partition consumes the free space anyway. Keep the volume `name` in sync with `nodePathMap`
+#     above; renaming one without the other points the provisioner at a directory on the read-only
+#     rootfs and every PVC fails to provision.
 #
 # WHAT HAPPENS IF THE NODE IS LOST OR REBUILT
 #   There is exactly ONE worker and no HA (docs/decisions.md §3.1; docs/architecture.md §3). This

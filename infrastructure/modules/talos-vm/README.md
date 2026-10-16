@@ -13,6 +13,7 @@ addresses), which keeps a whole cluster readable in one file.
 | Decision | Where | Source |
 |---|---|---|
 | VM boot disks on the host SSD, never the NAS | `disk_datastore_id` default `local-lvm` | `docs/decisions.md` §3.2 |
+| Node-local database storage needs a disk that is not the Talos system disk | optional `data_disk` (worker only) | `docs/decisions.md` §3.4, §4.3 |
 | Talos on Proxmox uses the `nocloud` platform; addressing comes from Proxmox's cloud-init `network-config` | `ip_address` / `ip_gateway` → `initialization.ip_config` | Talos docs, `cloud-platforms/nocloud` |
 | K8s traffic on its own VLAN | `vlan_id` (null on a flat/lab bridge) | `docs/decisions.md` §2.1 |
 | Talos (not OpenTofu) owns machine config and bootstrap | `machine_config_delivery` default `talosctl` | `docs/architecture.md` §7 |
@@ -27,6 +28,8 @@ Talos bootstrap).
 
 - **Machine config / bootstrap / OS upgrade** — those are Talos tooling's job
   (`docs/architecture.md` §7; `scripts/talos/`). OpenTofu never injects them by default.
+  In particular, `data_disk` only attaches a raw disk; the Talos `UserVolumeConfig`
+  that partitions, mounts and consumes it lives in `talos/patches/worker.yaml`.
 - **Instance count / topology / sizing** — the caller decides; see
   `infrastructure/environments/homelab/proxmox/talos.tf`.
 - **The OS image** — the caller downloads it (`proxmox_download_file`) and passes a
@@ -49,6 +52,11 @@ module "talos" {
   cpu_cores           = each.value.cpu_cores
   memory_dedicated_mb = each.value.memory_mb
   disk_size_gb        = each.value.disk_gb
+
+  # Worker only (each.value.data_disk_gb is null on the control plane).
+  data_disk = each.value.data_disk_gb == null ? null : {
+    size_gb = each.value.data_disk_gb
+  }
 
   os_image_file_id = proxmox_download_file.talos.id
 
@@ -98,6 +106,24 @@ module "talos" {
 | `disk_file_format` | `string` | `"raw"` | `raw` / `qcow2` / `vmdk`. |
 | `disk_discard` | `string` | `"on"` | Pass TRIM to the SSD (`on`/`ignore`). |
 | `disk_ssd` | `bool` | `true` | Advertise SSD emulation. |
+
+### Data disk (optional)
+
+`data_disk` adds a **second** disk, separate from the boot disk. It is `null` (the
+default) unless a node needs local storage: Talos cannot provision a `UserVolumeConfig`
+on the system disk, because the `EPHEMERAL` partition spans it and consumes the free
+space. The worker's data disk backs the node-local `local-path` StorageClass
+(`docs/decisions.md` §3.4, §4.3); it is **not** replicated (node-local, no HA).
+
+| Name | Type | Default | Purpose |
+|---|---|---|---|
+| `data_disk` | `object({size_gb, interface, datastore_id})` | `null` | Additional disk. `null` = boot disk only. |
+| `data_disk.size_gb` | `number` | — (required) | Data disk size in GiB (≥ 1). |
+| `data_disk.interface` | `string` | `"scsi1"` | Bus slot; must differ from `disk_interface`. |
+| `data_disk.datastore_id` | `string` | `null` → boot disk's | Override the datastore (defaults to `disk_datastore_id` = the host SSD). |
+
+The data disk inherits `disk_file_format`, `disk_discard` and `disk_ssd` from the boot
+disk, so it lands on the same SSD with the same TRIM/SSD behaviour.
 
 ### OS image source
 

@@ -58,6 +58,25 @@ VM disk image. Exact per-directory sizes and which are irreplaceable are **open 
 - Dataset hierarchy with explicit per-dataset snapshot + backup policy (the current single non-recursive
   task is insufficient).
 - Decide NFS vs SMB vs other for Proxmox storage and any Kubernetes CSI, based on latency/consistency —
-  **do not** put latency-sensitive databases on network storage without evidence.
+  **do not** put latency-sensitive databases on network storage without evidence. *Decided for databases:*
+  node-local `local-path`, not network storage (see below).
 - Evaluate whether the 3-way boot mirror and 1 TB L2ARC are justified for the role, or right-sized.
 - No Ceph/Longhorn unless justified for a single-host setup.
+
+## Kubernetes local storage (decided — `local-path`)
+
+Latency-sensitive databases (Immich Postgres today; `docs/decisions.md` §4.3) do **not** use network
+storage. They run on the node-local `local-path` StorageClass
+(`kubernetes/infrastructure/local-path`), backed by a Talos **user volume** on the worker's dedicated
+**100 GiB data disk** (`docs/decisions.md` §3.4). Talos mounts that volume at
+`/var/mnt/local-path-provisioner`, which is exactly the provisioner's `nodePathMap` path
+(`talos/patches/worker.yaml` and `kubernetes/infrastructure/local-path/release.yaml` — the names are a
+contract and must move together).
+
+- **Durability:** node-local and **not replicated** — no HA. If the worker VM is lost or rebuilt from
+  OpenTofu, the Local PVs are gone. Recovery is the scheduled logical database dumps to the NAS
+  (`kubernetes/apps/immich/backup.yaml`), not the PV.
+- **Reclaim:** `reclaimPolicy: Retain` — deleting a PVC does not delete the only copy; a `Released` PV is
+  the visible "this still holds data" signal.
+- Network-backed PVCs stay on the NAS `main/k8s` NFS export via `csi-driver-nfs`
+  (`kubernetes/infrastructure/storage`); `local-path` is deliberately **not** the cluster default class.

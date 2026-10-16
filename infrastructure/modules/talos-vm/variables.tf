@@ -172,6 +172,55 @@ variable "disk_ssd" {
 }
 
 # ---------------------------------------------------------------------------
+# Data disk  (optional — additional to the boot disk)
+# ---------------------------------------------------------------------------
+
+variable "data_disk" {
+  description = <<-EOT
+    Optional ADDITIONAL disk (a second `disk` block), separate from the boot disk.
+    Null (the default) means the VM has only its boot disk.
+
+    This exists because Talos has nowhere on the boot disk to put a
+    `UserVolumeConfig`: the `EPHEMERAL` partition spans the system disk and consumes
+    its free space, so a user volume can only be provisioned on a non-system disk. A
+    dedicated disk also isolates an application's I/O from the OS disk. The worker
+    gets one to back the node-local `local-path` StorageClass
+    (docs/decisions.md §3.4 and §4.3; kubernetes/infrastructure/local-path).
+
+    `interface` must not collide with `disk_interface` (the boot disk's bus slot).
+    Everything not set here is inherited from the boot disk (`disk_datastore_id`,
+    `disk_file_format`, `disk_discard`, `disk_ssd`), so the data disk stays on the
+    same datastore with the same SSD/TRIM behaviour.
+  EOT
+  type = object({
+    size_gb      = number
+    interface    = optional(string, "scsi1")
+    datastore_id = optional(string)
+  })
+  default = null
+
+  validation {
+    condition     = var.data_disk == null || var.data_disk.size_gb >= 1
+    error_message = "data_disk.size_gb must be at least 1 GiB."
+  }
+
+  validation {
+    condition     = var.data_disk == null || var.data_disk.interface != var.disk_interface
+    error_message = "data_disk.interface must differ from disk_interface (the boot disk's bus slot)."
+  }
+
+  validation {
+    condition     = var.data_disk == null || var.data_disk.interface != var.cloud_init_interface
+    error_message = "data_disk.interface must differ from cloud_init_interface (used by the NoCloud drive)."
+  }
+
+  validation {
+    condition     = var.data_disk == null || can(regex("^(scsi|virtio|sata|ide)[0-9]+$", var.data_disk.interface))
+    error_message = "data_disk.interface must be a bus slot such as scsi1, virtio1, sata1 or ide1."
+  }
+}
+
+# ---------------------------------------------------------------------------
 # OS image source  (exactly one of file_id / import_from)
 # ---------------------------------------------------------------------------
 

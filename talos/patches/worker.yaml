@@ -1,19 +1,57 @@
-# Worker-only machine-config patch — INACTIVE TEMPLATE.
+# Worker-only machine-config patch — ACTIVE.
 #
-# This file is comments-only on purpose. `talosctl` rejects an empty or comment-only patch, so
-# scripts/talos/gen-configs.sh only passes a patch that has real content. As long as this file stays
-# comment-only, no worker patch is applied.
+# Applied to WORKERS ONLY (`talosctl gen config --config-patch-worker` in
+# scripts/talos/gen-configs.sh) and never to the control plane. It declares the Talos
+# USER VOLUME that backs the node-local `local-path` StorageClass for the databases
+# (docs/decisions.md §4.3; kubernetes/infrastructure/local-path/release.yaml).
 #
-# Add worker-specific settings here when a concrete need exists. Patches are 1.14-style documents
-# (matched by apiVersion/kind), for example an extra mount for a media/data disk:
+# WHY A USER VOLUME (and not /var)
+#   Talos' root filesystem is read-only, and its one writable tree, `/var`, is the
+#   EPHEMERAL partition — explicitly not for unique data. A `UserVolumeConfig` instead
+#   creates its OWN partition (labelled `u-local-path-provisioner`) and mounts it at
+#   `/var/mnt/<name>`; that partition does not live on EPHEMERAL and is not wiped by an
+#   OS upgrade or `talosctl reset --system-labels-to-wipe EPHEMERAL`.
+#     https://docs.siderolabs.com/talos/v1.14/configure-your-talos-cluster/storage-and-disk-management/disk-management/user
 #
-#   apiVersion: v1alpha1
-#   kind: KubeletConfig
-#   extraMounts:
-#     - destination: /var/mnt/media
-#       type: bind
-#       source: /var/mnt/media
-#       options: ["bind", "rshared", "rw"]
+# THE COUPLING WITH THE STORAGECLASS — the name is the contract
+#   kubernetes/infrastructure/local-path/release.yaml points the provisioner's
+#   `nodePathMap` at EXACTLY `/var/mnt/local-path-provisioner`. Talos mounts a user
+#   volume at `/var/mnt/<metadata.name>`, so this document's `name` MUST stay
+#   `local-path-provisioner`. If the name changes, the provisioner's data path becomes
+#   a directory on the read-only rootfs and every PVC fails to provision. Rename one
+#   and the other MUST move with it.
+#     https://docs.siderolabs.com/kubernetes-guides/csi/local-storage
 #
-# TODO(GATE 0): worker count and sizing are undecided (docs/architecture.md §3). Nothing
-# worker-specific is pinned yet; when one is added, document why it belongs on workers only.
+# THE DISK — a dedicated, non-system disk is REQUIRED
+#   `diskSelector: "!system_disk"` selects a disk that is NOT the Talos system disk.
+#   The system disk cannot host a user volume: its `EPHEMERAL` partition spans the
+#   disk and consumes the free space. So the worker gets a dedicated DATA disk from
+#   OpenTofu (infrastructure/environments/homelab/proxmox/talos.tf → the `talos-wk-1`
+#   `data_disk_gb`; docs/decisions.md §3.4). The control plane has no data disk and
+#   must NEVER receive this document.
+#     https://docs.siderolabs.com/talos/v1.14/configure-your-talos-cluster/storage-and-disk-management/disk-management/common
+#
+# SIZE — what minSize/maxSize actually mean (verified against the pinned v1.14 docs)
+#   `minSize`/`maxSize` bound the USER VOLUME (the partition), NOT the disk. `minSize`
+#   is additionally used to SELECT the disk: a disk is only eligible if it has at least
+#   `minSize` of free space ("The volume will be provisioned on the first disk that
+#   matches the expression and has sufficient free space for the volume"), and
+#   `maxSize` caps the volume (without it, the volume may grow to the size of the disk).
+#   A size constraint is mandatory: without minSize or maxSize Talos rejects the
+#   document. Verified at:
+#     https://docs.siderolabs.com/talos/v1.14/configure-your-talos-cluster/storage-and-disk-management/disk-management/user
+#     https://docs.siderolabs.com/talos/v1.14/reference/configuration/block/uservolumeconfig
+#   We fix the volume at 90GiB on a 100GiB data disk: >4x the 20Gi Immich Postgres PVC
+#   (kubernetes/apps/immich/postgres.yaml) with room to grow, and safely below the disk
+#   size. It can never select the boot disk, for two independent reasons: the boot disk
+#   IS the system disk (`!system_disk` excludes it), and its EPHEMERAL partition leaves
+#   no 90GiB of free space for a user volume to be provisioned.
+#   `volumeType` is left at its default (`partition`).
+apiVersion: v1alpha1
+kind: UserVolumeConfig
+name: local-path-provisioner
+provisioning:
+  diskSelector:
+    match: "!system_disk"
+  minSize: 90GiB
+  maxSize: 90GiB
