@@ -1,0 +1,13 @@
+# markdownlint-cli2 configuration
+config:
+  MD013: false  # line length — tables/prose are intentionally wide
+  MD033: false  # inline HTML — allowed where useful
+  MD041: false  # first line in file need not be a top-level heading
+  MD024: false  # duplicate headings (repeated sections across phases)
+  MD029: false  # ordered-list prefix style
+  MD012: false  # multiple consecutive blank lines
+  MD046: false  # code block style
+  MD036: false  # emphasis used as a pseudo-heading (intentional)
+  MD060: false  # table column spacing style (too picky for these tables)
+  MD022: false  # blanks around headings (docs are list-dense)
+  MD032: false  # blanks around lists
