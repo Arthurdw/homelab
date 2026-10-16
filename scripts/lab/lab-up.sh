@@ -73,7 +73,8 @@ flux reconcile source git flux-system
 kubectl -n flux-system wait --for=condition=Ready gitrepository/flux-system --timeout=120s
 
 log "8/8 apply the REAL cluster Kustomizations"
-kubectl apply -f kubernetes/clusters/homelab/infrastructure.yaml >/dev/null
+kubectl apply -f kubernetes/clusters/homelab/infrastructure.yaml \
+  -f kubernetes/clusters/homelab/infrastructure-configs.yaml >/dev/null
 if [ "$SYNC" = "all" ]; then
   kubectl apply -f kubernetes/clusters/homelab/apps.yaml >/dev/null
 else

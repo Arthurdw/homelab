@@ -7,13 +7,23 @@ except for bootstrapping Flux itself.
 
 ```text
 kubernetes/
-  clusters/homelab/        # Flux entrypoints for THIS cluster (the reconciliation roots)
-    infrastructure.yaml    # Flux Kustomization -> ./kubernetes/infrastructure
-    apps.yaml              # Flux Kustomization -> ./kubernetes/apps
-    flux-system/           # created by `flux bootstrap` (not committed) + SOPS age key
-  infrastructure/          # cluster-wide controllers/sources (Flux, MetalLB, ingress, DNS, certs)
-  apps/                    # user-facing workloads
+  clusters/homelab/          # Flux entrypoints for THIS cluster (the reconciliation roots)
+    infrastructure.yaml        # -> ./kubernetes/infrastructure            (controllers)
+    infrastructure-configs.yaml# -> ./kubernetes/infrastructure/configs    (CRs; needs CRDs)
+    apps.yaml                  # -> ./kubernetes/apps                      (workloads)
+    flux-system/               # created by `flux bootstrap` (not committed) + SOPS age key
+  infrastructure/            # cluster-wide controllers/sources (Flux, MetalLB, ingress, DNS, certs)
+    configs/                   # custom resources that need CRDs from the controllers above
+  apps/                      # user-facing workloads
 ```
+
+Reconciliation order is expressed with `dependsOn`:
+**infrastructure (controllers) → infrastructure-configs (CRs) → apps.**
+
+Splitting controllers from configs is not cosmetic: a `ClusterIssuer` or `IPAddressPool` sits in the same
+Kustomization as the HelmRelease that installs its CRD, and Flux dry-runs the whole set before any of it
+exists. The lab caught exactly that (`no matches for kind "ClusterIssuer"`) — see
+`docs/runbooks/phase-reports/`.
 
 Reconciliation order is expressed with `dependsOn`: controllers before configs, infrastructure before apps.
 

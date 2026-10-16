@@ -4,5 +4,3 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - release.yaml
-  # ClusterIssuer(s) — placed here (config) and applied after the CRDs exist.
-  - clusterissuer.yaml

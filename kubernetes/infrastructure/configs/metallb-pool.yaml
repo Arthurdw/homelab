@@ -2,8 +2,9 @@
 # MetalLB L2 address pool. PLACEHOLDER range (RFC 5737 TEST-NET-1) — replace with a range
 # reserved at GATE 0 (see docs/network-plan.md). Never take addresses from the DHCP pool.
 #
-# NOTE: IPAddressPool/L2Advertisement CRDs are installed by the MetalLB release; Flux will
-# retry until they exist.
+# Lives under infrastructure/configs (not alongside the HelmRelease): the IPAddressPool/
+# L2Advertisement CRDs are installed BY that HelmRelease, so these CRs must be applied only
+# after the controllers are healthy — enforced by the Kustomization dependency ordering.
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
 metadata:

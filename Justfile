@@ -91,6 +91,10 @@ lab-tools:
 lab-up:
   ./scripts/lab/lab-up.sh
 
+# Rebuild the lab Git image from the working tree and re-sync Flux (fast iteration)
+lab-sync:
+  ./scripts/lab/lab-sync.sh
+
 # Tear the lab down
 lab-down:
   ./scripts/lab/lab-down.sh

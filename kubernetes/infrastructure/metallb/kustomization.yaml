@@ -4,4 +4,3 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - release.yaml
-  - pool.yaml

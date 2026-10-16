@@ -1,0 +1,24 @@
+---
+# Configs: resources that depend on CRDs installed by the infrastructure controllers.
+# Kept separate so Flux can order them with `dependsOn` (controllers must be healthy first).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure-configs
+  namespace: flux-system
+spec:
+  interval: 30m
+  retryInterval: 1m
+  timeout: 10m
+  path: ./kubernetes/infrastructure/configs
+  prune: true
+  wait: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  dependsOn:
+    - name: infrastructure
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
