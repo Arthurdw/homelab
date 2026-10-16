@@ -283,7 +283,12 @@ age + size anomalies.
 3. Is any existing TrueNAS pool to be **preserved/imported**, or fully designed fresh? (RaidZ3 of 8×4 TB is already good.)
 4. Offsite machine at the sister's home: exists today, or to be purchased? bandwidth/power sensitivity?
 5. Alert channel preference (Telegram / email / other)?
-6. Domain/Cloudflare for cert-manager + Tunnel? Public exposure preferences?
+6. Domain/Cloudflare for cert-manager + Tunnel? Public exposure preferences? Specifically: do we want a
+   **public, Cloudflare-Tunnel-proxied git mirror** (e.g. `https://git.lab.ardw.be` → in-cluster git) for
+   GitHub-outage resilience / fast LAN clones? If yes: read-only, mirrors **public content only**, and the
+   `cloudflared` Deployment is Flux-managed (a consumer, never the bootstrap source). SSH over a tunnel needs
+   `cloudflared access ssh` on every client, so HTTPS is the natural choice. Note a public Cloudflare name
+   removes the dependency on our internal resolver.
 7. VPN for remote admin (Tailscale already on the NAS — reuse or separate)?
 8. Workstation cleanup: OK to free/move data (~90 G free) or add a disk/NVMe for the lab?
 9. Self-hosted git mirror (e.g. `git.lab.ardw.be`)? If yes: **HTTPS** (anonymous read, simplest) and/or **SSH**
