@@ -189,7 +189,8 @@ Last reconciled against the repo: **2026-10-16**.
 - [x] CI L0 (fmt/validate/lint/scan) + secret scanning *(gitleaks clean; lint-tool versions not yet pinned)*
 - [x] Secret strategy (SOPS+age) + **state backend** design → `docs/secrets-and-state.md` *(design only)*
 - [x] Lab harness: `just lab-up` = kind + in-cluster Git server + Flux reconciling the real tree; `just ci`
-      verified with `act` *(UniFi container + nested PVE/NAS fixtures pending)* → **⛔ GATE 1**
+      verified with `act`; **libvirt guests** for the Talos/NAS layer being added (`just lab-virt-*`) *(the
+      UniFi controller fixture is still pending)* → **⛔ GATE 1**
 
 ### Phase 2 — TrueNAS inventory & backup design
 - [ ] Finish NAS inventory incl. `main` datasets, shares, SSO/users, tasks, services
@@ -202,7 +203,9 @@ Last reconciled against the repo: **2026-10-16**.
 ### Phase 3 — Infrastructure IaC (greenfield — build, don't import)
 - [x] OpenTofu roots per state boundary; providers pinned + compatibility documented
       (`proxmox`, `truenas`, `unifi`; `tofu validate` passes; lock files committed)
-- [ ] Author UniFi/Proxmox/TrueNAS configs under the **additive-only** policy (§4.4) *(scaffold only; no resources yet)*
+- [ ] Author UniFi/Proxmox/TrueNAS configs under the **additive-only** policy (§4.4) *(in progress: the Proxmox
+      VM module and topology are being authored; TrueNAS/UniFi resources still to come — they need live-API
+      verification)*
 - [ ] **Every config validated in L1 fixtures before any live plan**
 - [ ] CI: plan preview on PRs; protected environment for applies → **⛔ GATE 3 before any live apply**
 
@@ -217,16 +220,18 @@ Last reconciled against the repo: **2026-10-16**.
 - [ ] Verify the storage link (interface, MTU, throughput) and apply UniFi objects additively → **⛔ GATE 4 per risky step**
 
 ### Phase 5 — Talos & Kubernetes bootstrap
-- [ ] Pin Talos + Kubernetes versions; build node VMs via Tofu; secrets kept out of repo *(versions pinned in
-      `versions.yaml`; VM build + machine config not started)*
-- [ ] Bootstrap control plane, join workers, CNI, storage reachability, ingress
+- [ ] Pin Talos + Kubernetes versions; build node VMs via Tofu; secrets kept out of repo *(versions pinned;
+      config generation + offline validation tooling landed (`scripts/talos/`, `talos/`) and passes
+      `talosctl validate --mode metal`; VM build in progress)*
+- [ ] Bootstrap control plane, join workers, CNI, storage reachability, ingress *(Cilium + NFS CSI being added)*
 - [ ] No HA claims on single host → **⛔ GATE 5**
 
 ### Phase 6 — Flux & platform services
-- [ ] Bootstrap Flux from repo with clear ordering/health checks *(tree scaffolded and **lab-verified**; real
-      bootstrap pending. The lab found and fixed a CRD-ordering bug — see the phase report)*
+- [ ] Bootstrap Flux from repo with clear ordering/health checks *(tree scaffolded and **lab-verified** in kind;
+      real bootstrap pending. The lab found and fixed a CRD-ordering bug — see the phase report)*
 - [ ] Platform: ingress, CSI/storage, DNS (with independent recovery), cert-manager, monitoring baseline
-      *(metallb + traefik + cert-manager + technitium manifiests exist; CSI + monitoring not started)*
+      *(metallb, traefik, cert-manager, technitium and kube-prometheus-stack manifests exist and render; Cilium
+      and NFS CSI are being added; no cluster bootstrap yet)*
 - [ ] Bootstrap must not depend on in-cluster DNS or Authentik → break-glass documented → **⛔ GATE 6**
 
 ### Phase 7 — Applications (incremental)
@@ -335,6 +340,8 @@ the offsite hardware purchase, and the Cloudflare domain + scoped token (only ne
 | 2026-10-16 | 1,5-7 | CI gained an **abstract `helm template` render check** for every HelmRelease (proven to catch the technitium class of failure, no cluster needed). SOPS+age tooling, Talos config tooling and a kube-prometheus-stack baseline also landed. |
 | 2026-10-16 | 0 | **GATE 0 answered.** The target environment is **local libvirt VMs**; the physical hosts stay read-only until an owner-executed ISO cutover. Address plan, topology, storage mapping, CNI, alerts, UniFi key and git mirror all decided → `docs/decisions.md`. |
 | 2026-10-16 | 0 | **Finding (read-only):** the NAS points at `10.10.1.53`, which answers nothing — it has been silently using `1.1.1.1`; the UDM answers on the server VLAN. Recorded, **not** changed (production is not written to). |
+| 2026-10-16 | 1 | **Lab moves to libvirt guests.** Verified that `libvirtd.socket` is socket-activated, so `virsh` already works with no owner action — an earlier claim that `libvirtd` needed enabling was wrong (a `.service` showing "disabled" is normal on Arch). |
+| 2026-10-16 | 3,5-8 | Second parallel round started: Cilium CNI, NFS CSI storage, the Proxmox VM module, Immich/Audiobookshelf values, and alert delivery + the SOPS CI gate. |
 
 ## 12. Phase report template (`docs/runbooks/phase-reports/phase-NN.md`)
 
