@@ -1,0 +1,9 @@
+# Copy to `terraform.tfvars` (gitignored) and fill in. NEVER commit real values.
+
+# https://<proxmox-host>:8006/
+proxmox_endpoint = "https://CHANGE-ME:8006/"
+
+# true only for a self-signed cert on a trusted management network
+proxmox_insecure = true
+
+proxmox_ssh_username = "root"

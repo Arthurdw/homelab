@@ -1,0 +1,10 @@
+# Copy to `terraform.tfvars` (gitignored) and fill in, or export TF_VAR_* instead.
+# NEVER commit real values.
+
+# https://<truenas-host>
+truenas_endpoint = "https://CHANGE-ME"
+
+# Prefer: export TF_VAR_truenas_api_key='...'   (keep the key out of files entirely)
+truenas_api_key = "REPLACE-ME"
+
+truenas_insecure = true

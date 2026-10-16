@@ -1,0 +1,11 @@
+# Copy to `terraform.tfvars` (gitignored) and fill in, or export TF_VAR_* instead.
+# NEVER commit real values.
+
+# https://<unifi-controller-host>
+unifi_api_url = "https://CHANGE-ME"
+
+# Prefer: export TF_VAR_unifi_api_key='...'   (keep the key out of files entirely)
+unifi_api_key = "REPLACE-ME"
+
+unifi_site           = "default"
+unifi_allow_insecure = true
