@@ -6,15 +6,32 @@
 # used here: in 1.14 they collide with the generated documents and make `talosctl validate` fail.
 # Reference: https://docs.siderolabs.com/talos/v1.14/configure-your-talos-cluster/system-configuration/patching
 #
-# This patch is passed as `talosctl gen config --config-patch @patches/common.yaml`.
+# This patch is passed as `talosctl gen config --config-patch @patches/common.yaml`, i.e. to BOTH
+# node types. Anything that Talos restricts to the control plane therefore CANNOT live here — see
+# the kube-proxy note below.
 
-# Disable Talos' bundled Flannel so the chosen CNI is installed explicitly after bootstrap
-# (docs/runbooks/talos-bootstrap.md §7). Removing this document is the 1.14 equivalent of the old
-# `cluster.network.cni.name: none`.
+# --- CNI: none (the equivalent of the legacy `cluster.network.cni.name: none`) ------------------
+# The cluster CNI is Cilium with kube-proxy replacement (docs/decisions.md §3.3; docs/architecture.md
+# §6). Talos bundles its default CNI (Flannel) as a bootstrap manifest; deleting that document removes
+# it and is the 1.14 equivalent of `cluster.network.cni.name: none`. This is the ONLY bundled CNI
+# manifest Talos would apply, so removing it leaves the cluster with no CNI until Cilium is installed.
 #
-# TODO(GATE 0): confirm the CNI decision (Cilium vs flannel vs other) — docs/architecture.md §6 marks
-# the CNI as TBD. If Talos' bundled Flannel is chosen instead, remove this patch document (or delete
-# `patches/common.yaml`) and drop the CNI-install step from the runbook.
+# Cilium is delivered by Flux (kubernetes/infrastructure/cilium — a HelmRelease, not a raw manifest),
+# so Talos embeds NO inline Cilium manifest: the guide's "Inline manifest" method is deliberately NOT
+# used, because a Talos inline manifest is applied only at bootstrap and is never updated or deleted
+# (Talos is additive-only for manifests), which would put the CNI outside GitOps.
+#
+# Reference: https://docs.siderolabs.com/kubernetes-guides/cni/deploying-cilium  ("Without kube-proxy")
 apiVersion: v1alpha1
 kind: KubeFlannelCNIConfig
 $patch: delete
+
+# --- kube-proxy: disabled — lives in patches/controlplane.yaml, NOT here ------------------------
+# With Cilium's kube-proxy replacement, Talos' own kube-proxy must also be turned off or the two
+# fight over service routing (the Talos Cilium guide's "Without kube-proxy" prerequisites require
+# `KubeProxyConfig: enabled: false`). Talos only permits a `KubeProxyConfig` document on CONTROL
+# PLANE machines: applying it to a worker fails validation with
+#   "the following document kinds are only allowed on control plane machines: [KubeProxyConfig]".
+# Because this file is passed to every node, that patch document is in
+# `talos/patches/controlplane.yaml` (applied via `--config-patch-control-plane`), exactly as the
+# Talos guide does it. Do not move it here.

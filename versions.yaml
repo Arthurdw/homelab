@@ -38,6 +38,10 @@ iac:
 
 helm_charts:
   # Latest on Artifact Hub as of 2026-10-16. Pinned in kubernetes/**/release.yaml.
+  # CNI (docs/decisions.md §3.3). Verified 2026-10-16 against the upstream repo:
+  #   helm repo add cilium https://helm.cilium.io && helm repo update
+  #   helm show chart cilium/cilium --version 1.20.3   # 1.20.3 = newest stable, appVersion 1.20.3
+  cilium: "1.20.3"               # https://helm.cilium.io
   metallb: "0.16.1"              # https://metallb.github.io/metallb
   traefik: "42.0.0"              # https://traefik.github.io/charts
   cert_manager: "1.21.2"         # https://charts.jetstack.io

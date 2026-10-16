@@ -1,20 +1,40 @@
-# Control-plane-only machine-config patch — INACTIVE TEMPLATE.
+# Control-plane-only machine-config patch.
 #
-# This file is comments-only on purpose. `talosctl` rejects an empty or comment-only patch, so
-# scripts/talos/gen-configs.sh only passes a patch that has real content. As long as this file stays
-# comment-only, no control-plane patch is applied.
+# Passed as `talosctl gen config ... --config-patch-control-plane @patches/controlplane.yaml`
+# (scripts/talos/gen-configs.sh only passes a patch file that has non-comment content). Because this
+# file is applied to control plane machines ONLY, it is where Talos' control-plane-restricted
+# documents belong.
+
+# Disable Talos' kube-proxy — the other half of Cilium's kube-proxy replacement.
 #
-# The GATE 0 topology hypothesis is 1 control-plane + 1 worker (docs/architecture.md §3), where
-# application pods belong on the worker, so workloads stay OFF the control plane (the default). What
-# enforces that is the control-plane taint in the generated KubeNodeConfig document:
+# Cilium is installed with `kubeProxyReplacement: true` (kubernetes/infrastructure/cilium/release.yaml,
+# docs/decisions.md §3.3). If Talos also runs kube-proxy, both programs program service routing and
+# they conflict. The official Talos Cilium guide's "Without kube-proxy" prerequisites require exactly
+# this document:
+#   https://docs.siderolabs.com/kubernetes-guides/cni/deploying-cilium
+# `enabled: false` stops kube-proxy being deployed at bootstrap (KubeProxyConfig reference, v1.14:
+# "Enable or disable kube-proxy deployment on cluster bootstrap. Default is enabled.").
+#
+# WHY THIS IS NOT IN common.yaml: Talos rejects a KubeProxyConfig document on workers —
+#   "the following document kinds are only allowed on control plane machines: [KubeProxyConfig]".
+# common.yaml is passed to every node, so the document must live here. The CNI-is-none half
+# (deleting the bundled Flannel document) stays in common.yaml because it IS valid on both.
+apiVersion: v1alpha1
+kind: KubeProxyConfig
+enabled: false
+
+# ------------------------------------------------------------------------------------------------
+# Topology note (docs/architecture.md §3; docs/decisions.md §3.1): 1 control plane + 1 worker, with
+# application pods belonging on the worker. Workloads stay OFF the control plane via the control
+# plane taint in the generated KubeNodeConfig document:
 #
 #   apiVersion: v1alpha1
 #   kind: KubeNodeConfig
 #   taints:
 #     node-role.kubernetes.io/control-plane: NoSchedule
 #
-# TODO(GATE 0): confirm the topology. If a single-node ("hybrid") cluster is chosen instead, allow
-# scheduling on the control plane by deleting the taint — this patch document is verified to work:
+# If a single-node ("hybrid") cluster is ever chosen instead, allow scheduling on the control plane
+# by deleting the taint — this patch document is verified to work:
 #
 #   apiVersion: v1alpha1
 #   kind: KubeNodeConfig
