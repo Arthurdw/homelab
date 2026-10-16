@@ -1,4 +1,4 @@
-# Canonical Project Brief (governing specification)
+**Canonical Project Brief — governing specification**
 
 > **Source:** provided by the owner (produced with another AI model) and reproduced here as the
 > **governing specification** for this project.
