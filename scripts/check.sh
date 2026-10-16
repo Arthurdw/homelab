@@ -6,15 +6,6 @@ set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 fail=0
 have() { command -v "$1" >/dev/null 2>&1; }
-run() {
-  local name="$1"; shift
-  if have "$1"; then
-    echo "== $name =="
-    "$@" || { echo "FAILED: $name"; fail=1; }
-  else
-    echo "== $name == skipped (missing: $1) =="
-  fi
-}
 
 # --- secrets ---
 if have gitleaks; then
@@ -58,7 +49,9 @@ fi
 if have shellcheck; then
   echo "== shellcheck =="
   mapfile -t sh < <(find . -name '*.sh' -not -path './.git/*')
-  [ ${#sh[@]} -gt 0 ] && shellcheck -x "${sh[@]}" || true
+  if [ "${#sh[@]}" -gt 0 ]; then
+    shellcheck -x "${sh[@]}" || { echo "FAILED: shellcheck"; fail=1; }
+  fi
 fi
 
 echo
