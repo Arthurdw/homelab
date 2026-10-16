@@ -1,0 +1,43 @@
+# Backup Matrix
+
+> **Template + current draft.** Every important dataset/workload needs a row. Values marked **TBD** are
+> unconfirmed — do not treat them as decided. Governed by `docs/backup-policy.md`.
+
+Legend: **T** = tier · **Irrep.** = irreplaceable? · **Snap** = local snapshot policy · **Off** = offsite?
+**Mech** = mechanism · **Restore** = restore procedure reference.
+
+## Datasets (TrueNAS `main`) — current state, to be redesigned
+
+| Dataset / dir | T | Irrep. | Auth. source of truth | Snap | Off | Mech | Schedule | Retention | Encryption | Restore | Monitoring |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `main` personal dirs (TBD which) | TBD | likely yes (photos/docs) | local | **TBD** | **TBD** | TBD | TBD | TBD | yes | TBD | TBD |
+| `main` media (movies/shows) | 3 | no | re-downloadable | optional | no | — | — | — | n/a | re-download | n/a |
+| `main/ix-apps/...` (app data, 490 G s3 export) | TBD | TBD | app | **none today** ⚠️ | TBD | TBD | TBD | TBD | yes | TBD | TBD |
+| `main/proxmox` (incl. 3 TB VM disk) | TBD | TBD | VM | **TBD** | TBD | TBD | TBD | TBD | yes | TBD | TBD |
+
+## Workloads / configuration
+
+| Item | T | Irrep. | Auth. source of truth | Off | Mech | Notes |
+|---|---|---|---|---|---|---|
+| TrueNAS config export | 2 | yes | NAS | yes | file | export after each config change |
+| OpenTofu state (per system) | 2 | yes | backend | yes | encrypted | recoverable without cluster |
+| Talos machine secrets + kubeconfig | 2 | yes | Vault/offline | yes | encrypted | never in repo |
+| SOPS/age private key | 2 | **critical** | offline escrow | yes | offline | losing it loses all encrypted secrets |
+| Immich DB + media | TBD | likely yes | app | yes | DB dump + media backup | related recovery set; order matters |
+| Audiobookshelf config/media | TBD | depends | app | TBD | TBD | classify media by replaceability |
+| Flux repo (+ secret decryption) | 2 | yes | Git | yes | Git + encrypted secrets | repo is public; secrets separate |
+| UniFi config export | 2 | yes | UDM Pro | yes | file | export before each change |
+| Proxmox VM configs | 2 | yes | host | yes | file | `/etc/pve` export |
+
+## Rules
+
+- A dataset without a tier is **unclassified** and must be flagged, not assumed backed up.
+- Media that is re-downloadable defaults to **Tier 3** (local only) unless the owner marks an exception.
+- Snapshots are **not** backups of the same pool.
+
+## Open items
+
+- Decide which `main` directories are **T1** (owner input).
+- Choose offsite mechanism + destination.
+- Per-dataset snapshot retention.
+- Restore procedures per row (link to `docs/disaster-recovery.md` when written).
