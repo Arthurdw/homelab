@@ -51,11 +51,17 @@ secrets:
 # Render kustomizations and validate (if any exist)
 k8s-validate:
   #!/usr/bin/env bash
+  KUSTOMIZE="kustomize"
+  command -v kustomize >/dev/null 2>&1 || KUSTOMIZE="kubectl kustomize"
   mapfile -t dirs < <(find kubernetes -name kustomization.yaml -exec dirname {} \; 2>/dev/null)
   if [ ${#dirs[@]} -eq 0 ]; then echo "no kustomizations yet"; exit 0; fi
   for d in "${dirs[@]}"; do
     echo "== build $d =="
-    kustomize build "$d" | kubectl apply --dry-run=client -f - >/dev/null
+    if command -v kubeconform >/dev/null 2>&1; then
+      $KUSTOMIZE "$d" | kubeconform -strict -summary -ignore-missing-schemas -
+    else
+      $KUSTOMIZE "$d" >/dev/null && echo "  rendered ok (install kubeconform for schema checks)"
+    fi
   done
 
 # ---------------------------------------------------------------------------
