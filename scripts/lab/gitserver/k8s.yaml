@@ -1,0 +1,47 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab-git
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homelab-git
+  namespace: lab-git
+  labels:
+    app: homelab-git
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: homelab-git
+  template:
+    metadata:
+      labels:
+        app: homelab-git
+    spec:
+      containers:
+        - name: git
+          image: homelab-git:lab
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /homelab.git/info/refs?service=git-upload-pack
+              port: 80
+            initialDelaySeconds: 2
+            periodSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: homelab-git
+  namespace: lab-git
+spec:
+  selector:
+    app: homelab-git
+  ports:
+    - port: 80
+      targetPort: 80

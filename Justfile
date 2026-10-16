@@ -83,6 +83,22 @@ lab-kind-up:
 lab-kind-down:
   kind delete cluster --name homelab-lab
 
+# Install the pinned lab tools (kind, flux, age, sops) into ~/.local/bin
+lab-tools:
+  ./scripts/lab/install-tools.sh
+
+# Bring up the full lab: kind + in-cluster Git server + Flux reconciling THIS repo
+lab-up:
+  ./scripts/lab/lab-up.sh
+
+# Tear the lab down
+lab-down:
+  ./scripts/lab/lab-down.sh
+
+# Show what the lab cluster is reconciling
+lab-status:
+  ./scripts/lab/lab-status.sh
+
 # Show lab prerequisites / resource requirements (no changes)
 lab-doctor:
   #!/usr/bin/env bash
