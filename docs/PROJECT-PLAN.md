@@ -171,7 +171,7 @@ homelab/
 
 ## 6. Phases
 
-Legend: `[x]` done · `[ ]` not done · `[ ]` + a _partial_ note = started but incomplete.
+Legend: `[x]` done · `[ ]` not done · `[ ]` + a *partial* note = started but incomplete.
 Last reconciled against the repo: **2026-10-16**.
 
 ### Phase 0 — Audit & architecture (**deliverables complete; GATE 0 awaiting owner answers**)
@@ -179,30 +179,30 @@ Last reconciled against the repo: **2026-10-16**.
 - [x] Read-only discovery of Proxmox + TrueNAS (raw in `docs/private/`, sanitized in `docs/`)
 - [x] Capture gaps closed: `main` datasets, shares, services, snapshot task, DNS, NIC speeds, VM 100, P4 IOMMU group
 - [x] Drafted `docs/hardware.md`, `network-plan.md`, `storage.md`, `risk-register.md`, `lab.md` + `versions.yaml`
-- [ ] Capture UniFi state (API token or UI export) — read-only _(blocked: no read-only key exists; needs owner)_
-- [ ] Data-preservation plan: confirm Tier-1 directories + the VM disk on the `proxmox` share _(owner input)_
+- [ ] Capture UniFi state (API token or UI export) — read-only *(blocked: no read-only key exists; needs owner)*
+- [ ] Data-preservation plan: confirm Tier-1 directories + the VM disk on the `proxmox` share *(owner input)*
 - [x] Write `docs/architecture.md` (target) + migration/rebuild plan
-- [x] Produce open-questions list (§10) → **⛔ GATE 0** _(list produced; owner answers outstanding)_
+- [x] Produce open-questions list (§10) → **⛔ GATE 0** *(list produced; owner answers outstanding)*
 
 ### Phase 1 — Repository foundation (**deliverables complete**)
 - [x] README/CONTRIBUTING/SECURITY/versions.yaml; scaffolding per §5
-- [x] CI L0 (fmt/validate/lint/scan) + secret scanning _(gitleaks clean; lint-tool versions not yet pinned)_
-- [x] Secret strategy (SOPS+age) + **state backend** design → `docs/secrets-and-state.md` _(design only)_
+- [x] CI L0 (fmt/validate/lint/scan) + secret scanning *(gitleaks clean; lint-tool versions not yet pinned)*
+- [x] Secret strategy (SOPS+age) + **state backend** design → `docs/secrets-and-state.md` *(design only)*
 - [x] Lab harness: `just lab-up` = kind + in-cluster Git server + Flux reconciling the real tree; `just ci`
-      verified with `act` _(UniFi container + nested PVE/NAS fixtures pending)_ → **⛔ GATE 1**
+      verified with `act` *(UniFi container + nested PVE/NAS fixtures pending)* → **⛔ GATE 1**
 
 ### Phase 2 — TrueNAS inventory & backup design
 - [ ] Finish NAS inventory incl. `main` datasets, shares, SSO/users, tasks, services
-- [ ] Classify every dataset into backup tiers (§7) _(matrix drafted; classification needs owner input)_
-- [ ] Choose mechanism (remote ZFS replication vs restic/borg) with evidence _(drafts: `docs/backup-policy.md`, `docs/backup-matrix.md`)_
+- [ ] Classify every dataset into backup tiers (§7) *(matrix drafted; classification needs owner input)*
+- [ ] Choose mechanism (remote ZFS replication vs restic/borg) with evidence *(drafts: `docs/backup-policy.md`, `docs/backup-matrix.md`)*
 - [ ] Evaluate offsite machine at family member's home (capacity/power/network/admin)
-- [ ] Verify `truenas/truenas` provider _(OpenTofu 1.13.1 compatibility verified; API version + resource coverage pending)_
+- [ ] Verify `truenas/truenas` provider *(OpenTofu 1.13.1 compatibility verified; API version + resource coverage pending)*
 - [ ] Local snapshot policy → **⛔ GATE 2**
 
 ### Phase 3 — Infrastructure IaC (greenfield — build, don't import)
 - [x] OpenTofu roots per state boundary; providers pinned + compatibility documented
       (`proxmox`, `truenas`, `unifi`; `tofu validate` passes; lock files committed)
-- [ ] Author UniFi/Proxmox/TrueNAS configs under the **additive-only** policy (§4.4) _(scaffold only; no resources yet)_
+- [ ] Author UniFi/Proxmox/TrueNAS configs under the **additive-only** policy (§4.4) *(scaffold only; no resources yet)*
 - [ ] **Every config validated in L1 fixtures before any live plan**
 - [ ] CI: plan preview on PRs; protected environment for applies → **⛔ GATE 3 before any live apply**
 
@@ -215,33 +215,33 @@ Last reconciled against the repo: **2026-10-16**.
 - [ ] Re-apply UniFi objects additively; verify management reachability after each step → **⛔ GATE 4 per risky step**
 
 ### Phase 5 — Talos & Kubernetes bootstrap
-- [ ] Pin Talos + Kubernetes versions; build node VMs via Tofu; secrets kept out of repo _(versions pinned in
-      `versions.yaml`; VM build + machine config not started)_
+- [ ] Pin Talos + Kubernetes versions; build node VMs via Tofu; secrets kept out of repo *(versions pinned in
+      `versions.yaml`; VM build + machine config not started)*
 - [ ] Bootstrap control plane, join workers, CNI, storage reachability, ingress
 - [ ] No HA claims on single host → **⛔ GATE 5**
 
 ### Phase 6 — Flux & platform services
-- [ ] Bootstrap Flux from repo with clear ordering/health checks _(tree scaffolded and **lab-verified**; real
-      bootstrap pending. The lab found and fixed a CRD-ordering bug — see the phase report)_
+- [ ] Bootstrap Flux from repo with clear ordering/health checks *(tree scaffolded and **lab-verified**; real
+      bootstrap pending. The lab found and fixed a CRD-ordering bug — see the phase report)*
 - [ ] Platform: ingress, CSI/storage, DNS (with independent recovery), cert-manager, monitoring baseline
-      _(metallb + traefik + cert-manager + technitium manifiests exist; CSI + monitoring not started)_
+      *(metallb + traefik + cert-manager + technitium manifiests exist; CSI + monitoring not started)*
 - [ ] Bootstrap must not depend on in-cluster DNS or Authentik → break-glass documented → **⛔ GATE 6**
 
 ### Phase 7 — Applications (incremental)
 - [ ] One app at a time; documented per-app (pins, ingress/auth, storage, secrets, resources, backup+restore,
-      upgrade/rollback, exposure) _(Immich + Audiobookshelf scaffolded; values/docs pending)_
+      upgrade/rollback, exposure) *(Immich + Audiobookshelf scaffolded; values/docs pending)*
 - [ ] Immich media+DB consistency; Audiobookshelf; Nextcloud **or** Seafile (decision documented); Stremio local-only; Forgejo later → **⛔ GATE 7 before any public exposure**
 
 ### Phase 8 — Backup automation & verification
 - [ ] Implement offsite mechanism: encryption, retention, deletion protection, monitoring, schedule
-      _(restic scripts + systemd units written; no repository, schedule or alerts yet)_
+      *(restic scripts + systemd units written; no repository, schedule or alerts yet)*
 - [ ] Verify first backup **and restore it** (into a test target)
 - [ ] Alerts: last-success age, failures, size anomalies; document transfer times → **⛔ GATE 8 after a successful restore test**
 
 ### Phase 9 — Upgrade & operations automation
 - [x] Talos upgrade runbook (pre-checks, order, verification, rollback limitations honored)
-- [ ] K8s/tool/chart upgrades: manual gate, changelog read, one at a time, verify after each _(documented in
-      `docs/runbooks/upgrades.md`; no automation yet)_
+- [ ] K8s/tool/chart upgrades: manual gate, changelog read, one at a time, verify after each *(documented in
+      `docs/runbooks/upgrades.md`; no automation yet)*
 - [ ] Prove normal applies never side-effect OS upgrades → **⛔ GATE 9**
 
 ### Phase 10 — Disaster recovery validation
