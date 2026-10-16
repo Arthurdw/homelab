@@ -1,0 +1,20 @@
+# Common machine-config patch — applied to every node (control plane and worker).
+#
+# Talos 1.14 machine configuration is MULTI-DOCUMENT: each section (kubelet, cluster network, CNI,
+# ...) is its own document matched by apiVersion/kind (and name). A patch is itself a document that
+# gets merged into the matching generated document. The legacy `machine:`/`cluster:` paths are NOT
+# used here: in 1.14 they collide with the generated documents and make `talosctl validate` fail.
+# Reference: https://docs.siderolabs.com/talos/v1.14/configure-your-talos-cluster/system-configuration/patching
+#
+# This patch is passed as `talosctl gen config --config-patch @patches/common.yaml`.
+
+# Disable Talos' bundled Flannel so the chosen CNI is installed explicitly after bootstrap
+# (docs/runbooks/talos-bootstrap.md §7). Removing this document is the 1.14 equivalent of the old
+# `cluster.network.cni.name: none`.
+#
+# TODO(GATE 0): confirm the CNI decision (Cilium vs flannel vs other) — docs/architecture.md §6 marks
+# the CNI as TBD. If Talos' bundled Flannel is chosen instead, remove this patch document (or delete
+# `patches/common.yaml`) and drop the CNI-install step from the runbook.
+apiVersion: v1alpha1
+kind: KubeFlannelCNIConfig
+$patch: delete

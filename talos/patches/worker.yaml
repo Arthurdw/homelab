@@ -1,0 +1,19 @@
+# Worker-only machine-config patch — INACTIVE TEMPLATE.
+#
+# This file is comments-only on purpose. `talosctl` rejects an empty or comment-only patch, so
+# scripts/talos/gen-configs.sh only passes a patch that has real content. As long as this file stays
+# comment-only, no worker patch is applied.
+#
+# Add worker-specific settings here when a concrete need exists. Patches are 1.14-style documents
+# (matched by apiVersion/kind), for example an extra mount for a media/data disk:
+#
+#   apiVersion: v1alpha1
+#   kind: KubeletConfig
+#   extraMounts:
+#     - destination: /var/mnt/media
+#       type: bind
+#       source: /var/mnt/media
+#       options: ["bind", "rshared", "rw"]
+#
+# TODO(GATE 0): worker count and sizing are undecided (docs/architecture.md §3). Nothing
+# worker-specific is pinned yet; when one is added, document why it belongs on workers only.

@@ -1,0 +1,23 @@
+# Control-plane-only machine-config patch — INACTIVE TEMPLATE.
+#
+# This file is comments-only on purpose. `talosctl` rejects an empty or comment-only patch, so
+# scripts/talos/gen-configs.sh only passes a patch that has real content. As long as this file stays
+# comment-only, no control-plane patch is applied.
+#
+# The GATE 0 topology hypothesis is 1 control-plane + 1 worker (docs/architecture.md §3), where
+# application pods belong on the worker, so workloads stay OFF the control plane (the default). What
+# enforces that is the control-plane taint in the generated KubeNodeConfig document:
+#
+#   apiVersion: v1alpha1
+#   kind: KubeNodeConfig
+#   taints:
+#     node-role.kubernetes.io/control-plane: NoSchedule
+#
+# TODO(GATE 0): confirm the topology. If a single-node ("hybrid") cluster is chosen instead, allow
+# scheduling on the control plane by deleting the taint — this patch document is verified to work:
+#
+#   apiVersion: v1alpha1
+#   kind: KubeNodeConfig
+#   taints:
+#     node-role.kubernetes.io/control-plane:
+#       $patch: delete

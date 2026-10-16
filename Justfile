@@ -13,6 +13,19 @@ default:
 check:
   ./scripts/check.sh
 
+# Install the pinned binary tools the CI checks need (helm, yq, actionlint, shellcheck,
+# kubeconform, kustomize) into ~/.local/bin.
+ci-tools:
+  BIN_DIR="$HOME/.local/bin" ./scripts/ci/install-ci-tools.sh
+
+# Abstract (no-cluster) render check for every Flux HelmRelease
+render:
+  ./scripts/ci/render-helm-releases.sh
+
+# Render check in strict mode: also fails while any HelmRelease values are still unwritten
+render-strict:
+  ./scripts/ci/render-helm-releases.sh --strict
+
 # Format OpenTofu
 fmt:
   tofu fmt -recursive
@@ -32,7 +45,7 @@ validate:
 ci:
   #!/usr/bin/env bash
   set -euo pipefail
-  for j in opentofu kubernetes lint; do
+  for j in opentofu kubernetes render lint; do
     printf '\n########## %s ##########\n' "$j"
     act push -j "$j" --pull=false
   done
@@ -55,6 +68,14 @@ secrets:
     docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:latest detect --source=/repo --no-banner --redact
   fi
 
+# CI gate: every would-be-committed secret file must be SOPS-encrypted
+secrets-check:
+  ./scripts/secrets/check.sh --check
+
+# Prove the SOPS + age round-trip (needs the lab age key)
+secrets-verify:
+  ./scripts/secrets/verify.sh
+
 # Render kustomizations and validate (if any exist)
 k8s-validate:
   #!/usr/bin/env bash
@@ -70,6 +91,10 @@ k8s-validate:
       $KUSTOMIZE "$d" >/dev/null && echo "  rendered ok (install kubeconform for schema checks)"
     fi
   done
+
+# Validate generated Talos machine configs (talosctl validate --mode metal; offline)
+talos-validate:
+  ./scripts/talos/validate.sh
 
 # ---------------------------------------------------------------------------
 # Lab (local test-driven development) — see docs/lab.md

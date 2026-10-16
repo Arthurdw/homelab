@@ -25,11 +25,15 @@ secrets*.yaml
 *.pem
 *.key
 !**/*.pub
+# SOPS ciphertext is safe to commit — never let a secret-looking name hide it
+!*.sops.yaml
+!*.sops.yml
 
 # Kubernetes
 kubeconfig*
 *.kubeconfig
 talosconfig*
+talos/out/
 *.secret.yaml
 *.secret.yml
 
