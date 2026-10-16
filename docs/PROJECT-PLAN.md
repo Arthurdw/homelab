@@ -286,6 +286,10 @@ age + size anomalies.
 6. Domain/Cloudflare for cert-manager + Tunnel? Public exposure preferences?
 7. VPN for remote admin (Tailscale already on the NAS — reuse or separate)?
 8. Workstation cleanup: OK to free/move data (~90 G free) or add a disk/NVMe for the lab?
+9. Self-hosted git mirror (e.g. `git.lab.ardw.be`)? If yes: **HTTPS** (anonymous read, simplest) and/or **SSH**
+   (needs per-client keys; on a Talos node port 22 is free, since Talos has no sshd). Note the source of truth
+   stays public GitHub — a self-hosted git cannot be the bootstrap source if it depends on infrastructure the
+   repo deploys.
 
 ## 11. Status log (append-only)
 
