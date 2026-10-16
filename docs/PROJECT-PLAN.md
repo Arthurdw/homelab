@@ -296,6 +296,12 @@ age + size anomalies.
 | 2026-10-16 | 0 | Governing spec captured as `docs/SPEC.md`; "owner resets hosts, agents read-only" rule recorded. |
 | 2026-10-16 | 0 | Phase 0 docs drafted (hardware/network/storage/risk/lab) + `versions.yaml` (latest versions verified 2026-10-16). |
 | 2026-10-16 | 1 | Target architecture + repo foundation (README, CONTRIBUTING, SECURITY, CI, linting, secret scanning) + `docs/secrets-and-state.md`. |
+| 2026-10-16 | 1 | Justfile task runner + `.actrc` added; CI verified locally with `act` (opentofu, kubernetes, lint jobs pass). |
+| 2026-10-16 | 2 | Backup policy + backup matrix drafted (`docs/backup-policy.md`, `docs/backup-matrix.md`); mechanism choice still open. |
+| 2026-10-16 | 3 | OpenTofu roots scaffolded for proxmox/truenas/unifi; `tofu validate` passes and provider OpenTofu-1.13.1 compatibility confirmed. |
+| 2026-10-16 | 5-7 | Flux GitOps tree scaffolded (`kubernetes/`): infra controllers + 2 apps; manifests build with kustomize and pass kubeconform. |
+| 2026-10-16 | 8 | restic backup/verify scripts + systemd units added (env-driven, no secrets committed). |
+| 2026-10-16 | 9-10 | Upgrade and disaster-recovery runbooks added (`docs/runbooks/`, `docs/disaster-recovery.md`). |
 
 ## 12. Phase report template (`docs/runbooks/phase-reports/phase-NN.md`)
 

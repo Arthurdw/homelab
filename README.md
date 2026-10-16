@@ -31,6 +31,32 @@ Infrastructure-as-code and GitOps for a small, fully reproducible homelab: **Pro
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the workflow and commit conventions.
 
+## Repository layout
+
+```text
+docs/            specification, plan, architecture, runbooks, risk register
+infrastructure/  OpenTofu roots per system (proxmox, truenas, unifi) — validated, nothing applied
+kubernetes/      Flux GitOps: clusters/ (roots) + infrastructure/ (controllers) + apps/
+scripts/         check.sh, backup/ (restic), lab/ (kind)
+Justfile         task runner: `just --list`
+```
+
+## Local development
+
+Everything is testable locally; nothing requires live infrastructure.
+
+```sh
+just --list        # all tasks
+just check         # markdownlint + yamllint + shellcheck + gitleaks + tofu fmt/validate
+just validate      # tofu validate for every root (backend disabled)
+just k8s-validate  # render kustomizations and (if installed) kubeconform them
+just ci            # run the GitHub Actions workflow locally with `act`
+just lab-kind-up   # local kind cluster for manifest/Flux experiments (see docs/lab.md)
+```
+
+CI is static (no credentials, no applies) and is verified locally with [`act`](https://github.com/nektos/act)
+before pushing.
+
 ## License
 
 See [`LICENSE`](LICENSE).

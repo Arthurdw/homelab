@@ -22,18 +22,28 @@ iac:
   providers:
     bpg/proxmox:
       version: "0.116.1"
-      opentofu_compat: "unverified"
+      opentofu_compat: "verified 2026-10-16 (tofu 1.13.1 validate)"
     truenas/truenas:
       version: "1.5.14"
-      opentofu_compat: "unverified"
+      opentofu_compat: "verified 2026-10-16 (tofu 1.13.1 validate)"
       api_note: "verify supported TrueNAS release + API version"
     ubiquiti-community/unifi:
       version: "0.60.0-beta.0"
       stable: false
+      opentofu_compat: "verified 2026-10-16 (tofu 1.13.1 validate)"
       note: "latest is a pre-release — do NOT use betas for critical network automation"
     BadgerOps/unifi:
       version: "0.4.0"
       note: "alternative; check maintenance cadence before relying on it"
+
+helm_charts:
+  # Latest on Artifact Hub as of 2026-10-16. Pinned in kubernetes/**/release.yaml.
+  metallb: "0.16.1"              # https://metallb.github.io/metallb
+  traefik: "42.0.0"              # https://traefik.github.io/charts
+  cert_manager: "1.21.2"         # https://charts.jetstack.io
+  technitium_dnsserver: "1.13.4" # https://charts.obeone.cloud
+  immich: "0.13.2"               # oci://ghcr.io/immich-app/immich-charts/immich
+  audiobookshelf: "2.5.1"        # https://charts.christianhuth.de
 
 ci_tools:
   tflint: "0.64.0"
@@ -48,7 +58,7 @@ ci_tools:
 verification_tasks:
   - "Talos v1.14.4 ↔ Kubernetes v1.37.1 compatibility matrix"
   - "Flux v2.9.6 supported Kubernetes range"
-  - "bpg/proxmox + truenas/truenas OpenTofu (not just Terraform) compatibility"
   - "truenas provider supported TrueNAS 24.10.x API endpoints / resource coverage"
   - "UniFi provider: stable vs beta; UDM Pro API coverage"
   - "Helm 4 chart/release compatibility for all chosen charts"
+  - "DONE 2026-10-16: bpg/proxmox, truenas/truenas, ubiquiti-community/unifi validate under OpenTofu 1.13.1"
