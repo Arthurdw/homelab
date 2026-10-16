@@ -38,25 +38,45 @@ than hiding it. Use `--dry-run` to preview either mode.
   fronted by a plain ClusterIP Service (`homelab-git.lab-git.svc.cluster.local`), never by Traefik.
 - SSH would need per-client key distribution for no benefit here; anonymous read over smart HTTP is simpler.
 
-## Target fixtures still to build
+## Target fixtures still to build (libvirt guests)
 
-- **Proxmox provider** → nested PVE guest (KVM; `nested=Y` confirmed) → `tofu` applies against its API.
-- **TrueNAS provider** → TrueNAS SCALE guest with a few virtio disks → dataset/share/user resources.
+The lab is moving from "kind only" to **libvirt / virt-manager guests**, because what has to be proven is the
+*platform* — Talos nodes on virtualised hardware, storage over the network, and Flux reconciling on top — not
+just the GitOps tree. See `docs/decisions.md` §1.1 and §2.4.
+
+- **Talos nodes** → two libvirt guests booting Talos; validates machine config, bootstrap, Cilium, MetalLB and
+  the entire Flux tree end-to-end. This is the primary fixture.
+- **NAS stand-in** → a small Linux guest exporting **NFS and SMB** (+ snapshots, + a ZFS-on-disk option).
+  Deliberately **not** nested TrueNAS: ZFS-in-ZFS burns the RAM budget and tests the wrong layer. Real TrueNAS
+  still gets its own fixture when the `truenas` OpenTofu root needs exercising.
+- **Proxmox provider** → an on-demand nested PVE guest; `tofu` applies against its API only.
 - **UniFi provider** → self-hosted UniFi Network Application container as the controller fixture.
-  ⚠️ The real **UDM Pro** cannot be virtualized; its API differs from the self-hosted controller.
-  Real UDM changes therefore stay **gated, exported, and rollback-planned**, not blindly applied.
-- **Talos** → `talosctl cluster create` (docker) and/or QEMU; validates machine config + bootstrap offline.
+  ⚠️ The real **UDM Pro** cannot be virtualized and its API differs from the self-hosted controller. Per
+  decision 1.2, the real UDM is not written to at all before cutover.
 
-## Hard constraints on this workstation (as of 2026-10-16)
+## Hard constraints on this workstation (verified 2026-10-16)
 
-- Intel Ultra 7 155H, 22 threads, **KVM present, nested enabled**.
-- Resources were freed on 2026-10-16: **~14 GiB RAM available** and **~419 G free disk (56 % used)** — enough for
-  the kind/Flux lab. (Earlier snapshot: ~6.6 GiB / 91 % used.)
-- Docker already hosts many images/containers — account for this.
+- Intel Ultra 7 155H, 22 threads; `vmx` present and `kvm_intel nested=Y` — nested VMs work.
+- `virsh`, `virt-install`, `virt-manager` and `qemu-system-x86_64` are all installed, but **`libvirtd` is
+  disabled and inactive**. Enabling it needs root and the agent has no passwordless sudo:
+  `sudo systemctl enable --now libvirtd` and `sudo usermod -aG libvirt $USER` (re-login). **Owner action.**
+- **RAM is the binding constraint, not disk.** 30 GiB total with ~10 GiB available and swap already in use;
+  disk is fine at ~393 G free.
+- Docker already runs many images/containers, and the **kind** lab cluster (kube-apiserver et al.) is one of the
+  bigger consumers — stop it before starting the heavy libvirt guests.
 
-### Still needs owner input for the heavy fixtures
-1. A dedicated NVMe/SSD for VM images (keeps the root disk from filling again).
-2. A separate spare machine as the lab host, if we want PVE **and** NAS guests running together.
+### Sizing that fits the current machine
+
+| Guest | RAM | Disk | Purpose |
+|---|---|---|---|
+| `lab-talos-cp` | 2 GiB | 20 GiB | control plane, direct on libvirt |
+| `lab-talos-wk` | 4 GiB | 40 GiB | worker (all workloads) |
+| `lab-nas` | 2 GiB | 50 GiB | Linux stand-in exporting NFS + SMB (not nested TrueNAS) |
+| `lab-pve` | 4 GiB | 40 GiB | on-demand, only to exercise the OpenTofu Proxmox layer |
+
+Keep **kind** for the K8s/Flux layer, and run the heavy libvirt guests **one at a time** rather than all at
+once. If the full stack must run together, the honest options are freeing ~12 GiB on this machine or adding
+RAM — recorded rather than assumed.
 
 ## Non-negotiables
 

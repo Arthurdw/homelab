@@ -174,15 +174,15 @@ homelab/
 Legend: `[x]` done · `[ ]` not done · `[ ]` + a *partial* note = started but incomplete.
 Last reconciled against the repo: **2026-10-16**.
 
-### Phase 0 — Audit & architecture (**deliverables complete; GATE 0 awaiting owner answers**)
+### Phase 0 — Audit & architecture (**complete**; GATE 0 answered 2026-10-16 → `docs/decisions.md`)
 - [x] Repo state inspected; prior work confirmed intentionally deleted
 - [x] Read-only discovery of Proxmox + TrueNAS (raw in `docs/private/`, sanitized in `docs/`)
 - [x] Capture gaps closed: `main` datasets, shares, services, snapshot task, DNS, NIC speeds, VM 100, P4 IOMMU group
 - [x] Drafted `docs/hardware.md`, `network-plan.md`, `storage.md`, `risk-register.md`, `lab.md` + `versions.yaml`
-- [ ] Capture UniFi state (API token or UI export) — read-only *(blocked: no read-only key exists; needs owner)*
-- [ ] Data-preservation plan: confirm Tier-1 directories + the VM disk on the `proxmox` share *(owner input)*
+- [ ] Capture UniFi state *(approved: full-access key + guardrails; key not yet handed over — the VLAN tag is still unknown)*
+- [ ] Data-preservation plan: confirm Tier-1 directories + the VM disk on the `proxmox` share *(deferred to cutover prep, owner-driven)*
 - [x] Write `docs/architecture.md` (target) + migration/rebuild plan
-- [x] Produce open-questions list (§10) → **⛔ GATE 0** *(list produced; owner answers outstanding)*
+- [x] Produce open-questions list (§10) → **⛔ GATE 0** — **answered** (§10 / `docs/decisions.md`)
 
 ### Phase 1 — Repository foundation (**deliverables complete**)
 - [x] README/CONTRIBUTING/SECURITY/versions.yaml; scaffolding per §5
@@ -206,13 +206,15 @@ Last reconciled against the repo: **2026-10-16**.
 - [ ] **Every config validated in L1 fixtures before any live plan**
 - [ ] CI: plan preview on PRs; protected environment for applies → **⛔ GATE 3 before any live apply**
 
-### Phase 4 — Approved rebuild (owner wipes; agent reconfigures)  ⚠️ destructive
-- [ ] Pre-flight: verified backups, config exports, written step-by-step restore plan, **owner approval**
-- [ ] **Owner** wipes/reinstalls Proxmox — agent does **not** touch it; afterwards agent applies `proxmox` Tofu and builds the Talos VM template
-- [ ] **Owner** reinstalls TrueNAS — agent does **not** touch it; afterwards agent applies `truenas` Tofu
-- [ ] Pool: **preserve/import if the owner chooses** (spec §6.2 preference), else rebuild only with explicit per-operation approval
-- [ ] Configure datasets/shares/permissions/services; verify storage link (interface, MTU, throughput)
-- [ ] Re-apply UniFi objects additively; verify management reachability after each step → **⛔ GATE 4 per risky step**
+### Phase 4 — Hardware cutover (owner-executed; agents never touch production)  ⚠️ destructive
+> **Deferred until the VM lab has proven every module.** Until then the physical servers stay exactly as they
+> are: read-only reference, **no writes of any kind** — see `docs/decisions.md` §1.2.
+- [ ] Pre-flight (**owner-driven**): all data verified-backed-up offsite; config exports captured; written step-by-step plan
+- [ ] **Owner** installs/reinstalls Proxmox from ISO — the agent does not touch it
+- [ ] **Owner** installs/reinstalls TrueNAS from ISO — the agent does not touch it
+- [ ] **Everything after the ISO install is applied by IaC** (`proxmox`, `truenas`, `unifi` roots); hand-made config is treated as a defect
+- [ ] Pool: preserve/import vs rebuild is decided **at cutover**, once the owner's backups are verified (§1.4)
+- [ ] Verify the storage link (interface, MTU, throughput) and apply UniFi objects additively → **⛔ GATE 4 per risky step**
 
 ### Phase 5 — Talos & Kubernetes bootstrap
 - [ ] Pin Talos + Kubernetes versions; build node VMs via Tofu; secrets kept out of repo *(versions pinned in
@@ -287,25 +289,28 @@ age + size anomalies.
 | 2026-10-16 | **Layered lab testing** (§4.3); no live testing without gate | safety + reproducibility |
 | 2026-10-16 | Raw discovery data kept in gitignored `docs/private/` | repo is public |
 
-## 10. Open questions for the owner
+## 10. Owner decisions — **answered 2026-10-16**
 
-1. ⛔ May an agent use a **read-only UniFi API token** (vs. you exporting the UI config)?
-2. ⛔ Confirm the **Tier-1 data set** on the NAS (photos/documents/which VM exports) so it is preserved pre-wipe.
-3. Is any existing TrueNAS pool to be **preserved/imported**, or fully designed fresh? (RaidZ3 of 8×4 TB is already good.)
-4. Offsite machine at the sister's home: exists today, or to be purchased? bandwidth/power sensitivity?
-5. Alert channel preference (Telegram / email / other)?
-6. Domain/Cloudflare for cert-manager + Tunnel? Public exposure preferences? Specifically: do we want a
-   **public, Cloudflare-Tunnel-proxied git mirror** (e.g. `https://git.lab.ardw.be` → in-cluster git) for
-   GitHub-outage resilience / fast LAN clones? If yes: read-only, mirrors **public content only**, and the
-   `cloudflared` Deployment is Flux-managed (a consumer, never the bootstrap source). SSH over a tunnel needs
-   `cloudflared access ssh` on every client, so HTTPS is the natural choice. Note a public Cloudflare name
-   removes the dependency on our internal resolver.
-7. VPN for remote admin (Tailscale already on the NAS — reuse or separate)?
-8. Workstation cleanup: OK to free/move data (~90 G free) or add a disk/NVMe for the lab?
-9. Self-hosted git mirror (e.g. `git.lab.ardw.be`)? If yes: **HTTPS** (anonymous read, simplest) and/or **SSH**
-   (needs per-client keys; on a Talos node port 22 is free, since Talos has no sshd). Note the source of truth
-   stays public GitHub — a self-hosted git cannot be the bootstrap source if it depends on infrastructure the
-   repo deploys.
+Full reasoning is in `docs/decisions.md`. Summary:
+
+| # | Question | Answer |
+|---|---|---|
+| 1 | Read-only UniFi API token? | **No read-only key exists upstream.** Full-access key approved under guardrails (plan-only, additive-only, key off-repo, UI export as baseline) — and no writes at all before cutover. (§5.3) |
+| 2 | Tier-1 data set | **Deferred to cutover prep, owner-driven.** The owner backs all data up before reinstalling; we do not touch the NAS. (§1.3, §1.4) |
+| 3 | Preserve or rebuild the pool? | **Decided at cutover**, after the owner's backups are verified. Not ours to choose in advance. (§1.4) |
+| 4 | Offsite machine | **To be purchased/built.** The backup design stays target-agnostic until it exists. (§5.5) |
+| 5 | Alert channel | **SMTP now, Telegram later.** (§5.1) |
+| 6 | Cloudflare / public exposure | Yes for cert-manager DNS-01 with a scoped token; **no management UI public**; the git mirror is a read-only consumer. (§5.4) |
+| 7 | VPN for remote admin | **Reuse Tailscale.** No DMZ and no inbound ports. (§5.2) |
+| 8 | Workstation | The lab runs on this laptop. `libvirtd` must be enabled by the owner; **RAM is the binding constraint**. (`docs/lab.md`) |
+| 9 | Self-hosted git mirror | **Yes, later, HTTPS only.** SSH rejected — a Cloudflare Tunnel never yields a plain public port 22. (§5.4) |
+
+**Also decided** (not previously asked): the target environment is **local VMs**; physical hosts stay
+**read-only**; cutover is owner-executed ISO installs with everything afterwards coming from IaC; plus the
+address plan, node topology, storage mapping and CNI — all in `docs/decisions.md`.
+
+**Genuinely still open:** the management VLAN tag and the NAS/Proxmox VLAN mismatch (needs the UniFi export),
+the offsite hardware purchase, and the Cloudflare domain + scoped token (only needed at cutover).
 
 ## 11. Status log (append-only)
 
@@ -327,6 +332,9 @@ age + size anomalies.
 | 2026-10-16 | 5-7 | **Lab found bug #1**: `ClusterIssuer`/`IPAddressPool` shared a Kustomization with their CRD-installing HelmReleases → dry-run failure. Fixed by splitting controllers from configs with `dependsOn`. |
 | 2026-10-16 | 5-7 | **Lab found bug #2**: technitium HelmRelease used `service.type`; the bjw-s common chart reads every `service.*` key as a service *name* → fixed to `service.main.type`. |
 | 2026-10-16 | 5-7 | Lab verified real installs: cert-manager 1.21.2, metallb 0.16.1, traefik 42.0.0 all `Helm install succeeded`. |
+| 2026-10-16 | 1,5-7 | CI gained an **abstract `helm template` render check** for every HelmRelease (proven to catch the technitium class of failure, no cluster needed). SOPS+age tooling, Talos config tooling and a kube-prometheus-stack baseline also landed. |
+| 2026-10-16 | 0 | **GATE 0 answered.** The target environment is **local libvirt VMs**; the physical hosts stay read-only until an owner-executed ISO cutover. Address plan, topology, storage mapping, CNI, alerts, UniFi key and git mirror all decided → `docs/decisions.md`. |
+| 2026-10-16 | 0 | **Finding (read-only):** the NAS points at `10.10.1.53`, which answers nothing — it has been silently using `1.1.1.1`; the UDM answers on the server VLAN. Recorded, **not** changed (production is not written to). |
 
 ## 12. Phase report template (`docs/runbooks/phase-reports/phase-NN.md`)
 

@@ -69,25 +69,28 @@ Verified: `main` = RaidZ3, 8×4 TB (~29.1 T raw), 1 TB NVMe L2ARC, 3-way SSD boo
 
 ## 5. Network plan
 
-See `docs/network-plan.md`. Headlines:
+See `docs/network-plan.md`. **Decided at GATE 0** (rationale: `docs/decisions.md` §2):
 
-- **Storage link:** currently link-local over 10 GbE. Proposal: move to a **static private `/24`, no default
-  gateway** on a dedicated interface/VLAN (spec §9.2), verified end-to-end (MTU, throughput, binding).
-- **Management stays private.** Document the emergency access path.
-- **Kubernetes CIDRs** (node/pod/service) chosen to avoid collisions with the LAN, NAS Docker bridges, and
-  future VLANs — **TBD**.
-- **DNS (Technitium):** stable LAN address; must not be a bootstrap circular dependency; documented fallback
-  resolver. IPv6 behaviour made intentional.
+- **K8s on a new VLAN 20, `10.20.0.0/24`**: UDM gateway `10.20.0.1`, nodes `10.20.0.11–29`, MetalLB pool
+  `10.20.0.100–199`. Keeps cluster traffic off the management segment, and it is additive-only on the UDM.
+- **Storage link:** moves from link-local to `10.99.0.0/30` (Proxmox `.1`, NAS `.2`, no gateway, MTU 9000) —
+  **provisional** until throughput and MTU are measured at cutover.
+- **Pods `10.244.0.0/16`, Services `10.96.0.0/12`** — identical in every environment, deliberately.
+- **Lab addresses are disjoint**: nodes/VIPs `10.99.100.0/24`, storage link `10.99.101.0/30`.
+- **IPv6 disabled** on the new K8s and storage segments; the house LAN is left untouched.
+- **Management stays private.** Emergency access is Tailscale — no DMZ, no inbound ports.
 - **UniFi policy: additive-only** — never modify existing objects that serve house devices (plan §4.4).
 
 ## 6. Kubernetes & GitOps
 
-- **Talos Linux** (pinned, e.g. `v1.14.4` — compat matrix to verify) for all nodes; machine configs generated,
-  secrets never committed.
-- **Flux** (`v2.9.6`, range to verify) owns all ongoing Kubernetes config; separate `bootstrap/`,
-  `infrastructure/`, `platform/`, `apps/`.
-- **Bootstrap must not depend** on in-cluster DNS or Authentik; break-glass access documented.
-- **CNI:** **TBD** (evaluate Cilium vs a lighter option given the 4-core host).
+- **Talos Linux** (pinned `v1.14.4`, Kubernetes `v1.37.1`) for all nodes; machine configs generated, secrets
+  never committed.
+- **Topology:** 1 control plane (2 vCPU / 2 GiB / 20 GiB) + 1 worker (3 vCPU / 16 GiB / 80 GiB); all VM disks
+  on the host SSD, never on the NAS. **No HA claim** — one host means host loss is cluster loss.
+- **CNI: Cilium** with kube-proxy replacement (NetworkPolicy support, fewer components on a 4-thread host).
+  Provisional — Flannel is the documented fallback if resources prove insufficient.
+- **Flux** (`v2.9.6`) owns all ongoing Kubernetes config; separate `infrastructure/`, `infrastructure/configs/`
+  and `apps/`. Bootstrap must not depend on in-cluster DNS or Authentik; break-glass access documented.
 - **Upgrades:** dedicated workflow; ordinary applies must never upgrade Talos/K8s/OS as a side effect.
 
 ## 7. Ownership matrix
@@ -135,13 +138,19 @@ Order proposal: ingress+certs → DNS → identity → monitoring → Immich →
 | D3 | Mandatory lab testing before any live apply (beyond spec §15 "optional") | spec §2.3 honesty + safety |
 | D4 | Owner performs the wipe/reset; agents read-only until gated | owner instruction |
 
-## 12. Open decisions (for GATE 0)
+## 12. Open decisions — **all answered 2026-10-16**
 
-1. Kubernetes topology + exact VM sizing (proposal §3).
-2. Preserve/re-import the `main` pool on rebuild, or rebuild it?
-3. Storage subnet redesign (keep link-local vs private `/24`).
-4. Kubernetes node/pod/service CIDRs; CNI choice.
-5. Dataset hierarchy names and per-tier snapshot policy.
-6. Backup mechanism (ZFS replication vs restic/borg) — evidence in Phase 2.
-7. Offsite destination: exists yet? hardware/network/power.
-8. DNS: what serves `<INTERNAL_RESOLVER_IP>` today; intended Technitium design.
+See `docs/decisions.md` for the reasoning and `docs/PROJECT-PLAN.md` §10 for the summary. In short:
+
+1. Topology + VM sizing → `docs/decisions.md` §3.1 (1 control plane + 1 worker; no HA claim).
+2. Preserve/re-import the `main` pool → **deferred to cutover**, after the owner's backups are verified (§1.4).
+3. Storage subnet → `10.99.0.0/30` over the 10 GbE link, provisional (§2.2).
+4. CIDRs + CNI → §2.3 and §3.3.
+5. Dataset hierarchy + per-tier snapshot policy → §4.1.
+6. Backup mechanism → target-agnostic until offsite hardware exists (§5.5).
+7. Offsite destination → to be purchased or built (§5.5).
+8. DNS → the "internal resolver" was dead; Technitium is a genuine fix, not a replacement (§6.1).
+9. Git: HTTPS public mirror, SSH over LAN/Tailscale, canonical-remote question open (§5.4, §5.6).
+
+**Still open:** the management VLAN tag and the NAS/Proxmox VLAN mismatch — neither can be resolved without the
+UniFi configuration export.
