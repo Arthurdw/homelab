@@ -36,6 +36,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # SOPS gate (L0): every would-be-committed `*.sops.yaml` / `*.sops.yml` / `*.sops.json`
+  # must actually be encrypted. It is static — it needs no private key — and sops is
+  # installed by the pinned, checksum-verified installer, so unlike `secret-scan` this job
+  # DOES run under `act` (`just ci`). `gitleaks` above remains the second net.
+  secrets:
+    name: secrets (sops gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install sops (pinned)
+        run: scripts/ci/install-ci-tools.sh sops
+      - name: sops check
+        run: ./scripts/secrets/check.sh --check
+
   opentofu:
     name: opentofu (fmt / validate)
     runs-on: ubuntu-latest

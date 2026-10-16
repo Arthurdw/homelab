@@ -4,15 +4,15 @@
 #
 # This mirrors scripts/lab/install-tools.sh on purpose: no `curl | bash`, no floating
 # tags, no `latest`. Versions are pinned here and chosen to match versions.yaml where an
-# entry exists (helm, kubeconform, kustomize); the additions (yq, actionlint, shellcheck)
-# are pinned here because versions.yaml is the infrastructure inventory, not the CI
+# entry exists (helm, kubeconform, kustomize); the additions (yq, actionlint, shellcheck,
+# sops) are pinned here because versions.yaml is the infrastructure inventory, not the CI
 # toolchain, and is reviewed separately.
 #
 # Usage:
 #   scripts/ci/install-ci-tools.sh [tool ...]      # default: all tools below
 #   BIN_DIR=~/.local/bin scripts/ci/install-ci-tools.sh
 #
-# Tools: helm yq actionlint shellcheck kubeconform kustomize
+# Tools: helm yq actionlint shellcheck kubeconform kustomize sops
 #
 # A tool already on PATH is left alone (but its version is NOT checked); point BIN_DIR at
 # a directory on PATH, or add BIN_DIR to PATH afterwards.
@@ -28,6 +28,9 @@ ACTIONLINT_VERSION="${ACTIONLINT_VERSION:-1.7.12}"
 SHELLCHECK_VERSION="${SHELLCHECK_VERSION:-0.11.0}"
 KUBECONFORM_VERSION="${KUBECONFORM_VERSION:-0.8.0}"   # versions.yaml: ci_tools.kubeconform
 KUSTOMIZE_VERSION="${KUSTOMIZE_VERSION:-5.8.3}"       # versions.yaml: ci_tools.kustomize
+# sops is needed by scripts/secrets/check.sh (the L0 SOPS gate). Pinned to the same
+# version scripts/lab/install-tools.sh already verifies, so lab and CI agree.
+SOPS_VERSION="${SOPS_VERSION:-3.13.3}"
 
 BIN_DIR="${BIN_DIR:-/usr/local/bin}"
 
@@ -76,12 +79,12 @@ install_file() { # install_file <src> <name>
 }
 
 # --- argument handling ------------------------------------------------------
-all_tools=(helm yq actionlint shellcheck kubeconform kustomize)
+all_tools=(helm yq actionlint shellcheck kubeconform kustomize sops)
 tools=("$@")
 if [ "${#tools[@]}" -eq 0 ]; then tools=("${all_tools[@]}"); fi
 for t in "${tools[@]}"; do
   case "$t" in
-    helm|yq|actionlint|shellcheck|kubeconform|kustomize) ;;
+    helm|yq|actionlint|shellcheck|kubeconform|kustomize|sops) ;;
     -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
     *) log "ERROR: unknown tool: $t (choose from: ${all_tools[*]})" >&2; exit 2 ;;
   esac
@@ -184,6 +187,21 @@ if wanted kustomize; then
       "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/checksums.txt" "$asset"
     tar -xzf "$TMP/kustomize.tgz" -C "$TMP" kustomize
     install_file "$TMP/kustomize" kustomize
+  fi
+fi
+
+# --- sops -------------------------------------------------------------------
+# Used by scripts/secrets/check.sh (the SOPS gate). Static Go binary, no libs.
+if wanted sops; then
+  if have sops; then
+    log "sops: present ($(sops --version 2>/dev/null | awk '{print $2}'))"
+  else
+    log "sops: installing v${SOPS_VERSION}"
+    asset="sops-v${SOPS_VERSION}.linux.${ARCH}"
+    fetch "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/${asset}" "$TMP/sops"
+    verify "$TMP/sops" \
+      "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.checksums.txt" "$asset"
+    install_file "$TMP/sops" sops
   fi
 fi
 

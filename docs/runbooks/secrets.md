@@ -189,15 +189,12 @@ Run it locally:
 just secrets-check      # == scripts/secrets/check.sh --check
 ```
 
-Not yet wired into `.github/workflows/ci.yml`; add it alongside the existing `gitleaks`
-step when that file is next touched:
-
-```yaml
-      - name: sops check
-        run: ./scripts/secrets/check.sh --check
-```
-
-`gitleaks` (already in CI) remains the second net for accidental plaintext.
+Wired into `.github/workflows/ci.yml` as the `secrets` job, which installs `sops` with the
+pinned, checksum-verified installer (`scripts/ci/install-ci-tools.sh sops`) and then runs
+`scripts/secrets/check.sh --check`. Because it needs only the `sops` binary (no private
+key), it runs both on GitHub Actions and under `act` (`just ci`) — unlike the `secret-scan`
+(gitleaks) job, which `act` cannot run. `gitleaks` remains the second net for accidental
+plaintext.
 
 ## 9. Self-test
 

@@ -45,11 +45,11 @@ validate:
 ci:
   #!/usr/bin/env bash
   set -euo pipefail
-  for j in opentofu kubernetes render lint; do
+  for j in opentofu kubernetes render secrets lint; do
     printf '\n########## %s ##########\n' "$j"
     act push -j "$j" --pull=false
   done
-  printf '\n(secret-scan skipped; run: just secrets)\n'
+  printf '\n(secret-scan [gitleaks] skipped; run: just secrets)\n'
 
 # Run one CI job locally, e.g. `just ci-job lint`
 ci-job job:

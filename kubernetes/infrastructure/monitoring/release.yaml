@@ -13,7 +13,9 @@
 # therefore supplied as Helm values (additionalPrometheusRulesMap) and rendered BY the release —
 # no separate PrometheusRule CR is reconciled by kustomize, so there is nothing to dry-run early.
 #
-# Secrets: Grafana admin credentials are NOT created here — see the grafana block below.
+# Secrets: Grafana admin credentials AND the Alertmanager SMTP password are NOT created
+# here — see the grafana and alertmanager blocks below. Both are referenced as
+# externally-managed Secrets, so no credential is ever committed.
 # Persistence: no StorageClass exists yet; metrics and Grafana state are ephemeral — see the
 # storage comments below.
 apiVersion: helm.toolkit.fluxcd.io/v2
@@ -52,6 +54,123 @@ spec:
         # Same as above: silences/notification state are ephemeral (emptyDir).
         # TODO(Phase 5 storage): move to a PVC once a StorageClass is chosen.
         storage: {}
+        # Mount the externally-managed SMTP password Secret into the Alertmanager
+        # container. prometheus-operator mounts each entry here read-only at
+        # /etc/alertmanager/secrets/<name>/; the config below reads the password from
+        # that file with `auth_password_file`, so the credential never enters git
+        # (docs/runbooks/secrets.md).
+        #
+        # OPERATOR ACTION — out-of-band, never committed. Create it, SOPS-encrypted, in
+        # the `monitoring` namespace before the release is expected to become Ready:
+        #   kubectl -n monitoring create secret generic alertmanager-smtp \
+        #     --from-literal=smtp-password='<your-smtp-password>'
+        # Required key: `smtp-password`. A missing Secret means the Alertmanager pod will
+        # NOT start — intentional fail-closed, exactly like the Grafana admin Secret below.
+        # TODO(secrets workstream): add monitoring/alertmanager-smtp.sops.yaml once the
+        # GATE 4 production age recipient exists (nothing can be encrypted before then).
+        secrets:
+          - alertmanager-smtp
+
+      # --- Alerting: routing, receivers, inhibition (docs/decisions.md §5.1) -------------
+      # Baseline path = email/SMTP (the owner has SMTP). Telegram is prepared but DISABLED
+      # until a bot token exists — §5.1 "SMTP now, Telegram later".
+      #
+      # SECRETS: the SMTP password is NOT here (see alertmanagerSpec.secrets above). The
+      # relay host, sender, recipient and username are deliberately left as TODO
+      # placeholders — they are site-specific and only the owner can supply them.
+      config:
+        global:
+          resolve_timeout: 5m
+          # TODO(owner): replace these four placeholders with the real relay, sender and
+          # username. We do not invent a hostname or username here.
+          smtp_smarthost: 'TODO_SMTP_HOST:587'   # relay as host:port
+          smtp_from: 'TODO_SMTP_FROM'            # envelope/From address
+          smtp_auth_username: 'TODO_SMTP_USERNAME'
+          # smtp_require_tls: true               # uncomment if the relay requires STARTTLS
+        # --- Inhibition -------------------------------------------------------------------
+        # Keep the chart's severity + InfoInhibitor rules, and add one homelab rule: on this
+        # single-host, no-HA cluster a NotReady node is a full outage (architecture §3;
+        # risk R11), so suppress the warning/info storm it produces for that node. Critical
+        # alerts are deliberately NOT suppressed — they are what you actually want to see.
+        inhibit_rules:
+          - source_matchers:
+              - 'severity = critical'
+            target_matchers:
+              - 'severity =~ warning|info'
+            equal:
+              - 'namespace'
+              - 'alertname'
+          - source_matchers:
+              - 'severity = warning'
+            target_matchers:
+              - 'severity = info'
+            equal:
+              - 'namespace'
+              - 'alertname'
+          - source_matchers:
+              - 'alertname = InfoInhibitor'
+            target_matchers:
+              - 'severity = info'
+            equal:
+              - 'namespace'
+          - target_matchers:
+              - 'alertname = InfoInhibitor'
+          # Homelab: when a node is NotReady everything scheduled on it is unreachable, so
+          # its warning/info alerts are noise until it returns. Only alerts carrying the
+          # same `node` label are inhibited (equality on `node`).
+          - source_matchers:
+              - 'alertname = HomelabNodeNotReady'
+            target_matchers:
+              - 'severity =~ warning|info'
+            equal:
+              - 'node'
+        # --- Routing ----------------------------------------------------------------------
+        # group_by [namespace, alertname] collapses a burst (e.g. many pods) into one
+        # notification per alert type per namespace; repeat_interval keeps a persistent
+        # problem visible without re-mailing on every evaluation. Tuned for a quiet,
+        # single-node homelab rather than a busy production fleet.
+        route:
+          receiver: email
+          group_by: ['namespace', 'alertname']
+          group_wait: 30s        # batch the first burst of a new alert group
+          group_interval: 5m     # how soon a changed group is re-sent
+          repeat_interval: 12h   # steady-state re-notify for warnings
+          routes:
+            # The always-firing pipeline self-test and the inhibit sentinel must never be
+            # emailed (they would repeat forever); the chart also routes Watchdog to null.
+            - receiver: 'null'
+              matchers:
+                - alertname = "Watchdog"
+            - receiver: 'null'
+              matchers:
+                - alertname = "InfoInhibitor"
+            # Critical (e.g. the node down on this no-HA cluster) re-notifies sooner.
+            - receiver: email
+              matchers:
+                - severity = "critical"
+              repeat_interval: 4h
+        receivers:
+          - name: 'null'
+          - name: email
+            email_configs:
+              - to: 'TODO_SMTP_TO'    # TODO(owner): destination address(es)
+                send_resolved: true
+                # Password comes from the mounted alertmanager-smtp Secret, never git.
+                auth_password_file: /etc/alertmanager/secrets/alertmanager-smtp/smtp-password
+          # --- Telegram (prepared, DISABLED) --------------------------------------------
+          # TODO(owner): when a bot token exists, uncomment this receiver and add a
+          # `receiver: telegram` route above. The token is NOT committed: it is read from
+          # an `alertmanager-telegram` Secret (also add that name to alertmanagerSpec.secrets
+          # above, which mounts it at /etc/alertmanager/secrets/alertmanager-telegram/).
+          #
+          # - name: telegram
+          #   telegram_configs:
+          #     - bot_token_file: /etc/alertmanager/secrets/alertmanager-telegram/bot-token
+          #       chat_id: TODO_TELEGRAM_CHAT_ID
+          #       send_resolved: true
+        templates:
+          - '/etc/alertmanager/config/*.tmpl'
+
     grafana:
       # Use an externally-managed admin Secret. This ALSO stops the chart from generating a
       # random admin password into an in-repo-created Secret.
