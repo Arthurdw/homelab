@@ -1,0 +1,44 @@
+# ignore secrets, state, and machine-local notes — the repo is public
+
+# OpenTofu / Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.plan
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+.terraformrc
+terraform.rc
+
+# Secrets / encryption
+*.agekey
+age.key
+*.sops.yaml.bak
+secrets*.yaml
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+!**/*.pub
+
+# Kubernetes
+kubeconfig*
+*.kubeconfig
+talosconfig*
+*.secret.yaml
+*.secret.yml
+
+# Machine-local / private notes (never publish)
+docs/private/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
