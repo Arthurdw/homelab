@@ -150,7 +150,7 @@ See `docs/decisions.md` for the reasoning and `docs/PROJECT-PLAN.md` §10 for th
 6. Backup mechanism → target-agnostic until offsite hardware exists (§5.5).
 7. Offsite destination → to be purchased or built (§5.5).
 8. DNS → the "internal resolver" was dead; Technitium is a genuine fix, not a replacement (§6.1).
-9. Git: HTTPS public mirror, SSH over LAN/Tailscale, canonical-remote question open (§5.4, §5.6).
+9. Git: GitHub canonical, self-hosted **read-only mirror**, SSH over LAN/Tailscale (§5.4, §5.6).
 
 **Still open:** the management VLAN tag and the NAS/Proxmox VLAN mismatch — neither can be resolved without the
 UniFi configuration export.

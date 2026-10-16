@@ -163,11 +163,18 @@ signed commits, that is `gpg.format = ssh` + `user.signingkey`, independent of h
 To be purchased or built. Until it exists, the backup design stays target-agnostic (encrypted, versioned,
 restic-style) so the mechanism does not change when the hardware arrives.
 
-### 5.6 — Canonical git remote and sync direction — *open*
+### 5.6 — Canonical git remote: GitHub; the self-hosted git is a read-only mirror — *decided 2026-10-16*
 
-Whether the self-hosted git stays a **read-only mirror** (GitHub canonical) or becomes a **writable remote**
-kept in sync with GitHub. Constraint either way: the git server lives *in* the cluster it deploys, so it can
-never be the bootstrap source — GitHub stays canonical for Flux. The risk to avoid is two divergent truths.
+**GitHub stays canonical** and is what Flux tracks. Forgejo (self-hosted, in-cluster) is a **read-only
+mirror**, used for fast LAN clones and GitHub-outage resilience. The owner pushes to GitHub over SSH.
+
+**Why not writable:** the git server lives *in* the cluster it deploys, so it can never be the bootstrap
+source. A writable mirror would mean two copies to keep aligned, and a remote that is unreachable precisely
+when the cluster is down — which is when a remote is most useful. Cloning over SSH does not require the mirror
+to be writable.
+
+**Transport (decided):** SSH over **LAN + Tailscale** — plain `git@git.lab.ardw.be:arthur/repo.git` with an SSH
+key, no client agent and no public exposure. Anonymous HTTPS stays available for public reads.
 
 ## 6. Findings that changed the plan
 

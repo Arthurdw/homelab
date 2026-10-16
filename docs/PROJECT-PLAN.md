@@ -303,7 +303,7 @@ Full reasoning is in `docs/decisions.md`. Summary:
 | 6 | Cloudflare / public exposure | Yes for cert-manager DNS-01 with a scoped token; **no management UI public**; the git mirror is a read-only consumer. (§5.4) |
 | 7 | VPN for remote admin | **Reuse Tailscale.** No DMZ and no inbound ports. (§5.2) |
 | 8 | Workstation | The lab runs on this laptop. `libvirtd` must be enabled by the owner; **RAM is the binding constraint**. (`docs/lab.md`) |
-| 9 | Self-hosted git mirror | **Yes, later, HTTPS only.** SSH rejected — a Cloudflare Tunnel never yields a plain public port 22. (§5.4) |
+| 9 | Self-hosted git mirror | **Yes, later.** Read-only mirror; **GitHub stays canonical** (it is what Flux tracks). Clone over LAN/Tailscale SSH (`git@git.lab.ardw.be:arthur/repo.git`); anonymous HTTPS for public reads. A plain *public* port 22 is not available. (§5.4, §5.6) |
 
 **Also decided** (not previously asked): the target environment is **local VMs**; physical hosts stay
 **read-only**; cutover is owner-executed ISO installs with everything afterwards coming from IaC; plus the
