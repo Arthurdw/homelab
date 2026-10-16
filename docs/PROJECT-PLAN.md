@@ -203,9 +203,9 @@ Last reconciled against the repo: **2026-10-16**.
 ### Phase 3 — Infrastructure IaC (greenfield — build, don't import)
 - [x] OpenTofu roots per state boundary; providers pinned + compatibility documented
       (`proxmox`, `truenas`, `unifi`; `tofu validate` passes; lock files committed)
-- [ ] Author UniFi/Proxmox/TrueNAS configs under the **additive-only** policy (§4.4) *(in progress: the Proxmox
-      VM module and topology are being authored; TrueNAS/UniFi resources still to come — they need live-API
-      verification)*
+- [ ] Author UniFi/Proxmox/TrueNAS configs under the **additive-only** policy (§4.4) *(the Proxmox VM module and
+      topology are authored and validate; TrueNAS/UniFi resources still to come — they need live-API
+      verification we do not have)*
 - [ ] **Every config validated in L1 fixtures before any live plan**
 - [ ] CI: plan preview on PRs; protected environment for applies → **⛔ GATE 3 before any live apply**
 
@@ -221,27 +221,31 @@ Last reconciled against the repo: **2026-10-16**.
 
 ### Phase 5 — Talos & Kubernetes bootstrap
 - [ ] Pin Talos + Kubernetes versions; build node VMs via Tofu; secrets kept out of repo *(versions pinned;
-      config generation + offline validation tooling landed (`scripts/talos/`, `talos/`) and passes
-      `talosctl validate --mode metal`; VM build in progress)*
-- [ ] Bootstrap control plane, join workers, CNI, storage reachability, ingress *(Cilium + NFS CSI being added)*
+      config generation + offline validation landed (`scripts/talos/`, `talos/`) and passes `talosctl validate
+      --mode metal`; the `talos-vm` module and the decided topology are authored and `tofu validate` clean —
+      but **nothing has been applied**: `tofu plan` needs API access we do not have)*
+- [ ] Bootstrap control plane, join workers, CNI, storage reachability, ingress *(Cilium, NFS CSI and a
+      node-local class being added)*
 - [ ] No HA claims on single host → **⛔ GATE 5**
 
 ### Phase 6 — Flux & platform services
 - [ ] Bootstrap Flux from repo with clear ordering/health checks *(tree scaffolded and **lab-verified** in kind;
       real bootstrap pending. The lab found and fixed a CRD-ordering bug — see the phase report)*
 - [ ] Platform: ingress, CSI/storage, DNS (with independent recovery), cert-manager, monitoring baseline
-      *(metallb, traefik, cert-manager, technitium and kube-prometheus-stack manifests exist and render; Cilium
-      and NFS CSI are being added; no cluster bootstrap yet)*
+      *(metallb, traefik, cert-manager, technitium, kube-prometheus-stack and the NAS-backed NFS CSI driver all
+      exist and render; Cilium and a node-local class are being added; no cluster bootstrap yet)*
 - [ ] Bootstrap must not depend on in-cluster DNS or Authentik → break-glass documented → **⛔ GATE 6**
 
 ### Phase 7 — Applications (incremental)
 - [ ] One app at a time; documented per-app (pins, ingress/auth, storage, secrets, resources, backup+restore,
-      upgrade/rollback, exposure) *(Immich + Audiobookshelf scaffolded; values/docs pending)*
+      upgrade/rollback, exposure) *(Immich and Audiobookshelf are fully specified and render, with per-app notes
+      in `docs/apps/`; the real hostnames, the `immich-db` Secret and Authentik SSO remain TODO)*
 - [ ] Immich media+DB consistency; Audiobookshelf; Nextcloud **or** Seafile (decision documented); Stremio local-only; Forgejo later → **⛔ GATE 7 before any public exposure**
 
 ### Phase 8 — Backup automation & verification
 - [ ] Implement offsite mechanism: encryption, retention, deletion protection, monitoring, schedule
-      *(restic scripts + systemd units written; no repository, schedule or alerts yet)*
+      *(restic scripts + systemd units written; no repository or schedule yet. Alertmanager now has a working
+      SMTP path, but the backup alerts have nothing to monitor until a repository exists)*
 - [ ] Verify first backup **and restore it** (into a test target)
 - [ ] Alerts: last-success age, failures, size anomalies; document transfer times → **⛔ GATE 8 after a successful restore test**
 
@@ -342,6 +346,11 @@ the offsite hardware purchase, and the Cloudflare domain + scoped token (only ne
 | 2026-10-16 | 0 | **Finding (read-only):** the NAS points at `10.10.1.53`, which answers nothing — it has been silently using `1.1.1.1`; the UDM answers on the server VLAN. Recorded, **not** changed (production is not written to). |
 | 2026-10-16 | 1 | **Lab moves to libvirt guests.** Verified that `libvirtd.socket` is socket-activated, so `virsh` already works with no owner action — an earlier claim that `libvirtd` needed enabling was wrong (a `.service` showing "disabled" is normal on Arch). |
 | 2026-10-16 | 3,5-8 | Second parallel round started: Cilium CNI, NFS CSI storage, the Proxmox VM module, Immich/Audiobookshelf values, and alert delivery + the SOPS CI gate. |
+| 2026-10-16 | 3,5 | **OpenTofu `talos-vm` module + the decided topology authored**; all four roots validate, `tofu fmt` clean, the Talos artifact URL verified with `curl -sI` rather than guessed. Nothing applied — `tofu plan` needs API access we do not have. |
+| 2026-10-16 | 6 | **NAS-backed dynamic storage landed** (csi-driver-nfs 4.13.5, StorageClass `nas-nfs`). Review caught a real collision before commit: `subDir` set to the namespace alone maps *every* PVC in a namespace to one directory. |
+| 2026-10-16 | 6,8 | **Alerts became deliverable and the SOPS gate is now enforced by CI** (it runs under `act`, since it is static). Telegram is prepared but disabled: an empty token makes Alertmanager refuse to start entirely, so shipping it active would crashloop the pod. |
+| 2026-10-16 | 7 | **Immich and Audiobookshelf fully specified.** Immich renders (it was INCOMPLETE); its media and database are documented as ONE recovery set. |
+| 2026-10-16 | 1 | **Fixed a false-green gate:** the local `just k8s-validate` ran `kustomize <dir>` instead of `kustomize build <dir>`, so it errored on every directory while the pipe to kubeconform masked the exit code — it returned 0 having validated nothing. CI was never affected. |
 
 ## 12. Phase report template (`docs/runbooks/phase-reports/phase-NN.md`)
 
