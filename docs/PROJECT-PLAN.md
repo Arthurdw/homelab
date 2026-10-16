@@ -302,7 +302,7 @@ Full reasoning is in `docs/decisions.md`. Summary:
 | 5 | Alert channel | **SMTP now, Telegram later.** (§5.1) |
 | 6 | Cloudflare / public exposure | Yes for cert-manager DNS-01 with a scoped token; **no management UI public**; the git mirror is a read-only consumer. (§5.4) |
 | 7 | VPN for remote admin | **Reuse Tailscale.** No DMZ and no inbound ports. (§5.2) |
-| 8 | Workstation | The lab runs on this laptop. `libvirtd` must be enabled by the owner; **RAM is the binding constraint**. (`docs/lab.md`) |
+| 8 | Workstation | The lab runs on this laptop. `virsh` works already — `libvirtd.socket` is enabled and socket-activates on demand (a `.service` showing "disabled" is normal on Arch, and the daemon self-exits after idle timeout), plus `arthur` is already in the `libvirt` group. **RAM is the binding constraint.** (`docs/lab.md`) |
 | 9 | Self-hosted git mirror | **Yes, later.** Read-only mirror; **GitHub stays canonical** (it is what Flux tracks). Clone over LAN/Tailscale SSH (`git@git.lab.ardw.be:arthur/repo.git`); anonymous HTTPS for public reads. A plain *public* port 22 is not available. (§5.4, §5.6) |
 
 **Also decided** (not previously asked): the target environment is **local VMs**; physical hosts stay
