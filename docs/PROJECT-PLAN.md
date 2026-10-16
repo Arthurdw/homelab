@@ -351,6 +351,9 @@ the offsite hardware purchase, and the Cloudflare domain + scoped token (only ne
 | 2026-10-16 | 6,8 | **Alerts became deliverable and the SOPS gate is now enforced by CI** (it runs under `act`, since it is static). Telegram is prepared but disabled: an empty token makes Alertmanager refuse to start entirely, so shipping it active would crashloop the pod. |
 | 2026-10-16 | 7 | **Immich and Audiobookshelf fully specified.** Immich renders (it was INCOMPLETE); its media and database are documented as ONE recovery set. |
 | 2026-10-16 | 1 | **Fixed a false-green gate:** the local `just k8s-validate` ran `kustomize <dir>` instead of `kustomize build <dir>`, so it errored on every directory while the pipe to kubeconform masked the exit code — it returned 0 having validated nothing. CI was never affected. |
+| 2026-10-16 | 5,6 | Cilium 1.20.3 is the CNI, with Talos' bundled Flannel and its own kube-proxy both off. Talos rejects `KubeProxyConfig` on workers, so that half lives in the control-plane patch rather than the shared one — the only arrangement where both configs validate. |
+| 2026-10-16 | 6 | **`local-path` completed end to end**: the StorageClass, the worker data disk, and the Talos user volume it mounts. The first check of that chain "proved" the volume existed by reading a stale temp directory, so it was regenerated into a fresh one to make the check real. |
+| 2026-10-16 | 6 | **Known gap recorded in `kubernetes/README.md`:** the address plan is decided but not parameterized per environment, so the tree still carries a TEST-NET-1 MetalLB pool and a lab NFS server IP. Applying it to production as-is would advertise a non-routable range. |
 
 ## 12. Phase report template (`docs/runbooks/phase-reports/phase-NN.md`)
 

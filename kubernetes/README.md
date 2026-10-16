@@ -12,7 +12,7 @@ kubernetes/
     infrastructure-configs.yaml# -> ./kubernetes/infrastructure/configs    (CRs; needs CRDs)
     apps.yaml                  # -> ./kubernetes/apps                      (workloads)
     flux-system/               # created by `flux bootstrap` (not committed) + SOPS age key
-  infrastructure/            # cluster-wide controllers/sources (Flux, MetalLB, ingress, DNS, certs)
+  infrastructure/            # cluster-wide controllers/sources (CNI, MetalLB, ingress, DNS, certs, storage)
     configs/                   # custom resources that need CRDs from the controllers above
   apps/                      # user-facing workloads
 ```
@@ -25,32 +25,39 @@ Kustomization as the HelmRelease that installs its CRD, and Flux dry-runs the wh
 exists. The lab caught exactly that (`no matches for kind "ClusterIssuer"`) — see
 `docs/runbooks/phase-reports/`.
 
-Reconciliation order is expressed with `dependsOn`: controllers before configs, infrastructure before apps.
-
-## Placeholders (replace at GATE 0)
-
-These are deliberate RFC-placeholder values so nothing resembles a real address/domain:
-
-| Placeholder | Meaning |
-|---|---|
-| `homelab.internal` | internal domain — TBD |
-| `192.0.2.0/24` (TEST-NET-1) | MetalLB address pool — TBD |
-| `*.example` chart versions/values | pin/verify before first apply |
-
 ## Versions
 
-Chart versions below were the latest on Artifact Hub as of **2026-10-16**:
+`versions.yaml` at the repo root is the single source of truth; this table is a convenience view.
+Every chart version below was verified against its upstream index or registry on **2026-10-16**.
 
 | Component | Chart | Version | Source |
 |---|---|---|---|
+| Cilium (CNI) | `cilium` | 1.20.3 | `https://helm.cilium.io` |
 | MetalLB | `metallb` | 0.16.1 | `https://metallb.github.io/metallb` |
 | Traefik | `traefik` | 42.0.0 | `https://traefik.github.io/charts` |
 | cert-manager | `cert-manager` | 1.21.2 | `https://charts.jetstack.io` |
 | Technitium DNS | `technitium-dnsserver` | 1.13.4 | `https://charts.obeone.cloud` |
-| Immich | `immich` (OCI) | 0.13.2 | `oci://ghcr.io/immich-app/immich-charts/immich` |
+| Monitoring | `kube-prometheus-stack` | 92.10.0 | `https://prometheus-community.github.io/helm-charts` |
+| NFS CSI driver | `csi-driver-nfs` | 4.13.5 | `https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts` |
+| Node-local storage | `local-path-provisioner` (OCI) | 0.0.37 | `oci://ghcr.io/rancher/local-path-provisioner/charts/local-path-provisioner` |
+| Immich | `immich` (OCI) | 0.13.4 | `oci://ghcr.io/immich-app/immich-charts/immich` |
 | Audiobookshelf | `audiobookshelf` | 2.5.1 | `https://charts.christianhuth.de` |
 
 Renovate/Dependabot should keep these current (see `.github/dependabot.yml` and `docs/PROJECT-PLAN.md`).
+
+## Environment-specific values — decided, but NOT yet parameterized
+
+The address plan is decided (`docs/decisions.md` §2), yet some manifests still carry placeholders or
+**lab** values, because no per-environment overlay exists yet. This table is the gap, not a wish list:
+
+| Value in the tree | Where | Intended production value |
+|---|---|---|
+| `192.0.2.240–250` (TEST-NET-1) | `infrastructure/configs/metallb-pool.yaml` | `10.20.0.100–199` on the K8s VLAN |
+| NAS NFS server `10.99.100.10` | `infrastructure/storage/release.yaml` | `10.99.0.2` over the 10 GbE storage link |
+
+**Consequence:** applying this tree to production as it stands would advertise a non-routable TEST-NET-1
+range and mount NFS from the lab NAS. The environment-overlay workstream closes this; until it lands,
+production must not be applied from this tree.
 
 ## Secrets
 
@@ -60,4 +67,6 @@ age private key.
 
 ## Status
 
-Scaffold. Nothing here has been applied to a live cluster. Validate locally with `just k8s-validate`.
+The tree is **lab-verified in kind**: Flux reconciles it and cert-manager, MetalLB and Traefik install
+cleanly. Nothing has been applied to the real hosts, and no Talos cluster exists yet, so every `HelmRelease`
+here is verified by render + schema only. Validate locally with `just k8s-validate` and `just render-strict`.
