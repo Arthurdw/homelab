@@ -1,4 +1,9 @@
 # markdownlint-cli2 configuration
+ignores:
+  - "**/.terraform/**"
+  - "**/node_modules/**"
+  - ".git/**"
+  - "docs/private/**"
 config:
   MD013: false  # line length — tables/prose are intentionally wide
   MD033: false  # inline HTML — allowed where useful

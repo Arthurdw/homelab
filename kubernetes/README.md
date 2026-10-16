@@ -5,7 +5,7 @@ except for bootstrapping Flux itself.
 
 ## Layout
 
-```
+```text
 kubernetes/
   clusters/homelab/        # Flux entrypoints for THIS cluster (the reconciliation roots)
     infrastructure.yaml    # Flux Kustomization -> ./kubernetes/infrastructure
