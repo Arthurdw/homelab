@@ -1,4 +1,16 @@
 ---
+# Immich — self-hosted photo/video library.
+#   Chart:  oci://ghcr.io/immich-app/immich-charts/immich 0.13.4 (appVersion v3.2.0)
+#   Notes:  docs/apps/immich.md
+#
+# Every value below is a key the chart (bjw-s common-library) actually defines; see the chart's own
+# values.yaml and https://github.com/immich-app/immich-charts. Top-level keys apply to *every* Immich
+# component unless a component section overrides them.
+#
+# EXPOSURE: only the Immich web UI (the `server` Service, HTTP) is published through Traefik. The
+# database (`immich-postgres`), the queue (`immich-valkey`) and `machine-learning` are ClusterIP-only
+# and are never given an Ingress. Access is LAN/Tailscale only — never the public internet
+# (docs/decisions.md §5.2).
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -14,10 +26,126 @@ spec:
     crds: CreateReplace
   upgrade:
     crds: CreateReplace
-  # TODO(GATE 0) — must be filled before this is applied:
-  #   - image tag to match the chart/servers
-  #   - persistence: library + PostgreSQL data on the chosen storage class / existing claims
-  #   - DB + Redis connection (or chart-managed) and the DB backup path
-  #   - an Ingress/TLS host under the internal domain (see docs/network-plan.md)
-  #   - secrets (DB password, etc.) via SOPS-encrypted manifests
-  values: {}
+  values:
+    # --------------------------------------------------------------------------------------------
+    # Shared by every Immich component (server + machine-learning).
+    # --------------------------------------------------------------------------------------------
+    controllers:
+      main:
+        containers:
+          main:
+            image:
+              # The chart README requires this: it does not follow Immich releases on its own.
+              tag: v3.2.0
+            env:
+              TZ: Etc/UTC
+
+    # --------------------------------------------------------------------------------------------
+    # server — web UI + REST API + background jobs (one container). This is the surface we expose.
+    # --------------------------------------------------------------------------------------------
+    server:
+      controllers:
+        main:
+          containers:
+            main:
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 512Mi
+                limits:
+                  cpu: "1"
+                  memory: 2Gi
+              env:
+                # --- database connection ---------------------------------------------------------
+                # The database is NOT part of this chart (the upstream postgres subchart was removed);
+                # it is deployed by postgres.yaml in this directory.
+                #
+                # TODO(secrets): password + username come from the SOPS-encrypted Secret `immich-db`
+                #   (keys: `username`, `password`). That Secret is NOT created here and must never be
+                #   committed in cleartext — see docs/apps/immich.md §Secrets.
+                DB_HOSTNAME: immich-postgres
+                DB_DATABASE_NAME: immich
+                DB_USERNAME:
+                  valueFrom:
+                    secretKeyRef:
+                      name: immich-db
+                      key: username
+                DB_PASSWORD:
+                  valueFrom:
+                    secretKeyRef:
+                      name: immich-db
+                      key: password
+      ingress:
+        main:
+          enabled: true
+          className: traefik
+          annotations:
+            # The chart default also adds an nginx `proxy-body-size` annotation; Traefik ignores it
+            # (harmless). Left in place rather than fought with — see docs/apps/immich.md.
+            cert-manager.io/cluster-issuer: internal-ca
+          hosts:
+            # TODO(hostname): the internal app zone is still undecided (docs/network-plan.md → "Still
+            # open"). `.invalid` is reserved by RFC 6761 and cannot resolve, so it can never be
+            # accidentally published. Replace with the real hostname at GATE 7.
+            - host: immich.invalid
+              paths:
+                - path: /
+                  pathType: Prefix
+                  service:
+                    identifier: main
+          tls:
+            - secretName: immich-tls
+              hosts:
+                - immich.invalid
+
+    # --------------------------------------------------------------------------------------------
+    # machine-learning — face/object detection + smart search. The memory-hungry component.
+    # --------------------------------------------------------------------------------------------
+    machine-learning:
+      controllers:
+        main:
+          containers:
+            main:
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 1Gi
+                limits:
+                  cpu: "2"
+                  memory: 4Gi
+      persistence:
+        # Persist the downloaded ML models so a restart does not re-download them. Disposable cache →
+        # node SSD (`local-path`), not the NAS.
+        cache:
+          enabled: true
+          type: persistentVolumeClaim
+          accessMode: ReadWriteOnce
+          size: 10Gi
+          storageClass: local-path
+
+    # --------------------------------------------------------------------------------------------
+    # valkey — Redis-compatible queue/websocket cache, managed by the chart.
+    # --------------------------------------------------------------------------------------------
+    valkey:
+      enabled: true
+      controllers:
+        main:
+          containers:
+            main:
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+
+    immich:
+      # Expose metrics to the in-cluster Prometheus operator (kube-prometheus-stack).
+      metrics:
+        enabled: true
+      persistence:
+        # Media library lives on the NAS over NFS. The chart refuses to create this claim itself, so it
+        # is defined in library-pvc.yaml and referenced here by name.
+        library:
+          existingClaim: immich-library

@@ -43,13 +43,19 @@ helm_charts:
   cert_manager: "1.21.2"         # https://charts.jetstack.io
   kube_prometheus_stack: "92.10.0"  # https://prometheus-community.github.io/helm-charts
   technitium_dnsserver: "1.13.4"  # https://charts.obeone.cloud
-  immich: "0.13.2"               # oci://ghcr.io/immich-app/immich-charts/immich
-  audiobookshelf: "2.5.1"        # https://charts.christianhuth.de
+  immich: "0.13.4"               # oci://ghcr.io/immich-app/immich-charts/immich (appVersion v3.2.0)
+  audiobookshelf: "2.5.1"        # https://charts.christianhuth.de (appVersion 2.37.1) — already latest
   # NFS CSI driver — dynamic PVCs on the NAS (kubernetes/infrastructure/storage).
   # Verified 2026-10-16: `helm search repo csi-driver-nfs --versions` → 4.13.5 newest stable
   # (GitHub release v4.13.5, prerelease=false). Chart repo unique to this project: the upstream
   # chart lives in the source tree, there is no GitHub Pages index.
   csi_driver_nfs: "4.13.5"       # https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
+
+app_images:
+  # Container images pinned in kubernetes/apps/** (not Helm charts). Pinned by tag@digest where the
+  # upstream project itself pins an exact image.
+  immich_postgres: "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23"
+  # ^ exact image Immich ships in docker/docker-compose.yml; provides the VectorChord extension v3.x needs
 
 ci_tools:
   tflint: "0.64.0"

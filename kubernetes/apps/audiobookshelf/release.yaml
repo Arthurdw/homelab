@@ -1,4 +1,17 @@
 ---
+# Audiobookshelf — self-hosted audiobook/podcast server.
+#   Chart:  https://charts.christianhuth.de/audiobookshelf 2.5.1 (appVersion 2.37.1)
+#   Notes:  docs/apps/audiobookshelf.md
+#
+# Storage split (decisions.md §4.1 / §4.3):
+#   * config   → the SQLite database (users/books/libraries/settings). MUST NOT be on network storage
+#                → `local-path` on the node SSD.
+#   * library  → bulk audiobook media → the NAS over NFS (`nas-nfs`).
+#   * metadata → covers/cache/streams (regenerable but large) → the NAS over NFS.
+#   * backup   → the app's built-in logical backups (DB + selected metadata) → the NAS over NFS.
+#
+# EXPOSURE: only the web UI (the single Service, HTTP) is published through Traefik. Audiobookshelf has
+# no separate admin port; access is LAN/Tailscale only — never the public internet (decisions.md §5.2).
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -18,8 +31,71 @@ spec:
     crds: CreateReplace
   upgrade:
     crds: CreateReplace
-  # TODO(GATE 0) — must be filled before this is applied:
-  #   - persistence: config + library (existing claim vs storage class)
-  #   - Ingress/TLS host under the internal domain
-  #   - backup classification of the library (replaceable vs not) in docs/backup-matrix.md
-  values: {}
+  values:
+    image:
+      # Pin the app image explicitly (defaults to the chart's appVersion, but be explicit).
+      tag: "2.37.1"
+      # Reproducible, no surprise re-pulls.
+      pullPolicy: IfNotPresent
+
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+
+    ingress:
+      enabled: true
+      className: traefik
+      annotations:
+        cert-manager.io/cluster-issuer: internal-ca
+      hosts:
+        # TODO(hostname): the internal app zone is still undecided (docs/network-plan.md → "Still open").
+        # `.invalid` is reserved by RFC 6761 and cannot resolve. Replace with the real hostname at GATE 7.
+        - host: audiobookshelf.invalid
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: audiobookshelf-tls
+          hosts:
+            - audiobookshelf.invalid
+
+    audiobookshelf:
+      # TODO(timezone): set to the owner's real TZ when the app is handed over.
+      timezone: Etc/UTC
+
+      # --- SQLite database + settings: node SSD only (never the network) --------------------------
+      config:
+        persistence:
+          storageClassName: local-path
+          resources:
+            requests:
+              storage: 5Gi
+
+      # --- bulk media: the NAS -------------------------------------------------------------------
+      library:
+        persistence:
+          storageClassName: nas-nfs
+          resources:
+            requests:
+              storage: 500Gi
+
+      # --- covers/cache/streams: the NAS (regenerable, but large) --------------------------------
+      metadata:
+        persistence:
+          storageClassName: nas-nfs
+          resources:
+            requests:
+              storage: 50Gi
+
+      # --- the app's own logical backups (DB + selected metadata) → the NAS ----------------------
+      # Enable the schedule in Settings → Backups (in-app); see docs/apps/audiobookshelf.md.
+      backup:
+        persistence:
+          storageClassName: nas-nfs
+          resources:
+            requests:
+              storage: 20Gi

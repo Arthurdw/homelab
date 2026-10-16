@@ -4,4 +4,7 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - source.yaml
+  - library-pvc.yaml
+  - postgres.yaml
+  - backup.yaml
   - release.yaml

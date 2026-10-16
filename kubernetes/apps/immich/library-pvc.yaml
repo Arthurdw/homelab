@@ -1,0 +1,26 @@
+---
+# Immich media library (original + generated assets).
+#
+# Bulk data → the NAS, over NFS (StorageClass `nas-nfs`), NOT the node SSD. The Immich chart explicitly
+# refuses to create this volume ("Automatically creating the library volume is not supported"), so it is
+# declared here and referenced from release.yaml as `immich.persistence.library.existingClaim`.
+#
+# StorageClass note: `nas-nfs` is a platform-provided class (Phase 6, kubernetes/infrastructure) and is
+# out of scope for this app directory. `ReadWriteOnce` is deliberate: there is a single worker node, and
+# NFS does not enforce single-mount exclusivity, so a rolling update can overlap cleanly.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-library
+  namespace: immich
+  labels:
+    app.kubernetes.io/name: immich
+    app.kubernetes.io/part-of: immich
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nas-nfs
+  resources:
+    requests:
+      # Initial reservation — grow once the library's real size is known.
+      storage: 500Gi
