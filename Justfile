@@ -83,9 +83,9 @@ lab-kind-up:
 lab-kind-down:
   kind delete cluster --name homelab-lab
 
-# Install the pinned lab tools (kind, flux, age, sops) into ~/.local/bin
-lab-tools:
-  ./scripts/lab/install-tools.sh
+# Install the tools the lab needs (default: pinned binaries; `just lab-tools --native` uses pacman)
+lab-tools *args:
+  ./scripts/lab/install-tools.sh {{args}}
 
 # Bring up the full lab: kind + in-cluster Git server + Flux reconciling THIS repo
 lab-up:

@@ -23,7 +23,13 @@ hosts.** The physical hosts are treated as production and are never the test bed
 | Flux | installed by the harness; reconciles the **real** `kubernetes/` tree | built |
 | SOPS age key | generated lab key → `sops-age` Secret (lab-only) | built |
 
-Commands: `just lab-up` · `just lab-status` · `just lab-down` · `just lab-tools`.
+Commands: `just lab-up` · `just lab-status` · `just lab-sync` · `just lab-down` · `just lab-tools`.
+
+`just lab-tools` installs the pinned binaries (`kind`, `flux`, `age`, `sops`) into `~/.local/bin` — **no sudo**
+and exact versions, so the agent/CI can always run it. On Arch/Omarchy, `just lab-tools --native` installs the
+distro packages instead (`kind`, `fluxcd`, `age`, `sops` are all in `extra`; no AUR helper needed). That mode
+needs sudo and may lag the pins (e.g. `fluxcd` 2.9.5 vs pin 2.9.6) — the script **reports the drift** rather
+than hiding it. Use `--dry-run` to preview either mode.
 
 ### Why HTTP, not `git://` or SSH
 
