@@ -68,6 +68,47 @@ Never use: `10.0.0.0/16` (house LAN), `10.10.0.0/16` (server VLAN 4), `169.254.0
 UniFi warns that IPv6 DNS can bypass custom IPv4 DNS. Leaving that implicit is precisely how the stale-resolver
 problem in §6.1 stayed invisible for as long as it did.
 
+### 2.6 — Zone model: two existing segments kept, three new ones added — *decided*
+
+Zones exist to separate trust levels, not to look tidy. The two live segments already provide most of that
+separation, so they are **kept exactly as they are**: renumbering them would touch every existing client and
+risk locking us out of the interfaces we manage from.
+
+| VLAN | Zone | Subnet | Status |
+|---|---|---|---|
+| 1 | HOME | `10.0.0.0/16` | existing; household devices, untouched |
+| 4 | MGMT | `10.10.0.0/16` | existing; management interfaces, untouched (name clarified only) |
+| 20 | K8S | `10.20.0.0/24` | new — the cluster (§2.1) |
+| 30 | SERVERS | `10.30.30.0/24` | new — workload VMs, separated from management |
+| 40 | IOT | `10.30.40.0/24` | new — smart-home and consumer devices |
+| 60 | GUEST | `10.30.60.0/24` | new — visitors: internet only |
+
+The third octet of every new zone **is its VLAN ID** (`10.30.<vlan>.0/24`), so the numbering is
+self-describing and cannot collide with `10.0/16`, `10.10/16`, `10.20/24`, `10.99.x`, pods or services.
+
+**HOME stays on VLAN 1 and is not converted.** Moving household devices to a new VLAN would mean re-connecting
+every phone and laptop — precisely the friction this project refuses to create. Household devices keep their
+addresses and keep working; the new zones are purely additive.
+
+**Migration is per device and optional.** Nothing is forced. The IOT move is the risky one: Google/Nest
+devices may need re-pairing, and mDNS/Bonjour discovery (casting, printers, AirPlay) **does not cross VLANs
+without an mDNS reflector**. An IOT pilot must include that reflector and move one device at a time.
+
+### 2.7 — No BACKUP VLAN; backups are controlled by policy, not by segmentation — *decided*
+
+Heavy backup traffic does not traverse the house LAN: NAS↔Proxmox is SMB over the dedicated 10 GbE
+point-to-point link (§2.2), and offsite is restic over Tailscale. Household PCs backing up to the NAS are
+HOME→SERVERS traffic, governed by **the firewall policy between those zones** — a VLAN would not change it.
+
+A backup VLAN would also buy no bandwidth isolation (it shares the same switch and links) and would not stop
+the threat that actually matters — a compromised PC deleting its own backups — because it must reach the NAS
+to back up at all. The controls that work are: an append-only repo and/or NAS-side snapshots the client
+**cannot** delete, per-client credentials without delete rights, an offsite copy, and a firewall rule
+restricting HOME→NAS to the backup service ports only.
+
+A backup zone earns its complexity only with a **dedicated backup appliance**, or a storage protocol that
+must not share a broadcast domain (e.g. iSCSI). Neither exists here.
+
 ## 3. Compute and Kubernetes
 
 ### 3.1 — 1 control plane + 1 worker — *provisional*
