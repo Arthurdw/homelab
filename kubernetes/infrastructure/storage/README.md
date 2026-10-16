@@ -8,11 +8,14 @@ Backed by the NAS over NFS. Deployed as a single Flux `HelmRelease`
 | Class | Backing | Use for |
 |---|---|---|
 | `nas-nfs` | NAS over NFS (`main/k8s` export) | Bulk/application data: media libraries, documents, caches — anything that can tolerate network latency. |
-| *(none yet)* | node SSD via `local-path` | **Latency-sensitive databases** — `docs/decisions.md` §4.3. Not implemented in this repo yet. |
+| `local-path` | node SSD (a Talos user volume) | **Latency-sensitive databases** — `docs/decisions.md` §4.3. Provided by `kubernetes/infrastructure/local-path`. |
 
-`nas-nfs` is deliberately **not** the cluster default, so a PVC that forgets to name a class
-does not silently land on the network. Databases must name a local class explicitly once it
-exists; do not point them at `nas-nfs`.
+Neither class is the cluster default, so a PVC that forgets to name a class does not silently
+land anywhere. Databases must name `local-path` explicitly; do not point them at `nas-nfs`.
+
+`local-path` is **node-local and not replicated**: it buys latency, not durability. With one
+worker and no HA, losing that node loses those volumes — the logical database dumps on the NAS
+are the recovery path, not this class.
 
 ```yaml
 apiVersion: v1

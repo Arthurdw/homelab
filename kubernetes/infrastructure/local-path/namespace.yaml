@@ -1,0 +1,17 @@
+---
+# Namespace for the node-local dynamic provisioner. Named after this directory, matching the
+# one-directory-per-component convention in kubernetes/infrastructure/ (storage, metallb,
+# traefik, cert-manager, technitium, monitoring). Upstream's default and the Talos "Local
+# Storage" guide both use `local-path-storage`; the name is arbitrary and not load-bearing,
+# so this repo keeps its own convention.
+#
+# The privileged Pod Security label is required by upstream Talos guidance for this chart:
+# the provisioner and its short-lived helper pods mount hostPath volumes, which the
+# `baseline`/`restricted` Pod Security Standards reject.
+#   https://docs.siderolabs.com/kubernetes-guides/csi/local-storage.md
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: local-path
+  labels:
+    pod-security.kubernetes.io/enforce: privileged

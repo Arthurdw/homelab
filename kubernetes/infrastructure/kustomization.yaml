@@ -9,3 +9,4 @@ resources:
   - technitium
   - monitoring
   - storage
+  - local-path
