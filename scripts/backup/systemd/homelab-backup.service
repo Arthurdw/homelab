@@ -1,0 +1,18 @@
+[Unit]
+Description=Offsite backup (restic)
+Documentation=file:docs/backup-policy.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# EnvironmentFile holds RESTIC_* and BACKUP_PATHS. Keep it mode 0600 outside the repo.
+EnvironmentFile=/etc/homelab/backup.env
+ExecStart=/usr/local/bin/homelab-restic-backup
+Nice=10
+IOSchedulingClass=idle
+# Do not let a failure pass silently — wire this to your alert channel.
+OnFailure=homelab-backup-alert@%n.service
+
+[Install]
+WantedBy=multi-user.target
