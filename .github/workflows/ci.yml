@@ -13,7 +13,17 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Pinned CI tool versions (reproducibility — see versions.yaml `meta.policy`).
+# Binary tools are installed, checksum-verified where upstream publishes a checksum, by
+# scripts/ci/install-ci-tools.sh. The node/python tools are pinned here because they come
+# from their package registries. Bump these deliberately, in one place.
+env:
+  MARKDOWNLINT_CLI2_VERSION: "0.23.3"
+  YAMLLINT_VERSION: "1.38.0"
+
 jobs:
+  # GitHub-only: gitleaks-action can't be cloned anonymously, so `act` skips it.
+  # Run it locally instead with `just secrets` (gitleaks binary or the container image).
   secret-scan:
     name: secret scan (gitleaks)
     runs-on: ubuntu-latest
@@ -49,17 +59,12 @@ jobs:
           done
 
   kubernetes:
-    name: kubernetes manifests
+    name: kubernetes manifests (kustomize + kubeconform)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: install validators
-        run: |
-          set -euo pipefail
-          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz \
-            | tar xz -C /usr/local/bin kubeconform
-          curl -sSL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.3/kustomize_v5.8.3_linux_amd64.tar.gz \
-            | tar xz -C /usr/local/bin kustomize
+      - name: install validators (pinned)
+        run: scripts/ci/install-ci-tools.sh kubeconform kustomize
       - name: validate
         shell: bash
         run: |
@@ -72,24 +77,42 @@ jobs:
             echo "::endgroup::"
           done
 
+  # Abstract render check: catches HelmRelease `values` that break a chart's templates
+  # without a live cluster (the technitium `service.type` bug). No credentials, no apply.
+  render:
+    name: helm render (abstract, no cluster)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install helm + yq (pinned)
+        run: scripts/ci/install-ci-tools.sh helm yq
+      - name: render every HelmRelease
+        run: scripts/ci/render-helm-releases.sh
+
   lint:
-    name: lint (docs / yaml / shell)
+    name: lint (workflows / docs / yaml / shell)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: install linters
-        run: |
-          set -euo pipefail
-          npm install -g markdownlint-cli2
-          sudo apt-get update
-          sudo apt-get install -y yamllint shellcheck
+      - name: install binary linters (pinned)
+        run: scripts/ci/install-ci-tools.sh actionlint shellcheck
+      - name: install markdownlint-cli2 (pinned)
+        run: npm install -g "markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION}"
+      - name: actionlint
+        run: actionlint
       - name: markdownlint
         run: markdownlint-cli2 "**/*.md"
-      - name: yamllint
-        run: yamllint .
+      - name: yamllint (pinned, isolated venv)
+        shell: bash
+        run: |
+          set -euo pipefail
+          venv="${RUNNER_TEMP:-$HOME}/yamllint-venv"
+          python3 -m venv "$venv"
+          "$venv/bin/pip" install --disable-pip-version-check -q "yamllint==${YAMLLINT_VERSION}"
+          "$venv/bin/yamllint" .
       - name: shellcheck
         shell: bash
         run: |

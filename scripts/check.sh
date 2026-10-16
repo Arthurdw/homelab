@@ -52,6 +52,24 @@ if have shellcheck; then
   if [ "${#sh[@]}" -gt 0 ]; then
     shellcheck -x "${sh[@]}" || { echo "FAILED: shellcheck"; fail=1; }
   fi
+else
+  echo "== shellcheck == skipped (missing: shellcheck) =="
+fi
+
+# --- GitHub Actions workflows ---
+if have actionlint; then
+  echo "== actionlint =="
+  actionlint || { echo "FAILED: actionlint"; fail=1; }
+else
+  echo "== actionlint == skipped (missing: actionlint) =="
+fi
+
+# --- HelmRelease render (abstract; needs helm + yq) ---
+if have helm && have yq; then
+  echo "== helm render =="
+  ./scripts/ci/render-helm-releases.sh || { echo "FAILED: helm render"; fail=1; }
+else
+  echo "== helm render == skipped (missing: helm and/or yq)"
 fi
 
 echo
