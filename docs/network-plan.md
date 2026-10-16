@@ -43,15 +43,19 @@
 
 ## Still open
 
-5. **Management VLAN tag**, and whether the NAS/Proxmox VLAN mismatch is cosmetic or real — needs the UniFi
-   configuration export (the full-access key is approved but not yet captured). That export is also the
-   required baseline for anything additive in the zone model below.
+5. **Management VLAN tag**, and whether the NAS/Proxmox VLAN mismatch is cosmetic or real — the owner is
+   handing over the full-access API key (held outside the repo) so the controller can be inventoried
+   read-only rather than guessed at. That inventory is also the required baseline for anything additive in
+   the zone model below.
 6. **The NAS's LAN-facing NIC speed.** This document records 1 GbE for the management NIC, while the
    interface list shows a possibly-10G `enp4s0` behind the management VLAN. It decides whether household
    PC→NAS backups are capped at ~110 MB/s and contend with everything else — the 10 GbE link is
    point-to-point (Proxmox↔NAS), so household devices cannot use it.
 7. **An mDNS reflector for the IOT zone** — required before any smart-home device moves, or casting,
    printers and AirPlay break (`docs/decisions.md` §2.6).
+8. **A Cloudflare token scoped to `Zone → DNS → Edit` on `lab.ardw.be`** — needed for the DNS-01 certificates
+   (`docs/decisions.md` §5.7). Until it exists, applications stay on the internal-CA fallback and household
+   devices will warn.
 
 ## Target address plan (decided — rationale in `docs/decisions.md` §2)
 

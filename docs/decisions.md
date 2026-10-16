@@ -230,6 +230,10 @@ signed commits, that is `gpg.format = ssh` + `user.signingkey`, independent of h
 To be purchased or built. Until it exists, the backup design stays target-agnostic (encrypted, versioned,
 restic-style) so the mechanism does not change when the hardware arrives.
 
+**Confirmed deferred (2026-10-16):** no vendor and no target are chosen yet, and the owner asked to leave it
+for later rather than pick one now. The design work therefore stays generic — an S3-compatible or self-hosted
+REST target, restic-shaped either way. Nothing downstream may assume a specific provider.
+
 ### 5.6 — Canonical git remote: GitHub; the self-hosted git is a read-only mirror — *decided 2026-10-16*
 
 **GitHub stays canonical** and is what Flux tracks. Forgejo (self-hosted, in-cluster) is a **read-only
@@ -242,6 +246,30 @@ to be writable.
 
 **Transport (decided):** SSH over **LAN + Tailscale** — plain `git@git.lab.ardw.be:arthur/repo.git` with an SSH
 key, no client agent and no public exposure. Anonymous HTTPS stays available for public reads.
+
+### 5.7 — Internal application zone and certificates — *decided 2026-10-16*
+
+Internal applications are reached at **`<app>.lab.ardw.be`** — a subdomain of a domain already owned, and the
+same parent as the git mirror (`git.lab.ardw.be`). Technitium serves those names internally; they are never
+resolvable from the internet.
+
+Certificates come from **Let's Encrypt via DNS-01 through Cloudflare**, with a token scoped to `Zone → DNS →
+Edit` on the `lab.ardw.be` zone only.
+
+**DNS-01 is forced, not preferred:** nothing here is reachable from the internet (§5.2 — no inbound ports, no
+DMZ), so HTTP-01 has no path by which the ACME server could reach the host.
+
+**Split horizon — the part that actually protects us:** the public Cloudflare zone carries **only** ACME
+challenge TXT records, no A or AAAA records whatsoever. The internal A records pointing at MetalLB VIPs exist
+only in Technitium. So neither the application hostnames nor the internal addresses are published, and nothing
+becomes externally reachable.
+
+**Shape:** a single wildcard `*.lab.ardw.be` certificate, so adding an application does not mean issuing
+another certificate or widening the token.
+
+**Fallback, not default:** the internal CA (`internal-ca`, already scaffolded) remains available for anything
+that must not depend on Cloudflare. It is not the default because every household device would need our root
+certificate installed or it shows warnings — exactly the friction this project refuses to create (§2.6).
 
 ## 6. Findings that changed the plan
 
