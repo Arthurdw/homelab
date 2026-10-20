@@ -1,6 +1,6 @@
 # Central version inventory.
 # "latest" = newest *stable* observed on 2026-10-16 via upstream APIs (GitHub releases / TF registry).
-# Review at each phase; update only via reviewed PRs. Compatibility is NOT yet verified — see status notes.
+# Review at each phase; update only via reviewed PRs. Open compatibility checks: verification_tasks.
 meta:
   last_reviewed: "2026-10-16"
   policy: "pin exact versions; never floating tags; verify compat before adopting"
@@ -13,7 +13,7 @@ storage:
   truenas_scale: "24.10.2.4"    # live on hercules-nas
 
 kubernetes:
-  talos: "v1.14.4"              # status: compat-unverified (check Talos↔K8s matrix)
+  talos: "v1.14.4"              # supports K8s 1.33-1.37 (Talos v1.14 support matrix, checked 2026-10-20)
   kubernetes: "v1.37.1"         # newest stable (v1.38 still alpha)
   flux: "v2.9.6"                # verify supported K8s range against pinned K8s
 
@@ -38,9 +38,6 @@ iac:
 
 helm_charts:
   # Latest on Artifact Hub as of 2026-10-16. Pinned in kubernetes/**/release.yaml.
-  # CNI (docs/decisions.md §3.3). Verified 2026-10-16 against the upstream repo:
-  #   helm repo add cilium https://helm.cilium.io && helm repo update
-  #   helm show chart cilium/cilium --version 1.20.3   # 1.20.3 = newest stable, appVersion 1.20.3
   cilium: "1.20.3"               # https://helm.cilium.io
   metallb: "0.16.1"              # https://metallb.github.io/metallb
   traefik: "42.0.0"              # https://traefik.github.io/charts
@@ -50,16 +47,12 @@ helm_charts:
   immich: "0.13.4"               # oci://ghcr.io/immich-app/immich-charts/immich (appVersion v3.2.0)
   audiobookshelf: "2.5.1"        # https://charts.christianhuth.de (appVersion 2.37.1) — already latest
   # NFS CSI driver — dynamic PVCs on the NAS (kubernetes/infrastructure/storage).
-  # Verified 2026-10-16: `helm search repo csi-driver-nfs --versions` → 4.13.5 newest stable
-  # (GitHub release v4.13.5, prerelease=false). Chart repo unique to this project: the upstream
-  # chart lives in the source tree, there is no GitHub Pages index.
+  # The chart repo is the raw source tree: upstream publishes no GitHub Pages index.
   csi_driver_nfs: "4.13.5"       # https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
   # Node-local provisioner — the `local-path` StorageClass for latency-sensitive databases
-  # (docs/decisions.md §4.3, kubernetes/infrastructure/local-path). Chart is the OFFICIAL upstream
-  # OCI artifact (rancher/local-path-provisioner#501; issue #89 closed 2026-04-04), NOT a mirror.
-  # Verified 2026-10-16: `helm show chart oci://ghcr.io/rancher/local-path-provisioner/charts/local-path-provisioner --version 0.0.37`
-  # → 0.0.37 / appVersion v0.0.37, digest sha256:81033683ce790e593524b2105945ee0d81bf6608f0c85eb5e0c1082cc74ff03d.
-  # 0.0.37 > 0.0.36, so NOT affected by CVE-2026-44543 / GO-2026-5218 (fixed in v0.0.36).
+  # (docs/decisions.md §4.3, kubernetes/infrastructure/local-path). Official upstream OCI chart.
+  # Chart digest sha256:81033683ce790e593524b2105945ee0d81bf6608f0c85eb5e0c1082cc74ff03d.
+  # >= 0.0.36 is required (CVE-2026-44543 / GO-2026-5218).
   local_path_provisioner: "0.0.37"  # oci://ghcr.io/rancher/local-path-provisioner/charts/local-path-provisioner
 
 app_images:
@@ -79,7 +72,7 @@ ci_tools:
   kind: "0.33.0"
 
 verification_tasks:
-  - "Talos v1.14.4 ↔ Kubernetes v1.37.1 compatibility matrix"
+  - "DONE 2026-10-20: Talos v1.14 lists Kubernetes 1.37 as supported (docs.siderolabs.com/talos/v1.14/getting-started/support-matrix); talosctl gen config accepts v1.14.4 + 1.37.1"
   - "Flux v2.9.6 supported Kubernetes range"
   - "truenas provider supported TrueNAS 24.10.x API endpoints / resource coverage"
   - "UniFi provider: stable vs beta; UDM Pro API coverage"

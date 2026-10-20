@@ -53,19 +53,19 @@ ci:
 
 # Run one CI job locally, e.g. `just ci-job lint`
 ci-job job:
-  act push -j {{job}}
+  act push -j {{job}} --pull=false
 
 # List the CI jobs act will run
 ci-list:
   act -l
 
-# Secret scan (gitleaks if installed, else the container image)
+# Secret scan (gitleaks if installed, else the pinned container image — keep in step with versions.yaml)
 secrets:
   #!/usr/bin/env bash
   if command -v gitleaks >/dev/null; then
     gitleaks detect --no-banner --redact
   else
-    docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:latest detect --source=/repo --no-banner --redact
+    docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 detect --source=/repo --no-banner --redact
   fi
 
 # CI gate: every would-be-committed secret file must be SOPS-encrypted
@@ -76,13 +76,8 @@ secrets-check:
 secrets-verify:
   ./scripts/secrets/verify.sh
 
-# Render kustomizations and validate (if any exist)
 # Build every kustomization and schema-check it. Mirrors the CI `kubernetes` job — if you
-# change one, change the other.
-# Fixed 2026-10-16: this recipe ran `kustomize <dir>` instead of `kustomize build <dir>` and
-# had no `set -euo pipefail`, so kustomize errored, the pipe to kubeconform masked the exit
-# status, and the recipe returned 0 having validated NOTHING (`Valid: 0` per directory). A
-# validation gate that silently passes is worse than no gate, because it is trusted.
+# change one, change the other. A failed or empty render is an error, never a silent pass.
 k8s-validate:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -101,7 +96,6 @@ k8s-validate:
     if ! manifest="$(render "$d")"; then
       echo "ERROR: $d failed to render" >&2; rc=1; continue
     fi
-    # An empty render is a failure, not a pass: it is how this recipe previously lied.
     if [ -z "${manifest//[[:space:]]/}" ]; then
       echo "ERROR: $d rendered empty" >&2; rc=1; continue
     fi

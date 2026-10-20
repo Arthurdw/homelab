@@ -2,6 +2,9 @@
 # yamllint configuration
 extends: default
 
+# Never lint generated or local-only files (e.g. talos/out/ machine configs, .terraform/).
+ignore-from-file: .gitignore
+
 rules:
   line-length: disable
   document-start: disable
