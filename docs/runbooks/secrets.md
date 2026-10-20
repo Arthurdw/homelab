@@ -2,7 +2,7 @@
 
 How encrypted secrets are created, stored, consumed and recovered in this repository.
 
-- **Design:** `docs/secrets-and-state.md` (Phase 1 secret strategy).
+- **Design:** `docs/secrets-and-state.md` (secret strategy).
 - **Rules (recipients):** `.sops.yaml`.
 - **Tooling:** `scripts/secrets/`.
 - **Rule zero:** no plaintext secret ever enters the repository, CI, logs or plan
@@ -23,8 +23,8 @@ How encrypted secrets are created, stored, consumed and recovered in this reposi
    private half at `~/.config/homelab/lab-age.key` (never committed); the public
    recipient in `.sops.yaml` was extracted with `age-keygen -y ~/.config/homelab/lab-age.key`.
    Path convention: `*.lab.sops.yaml`, or any SOPS file under a `lab/` segment.
-2. **PRODUCTION** — currently a **placeholder** (`REPLACE_AT_GATE_4_WITH_PRODUCTION_AGE_RECIPIENT`).
-   Encrypting a production secret **fails closed** until the GATE 4 ceremony fills it in.
+2. **PRODUCTION** — currently a **placeholder** (`REPLACE_WITH_PRODUCTION_AGE_RECIPIENT`).
+   Encrypting a production secret **fails closed** until the production key ceremony fills it in.
 
 The first matching rule wins, so the lab rule must stay above the production rule.
 
@@ -41,7 +41,7 @@ The lab key is disposable: if it is lost, delete the lab ciphertext, regenerate 
 key and re-encrypt. The lab harness (`scripts/lab/lab-up.sh`) installs it into the lab
 cluster as the `sops-age` Secret automatically.
 
-### Production (offline, one-time) — TODO(GATE 4)
+### Production (offline, one-time)
 
 Do this on an **offline / air-gapped** machine, never on a networked host:
 
@@ -96,7 +96,7 @@ Two different things, often confused:
 - **Rotate a value** (same age key): edit the ciphertext with `sops FILE` (or
   decrypt → edit → re-`encrypt.sh`) and commit. Nothing else changes.
 - **Rotate the age key** (new recipient):
-  1. Run the GATE 4 ceremony again to create a new production key; escrow it.
+  1. Run the production key ceremony again to create a new production key; escrow it.
   2. Update the recipient in `.sops.yaml`.
   3. Re-key every encrypted file to the new recipient:
 
@@ -126,10 +126,7 @@ Every cluster `Kustomization` already decrypts SOPS files with the age identity 
 The Secret must contain the key under `age.agekey`. **Lab** wiring already exists —
 `scripts/lab/lab-up.sh` creates it from `~/.config/homelab/lab-age.key` on bring-up.
 
-**Production** — TODO(GATE 0 / GATE 5). The live cluster does not exist yet, and how the
-key is delivered during bootstrap depends on owner decisions still open at **GATE 0**
-(bootstrap source, git-mirror and Talos answers). Do not implement it yet. When the gate
-opens and the cluster is reachable, the out-of-band install is:
+**Production** — not wired yet. Once the cluster is reachable, the out-of-band install is:
 
 ```sh
 kubectl -n flux-system create secret generic sops-age \
@@ -151,7 +148,7 @@ ciphertext that nobody can open.
 If the **production** key is lost:
 
 1. Stop. Do not pretend recovery is possible.
-2. Recreate the key with the GATE 4 ceremony and update `.sops.yaml` + the `sops-age`
+2. Recreate the key with the production key ceremony and update `.sops.yaml` + the `sops-age`
    Secret.
 3. Re-source **every** credential from its authoritative location (provider consoles,
    password manager) and re-encrypt. The old ciphertext is dead weight — delete it.
@@ -180,7 +177,7 @@ plaintext is not).
 - any file that could be committed and ends in `*.sops.yaml` / `*.sops.yml` /
   `*.sops.json` is **not** actually encrypted (a plaintext secret left behind);
 - such a file is gitignored (its ciphertext could not be committed);
-- and it warns (does not fail) while the production recipient is still the GATE 4
+- and it warns (does not fail) while the production recipient is still the
   placeholder.
 
 Run it locally:

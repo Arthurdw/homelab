@@ -6,7 +6,7 @@
 #   2. `sops -d` reproduces a flat document byte-for-byte;
 #   3. `sops -d --extract` reads fields out of a nested document, proving the
 #      structure survived the round-trip;
-#   4. a production-named file FAILS CLOSED while the GATE 4 placeholder is unset.
+#   4. a production-named file FAILS CLOSED while the production placeholder is unset.
 #
 # (SOPS re-indents nested YAML, so the byte-for-byte check uses a flat document;
 #  nesting is proven separately via --extract.)
@@ -100,13 +100,13 @@ fi
 log "== verify: production fails closed (placeholder) =="
 printf 'prod: secret\n' > "$PROD_ENC"
 if sops -e -i --config "$CONFIG" "$PROD_ENC" >/dev/null 2>&1; then
-  if grep -q 'REPLACE_AT_GATE_4_WITH_PRODUCTION_AGE_RECIPIENT' "$CONFIG"; then
+  if grep -q 'REPLACE_WITH_PRODUCTION_AGE_RECIPIENT' "$CONFIG"; then
     bad "production secret encrypted to a placeholder recipient"
   else
-    ok "production rule has a real recipient (GATE 4 filled)"
+    ok "production rule has a real recipient (filled)"
   fi
-elif grep -q 'REPLACE_AT_GATE_4_WITH_PRODUCTION_AGE_RECIPIENT' "$CONFIG"; then
-  ok "production encryption correctly fails while the GATE 4 placeholder is set"
+elif grep -q 'REPLACE_WITH_PRODUCTION_AGE_RECIPIENT' "$CONFIG"; then
+  ok "production encryption correctly fails while the production placeholder is set"
 else
   bad "production encryption failed although the placeholder is gone"
 fi

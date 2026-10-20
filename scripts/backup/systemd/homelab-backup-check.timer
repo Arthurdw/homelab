@@ -1,6 +1,5 @@
 [Unit]
 Description=Weekly offsite backup verification
-Documentation=file:docs/backup-policy.md
 
 [Timer]
 # Sundays at 04:00.

@@ -85,8 +85,8 @@ done < <(find "$ROOT" -type f \( -name '*.sops.yaml' -o -name '*.sops.yml' -o -n
   -not -path '*/.git/*' 2>/dev/null)
 
 # --- 4. advisory: is the production recipient still a placeholder? ----------
-if [ -f "$ROOT/.sops.yaml" ] && grep -q 'REPLACE_AT_GATE_4_WITH_PRODUCTION_AGE_RECIPIENT' "$ROOT/.sops.yaml"; then
-  warn "production recipient is still the GATE 4 placeholder — production secrets cannot be encrypted yet (by design)"
+if [ -f "$ROOT/.sops.yaml" ] && grep -q 'REPLACE_WITH_PRODUCTION_AGE_RECIPIENT' "$ROOT/.sops.yaml"; then
+  warn "production recipient is still the production placeholder — production secrets cannot be encrypted yet (by design)"
 fi
 
 log ""

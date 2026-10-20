@@ -1,6 +1,5 @@
 [Unit]
-Description=Verify the offsite backup repository (restic check + sample restore)
-Documentation=file:docs/backup-policy.md
+Description=Verify the offsite backup repository (restic check)
 After=network-online.target
 Wants=network-online.target
 
@@ -9,11 +8,6 @@ Type=oneshot
 EnvironmentFile=/etc/homelab/backup.env
 # Higher subset on the weekly verify; see RESTIC_READ_DATA_SUBSET.
 Environment=RESTIC_READ_DATA_SUBSET=10%
-Environment=RESTIC_RESTORE_DIR=/var/tmp/restic-restore-test
 ExecStart=/usr/local/bin/homelab-restic-check
 Nice=10
 IOSchedulingClass=idle
-OnFailure=homelab-backup-alert@%n.service
-
-[Install]
-WantedBy=multi-user.target

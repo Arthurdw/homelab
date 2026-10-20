@@ -1,7 +1,7 @@
 # Backup Policy
 
-> Design (Phase 2). **Not yet implemented.** No backup jobs run yet. Governed by `docs/SPEC.md` §7.
-> Exact sizes/values are **TBD** pending the inventory; nothing here is claimed as working.
+> Design. **Not yet implemented.** No backup jobs run yet. Governed by `docs/SPEC.md` §7. Dataset and
+> snapshot policy: `docs/decisions.md` §4.1. Exact sizes/values are **TBD**; nothing here is claimed as working.
 
 ## 1. Objectives
 
@@ -27,7 +27,7 @@ New datasets start **unclassified** and are surfaced for a decision — never as
 - Replace the current single non-recursive `main` task (which leaves child datasets uncovered).
 - **Never** let snapshots consume the pool silently — monitor snapshot space and pool capacity.
 
-## 4. Offsite mechanism (to choose on evidence)
+## 4. Offsite mechanism (target deferred)
 
 | Option | Pros | Cons | Verdict |
 |---|---|---|---|
@@ -70,7 +70,7 @@ remaining destination capacity. **A backup is not verified because the job repor
 
 ## 9. Open items
 
-- Choose mechanism A vs B (§4) — evidence in Phase 2.
+- Choose mechanism A vs B (§4). `docs/decisions.md` §5.5 keeps the design restic-shaped and the target deferred.
 - Offsite destination hardware/network/power (family home) — unconfirmed.
 - Per-dataset retention values.
 - Alert channel (owner decision).

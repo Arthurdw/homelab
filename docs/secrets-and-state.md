@@ -1,6 +1,6 @@
 # Secrets & State Management
 
-> Design document (Phase 1). **Not yet implemented.** Nothing here is applied to live systems.
+> Design document. Only the lab key and SOPS tooling exist; nothing here is applied to live systems.
 > Rule zero: **no secret ever enters the repository, CI, or any committed file.**
 
 ## 1. What must never be committed

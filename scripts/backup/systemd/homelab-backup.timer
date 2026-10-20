@@ -1,6 +1,5 @@
 [Unit]
 Description=Run the offsite backup daily
-Documentation=file:docs/backup-policy.md
 
 [Timer]
 # Daily at 02:30 with a random delay so multiple hosts don't collide.
