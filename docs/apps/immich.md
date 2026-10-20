@@ -28,8 +28,8 @@ because it is the most safety-critical and upstream pins it that way.
 - **Not exposed:** PostgreSQL (`immich-postgres`), Valkey (`immich-valkey`) and `machine-learning` are
   `ClusterIP`-only (the DB Service is headless) and have **no Ingress**. They are reachable only from
   inside the cluster.
-- **To whom:** the `*.invalid` placeholder resolves nowhere; once replaced with the real internal
-  hostname the surface is intended for **LAN + Tailscale** clients only. There is **no public
+- **To whom:** the host is `immich.lab.ardw.be` (`docs/decisions.md` §5.7), resolved only by the
+  internal Technitium resolver. The surface is intended for **LAN + Tailscale** clients only. There is **no public
   exposure** (no DMZ, no inbound ports — `docs/decisions.md` §5.2).
 - **Authentication:** Immich's own account system (first-run admin, per-user accounts). SSO via
   Authentik is **not** wired yet. Immich has no separate administrative port — admin functions live in
@@ -47,7 +47,7 @@ because it is the most safety-critical and upstream pins it that way.
 | `immich-db-backups` (PVC, `backup.yaml`) | `pg_dump` logical dumps | `nas-nfs` | 20Gi | consistent copies on the NAS |
 | ML model cache (chart PVC) | downloaded ML models | `local-path` | 10Gi | disposable cache; node SSD keeps it off the NAS |
 
-`nas-nfs` and `local-path` are **platform-provided StorageClasses** (Phase 6, `kubernetes/infrastructure`)
+`nas-nfs` and `local-path` are **platform-provided StorageClasses** (`kubernetes/infrastructure`)
 and are out of scope for this directory. `ReadWriteOnce` is used throughout: there is a single worker
 node, and NFS does not enforce single-mount exclusivity, so rolling updates overlap cleanly.
 
@@ -56,7 +56,7 @@ node, and NFS does not enforce single-mount exclusivity, so rolling updates over
 - Requires an externally managed Secret **`immich-db`** in namespace `immich`, keys `username` and
   `password` (referenced by name from `release.yaml`, `postgres.yaml`, `backup.yaml`).
 - **Not created here.** It must be a SOPS-encrypted Secret (e.g. `kubernetes/apps/immich/immich-db.sops.yaml`)
-  committed only after the production age recipient exists (`.sops.yaml` fails closed until GATE 4).
+  committed only after the production age recipient exists (`.sops.yaml` fails closed until the production recipient exists).
 - TODO(secrets): create `immich-db` via `scripts/secrets/encrypt.sh`; no credential is ever committed
   in cleartext.
 
@@ -96,8 +96,8 @@ Single worker, 3 vCPU / 16 GiB, no HA — requests are deliberately modest.
 - **Restore (media):** re-populate `immich-library` from the NAS snapshot of `main/apps/immich`.
 - **Classification:** Tier 2/1 candidate (irreplaceable personal photos). Listed in
   `docs/backup-matrix.md` as "Immich DB + media" — **related recovery set; order matters**.
-- **Not yet done:** no restore has been performed (Phase 10 drill); the cron dump is not yet
-  monitored (Phase 8 alerts: last-success age).
+- **Not yet done:** no restore has been performed (drill pending); the cron dump is not yet
+  monitored (alert on last-success age pending).
 - TODO(storage): confirm the `nas-nfs` export lets uid/gid `999` write (the dump job runs as that uid).
 
 ## Upgrade & rollback
@@ -136,9 +136,10 @@ kubectl kustomize kubernetes/apps/immich
 
 ## Open items / TODOs
 
-- **Hostname** is a `.invalid` placeholder — replace at GATE 7 (internal DNS zone undecided).
+- **Certificate** — switch the Ingress issuer from `internal-ca` to the Let's Encrypt wildcard once the
+  Cloudflare DNS-01 issuer exists (`docs/decisions.md` §5.7).
 - **`immich-db` Secret** — create (SOPS-encrypted) before first deploy.
 - **Authentik SSO** — not wired yet.
-- **Restore drill** and **backup monitoring** — Phase 8/10.
+- **Restore drill** and **backup monitoring** — not done yet.
 - **DB container hardening** — prove running as uid 999 (needs a writable `/etc/postgresql`).
 - **StorageClasses** `nas-nfs` / `local-path` are provided by the platform layer.

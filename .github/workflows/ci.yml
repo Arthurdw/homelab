@@ -73,12 +73,15 @@ jobs:
           done
 
   kubernetes:
-    name: kubernetes manifests (kustomize + kubeconform)
+    name: kubernetes manifests (kustomize + kubeconform + cluster settings)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: install validators (pinned)
-        run: scripts/ci/install-ci-tools.sh kubeconform kustomize
+        run: scripts/ci/install-ci-tools.sh kubeconform kustomize yq
+      - name: cluster settings (post-build substitution guard)
+        # Flux substitutes an undefined ${VAR} with an empty string, so check statically.
+        run: scripts/ci/check-cluster-settings.sh
       - name: validate
         shell: bash
         run: |

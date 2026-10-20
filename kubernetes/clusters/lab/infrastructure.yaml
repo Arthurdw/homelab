@@ -1,0 +1,26 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure
+  namespace: flux-system
+spec:
+  interval: 30m
+  retryInterval: 1m
+  timeout: 10m
+  path: ./kubernetes/infrastructure
+  prune: true
+  wait: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  # Decrypt SOPS-encrypted manifests with the age key in `sops-age` (never committed).
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  # ${VAR} values come from cluster-settings.yaml.
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings

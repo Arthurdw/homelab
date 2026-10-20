@@ -1,118 +1,23 @@
 ---
 # Node-local dynamic storage for latency-sensitive databases (docs/decisions.md §4.3).
+# Rancher local-path-provisioner from its upstream OCI chart (source.yaml); renders the
+# StorageClass `local-path` that postgres and the app PVCs reference.
 #
-# WHAT THIS IS
-#   Rancher's local-path-provisioner, installed from its OFFICIAL upstream OCI chart, rendering
-#   the StorageClass `local-path` that the app manifests already expect
-#   (kubernetes/apps/immich/postgres.yaml, kubernetes/apps/audiobookshelf/release.yaml,
-#   kubernetes/apps/immich/release.yaml). Before this release existed there was NO provisioner
-#   and NO StorageClass named `local-path` anywhere in the repo, so those PVCs sat Pending
-#   forever. This closes that gap.
+# Data path: the chart default (/opt/local-path-provisioner) is on Talos' read-only rootfs, so
+# nodePathMap points at /var/mnt/local-path-provisioner, the mount point of the Talos
+# UserVolumeConfig `local-path-provisioner` (talos/patches/worker.yaml, worker-only, on the
+# worker's dedicated data disk). A user volume is its own partition, so wiping EPHEMERAL does not
+# touch it. Keep the volume name and nodePathMap in sync. Talos guide:
+# https://docs.siderolabs.com/kubernetes-guides/csi/local-storage.md
 #
-# WHY local-path-provisioner (and not the alternatives)
-#   * The class NAME is the contract the apps already depend on: `storageClassName: local-path`
-#     is upstream's own default class name, so this is a drop-in.
-#   * It is a static, single binary with no CSI controller/sidecars and no external API: the
-#     right footprint for a 4-thread, single-host lab (docs/architecture.md §1).
-#   * It ships BOTH the controller and the StorageClass from one chart, so we can render the
-#     class from `storageClass.*` values (exactly as kubernetes/infrastructure/storage does for
-#     csi-driver-nfs). That sidesteps the controllers-vs-custom-resources ordering problem:
-#     a StorageClass CR is a core `storage.k8s.io/v1` type, but keeping it inside the release's
-#     own values means there is nothing for kustomize to apply before the driver exists.
-#   * Alternative considered and rejected: democratic-csi's local-hostpath driver (also has a
-#     real chart, per the note in kubernetes/infrastructure/storage/release.yaml) — it adds a
-#     CSI node plugin DaemonSet + controller for a single-node lab, more machinery for no
-#     benefit here. Concrete reason to switch later: needing per-PVC ZFS/CSI snapshots or a
-#     real CSI volume lifecycle. Neither is required today.
+# The lab worker has no such volume; there the path simply lives on the writable EPHEMERAL
+# partition (/var), which is fine for a throwaway cluster.
 #
-# ============================================================================================
-# THE CRITICAL PART — WHERE THE DATA MUST LIVE ON TALOS (this is why the chart default is WRONG)
-# ============================================================================================
-#   The chart's DEFAULT data path is `/opt/local-path-provisioner`. On Talos Linux that path is
-#   part of the READ-ONLY root filesystem and can NEVER be written, so the default would make
-#   every PVC fail to provision (silent, total data loss for the databases this is meant to
-#   protect — the opposite of this repo's first priority).
-#     Talos docs, "Architecture": "At its core the rootfs is a read-only squashfs ... mounted as
-#     a loop device into memory. This provides Talos with an immutable base ... While Talos does
-#     allow a few, highly-controlled write points ... No writes are even allowed to the vast
-#     majority of the filesystem."
-#     https://docs.siderolabs.com/talos/v1.14/learn-more/architecture
+# Not HA: one worker, no replication. If the node or its data disk is lost, recovery is the
+# scheduled logical dumps on the NAS (kubernetes/apps/immich/backup.yaml).
 #
-#   Talos' ONE general-purpose writable tree is `/var`, which is backed by the `EPHEMERAL`
-#   partition. Talos' own design philosophy says NOT to put unique data there:
-#     "We call the writable partition the 'ephemeral' partition precisely because we want to make
-#      sure none of us ever uses it for unique, non-replicated, non-recreatable data. Thus, if
-#      all else fails, we can always wipe the disk and get back up and running."
-#     https://docs.siderolabs.com/talos/v1.14/learn-more/philosophy
-#
-#   UPGRADE BEHAVIOUR, VERIFIED (the question we must not guess):
-#     * Talos < v1.8: `talosctl upgrade` WIPED the EPHEMERAL partition unless `--preserve` was
-#       passed. (v1.7 docs: "Unless explicitly told to preserve data, an upgrade will cause the
-#       node to wipe the EPHEMERAL partition ...")
-#       https://docs.siderolabs.com/talos/v1.7/configure-your-talos-cluster/lifecycle-management/upgrading-talos
-#     * Since v1.8 (the pinned version is Talos v1.14.4, versions.yaml): "In Talos Linux
-#       installer, the system disk is never wiped during upgrades. This means that the
-#       `--preserve` flag is now automatically set for `talosctl upgrade`."
-#       https://docs.siderolabs.com/talos/v1.8/getting-started/what's-new-in-talos
-#       Confirmed against the pinned CLI: `talosctl upgrade --help` (v1.14.0) has NO `--preserve`
-#       flag anymore; the legacy flags are "deprecated and will be removed in Talos 1.18"
-#       (v1.13 upgrade docs) and are already gone in v1.14.
-#     So on v1.14 an OS upgrade does NOT erase `/var`. That is necessary but NOT sufficient: the
-#     EPHEMERAL partition is still designed to be wipeable (`talosctl reset
-#     --system-labels-to-wipe EPHEMERAL`), and Talos' philosophy above is explicit that it must
-#     not hold unique data. So we do NOT place database data directly on `/var` either.
-#
-#   THE CORRECT LOCATION — a Talos USER VOLUME (a dedicated partition, NOT EPHEMERAL):
-#     `nodePathMap` below points at `/var/mnt/local-path-provisioner`. That is NOT a directory on
-#     the EPHEMERAL filesystem: it is the mount point of a Talos `UserVolumeConfig` named
-#     `local-path-provisioner`, which provisions its OWN partition (labelled `u-local-path-provisioner`)
-#     and mounts it there. Wiping/upgrading EPHEMERAL does not touch it.
-#       "The volume mount location is `/var/mnt/<volume-name>`, and it gets automatically
-#        propagated into the `kubelet` container to provide additional features like `subPath`
-#        mounts."
-#       https://docs.siderolabs.com/talos/v1.14/configure-your-talos-cluster/storage-and-disk-management/disk-management/user
-#     This is exactly what Talos' own "Local Storage" guide prescribes for this provisioner:
-#       "Make sure to update Local Path Provisioner configuration to use the user volume path
-#        `/var/mnt/local-path-provisioner` as the root path for the local storage."
-#       https://docs.siderolabs.com/kubernetes-guides/csi/local-storage.md
-#
-#   THE DATA DISK AND USER VOLUME (implemented 2026-10-16 — docs/decisions.md §3.4):
-#     * `talos-wk-1` has a dedicated 100 GiB DATA disk from OpenTofu
-#       (infrastructure/environments/homelab/proxmox/talos.tf → `data_disk_gb`). The control plane
-#       has none, and must never receive the volume document below.
-#     * `talos/patches/worker.yaml` (worker-only) declares the user volume:
-#         apiVersion: v1alpha1
-#         kind: UserVolumeConfig
-#         name: local-path-provisioner     # => mounted at /var/mnt/local-path-provisioner
-#         provisioning:
-#           diskSelector:
-#             match: "!system_disk"
-#           minSize: 90GiB
-#           maxSize: 90GiB
-#     `minSize`/`maxSize` bound the VOLUME (the partition), not the disk, and `minSize` also
-#     participates in disk SELECTION: a disk is eligible only if it has at least that much free
-#     space. The system disk is excluded twice over — it IS the system disk, and its EPHEMERAL
-#     partition consumes the free space anyway. Keep the volume `name` in sync with `nodePathMap`
-#     above; renaming one without the other points the provisioner at a directory on the read-only
-#     rootfs and every PVC fails to provision.
-#
-# WHAT HAPPENS IF THE NODE IS LOST OR REBUILT
-#   There is exactly ONE worker and no HA (docs/decisions.md §3.1; docs/architecture.md §3). This
-#   StorageClass is node-local and NOT replicated — it must never be sold as HA. If that VM/node
-#   is destroyed, rebuilt from scratch (OpenTofu recreates the disk), or its data disk wiped, the
-#   Local PVs are gone. The ONLY recovery path is the scheduled logical database dumps on the NAS
-#   (docs/decisions.md §4.3; kubernetes/apps/immich/backup.yaml). Provisioning here is a latency
-#   decision, not a durability decision.
-#
-# RECLAIM / BINDING
-#   * reclaimPolicy: Retain — deleting a PVC must NOT delete the only copy of a database. A
-#     Released PV (and the directory on the node) is the visible "this still holds data" signal;
-#     cleanup is a deliberate admin step. (Matches csi-driver-nfs in
-#     kubernetes/infrastructure/storage.)
-#   * volumeBindingMode: WaitForFirstConsumer — the CORRECT choice for node-local data: it delays
-#     provisioning until the consuming pod is scheduled, so the PV is created on (and pinned to)
-#     that node's affinity. `Immediate` would provision on an arbitrary node and then break
-#     scheduling once the cluster has a second node.
+# StorageClass: reclaimPolicy Retain (never delete the only copy of a database);
+# WaitForFirstConsumer (provision on the node that runs the pod); not the cluster default.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -129,40 +34,22 @@ spec:
   upgrade:
     crds: CreateReplace
   values:
-    # Render the StorageClass from the release (chart value `storageClass.create`), rather than
-    # shipping a separate StorageClass resource — this keeps the class owned by the driver that
-    # serves it and avoids the controllers-vs-custom-resources ordering problem documented in
-    # kubernetes/infrastructure/configs/.
     storageClass:
       create: true
-      # Must stay EXACTLY `local-path`: every database manifest hard-codes this name.
+      # Referenced by name from the app manifests.
       name: local-path
-      # Pin the canonical provisioner ID. Left unset, the chart would generate
-      # `cluster.local/local-path-provisioner` from the release name — internally consistent
-      # (both the StorageClass and the deployment's --provisioner-name use the same helper), but
-      # non-standard and confusing to anyone who knows this project. `rancher.io/local-path` is
-      # upstream's own default and what every documented install uses.
+      # Upstream's canonical provisioner ID (the chart would otherwise derive one from the release name).
       provisionerName: rancher.io/local-path
-      # Deliberately NOT the cluster default: a DEFAULT class is what an un-annotated PVC
-      # silently gets, and the other class here is the network one (`nas-nfs`). Neither is
-      # default, so a PVC that forgets a class fails loudly instead of landing somewhere wrong.
+      # No default class: a PVC without a class stays Pending instead of landing on the wrong storage.
       defaultClass: false
-      # See RECLAIM / BINDING above.
       reclaimPolicy: Retain
       volumeBindingMode: WaitForFirstConsumer
-      # defaultVolumeType stays `hostPath` (the chart + Talos guide default): a hostPath-backed PV
-      # with node affinity. A `local` volume type would use the more formal Local-PV primitive,
-      # but nothing here needs it and the Talos guide documents the hostPath path.
-    # THE data path. NOT the chart default (`/opt/local-path-provisioner`, read-only on Talos) —
-    # see THE CRITICAL PART above. This must match the Talos UserVolumeConfig mount point.
+    # Must match the Talos UserVolumeConfig mount point (see header).
     nodePathMap:
       - node: DEFAULT_PATH_FOR_NON_LISTED_NODES
         paths:
           - /var/mnt/local-path-provisioner
 
-    # --- Resource footprint on the single-host lab (docs/architecture.md §1) ---------------
-    # One replica; there is no HA to gain (docs/decisions.md §3.1). The provisioner is a thin
-    # controller that only reacts to PVC events, so it gets a small, honest reservation.
     resources:
       requests:
         cpu: 10m

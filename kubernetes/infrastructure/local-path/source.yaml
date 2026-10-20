@@ -1,17 +1,6 @@
 ---
-# Rancher's Local Path Provisioner publishes its Helm chart as an OCI artifact — the OFFICIAL
-# upstream source, not a third-party mirror. Historically the chart only existed inside the
-# source tree (`deploy/chart/`), which is why the internet is full of community repackages;
-# that gap closed with PR rancher/local-path-provisioner#501 (issue #89, closed 2026-04-04).
-# Verified 2026-10-16:
-#   helm show chart oci://ghcr.io/rancher/local-path-provisioner/charts/local-path-provisioner --version 0.0.37
-#   → name: local-path-provisioner, version: 0.0.37, appVersion: v0.0.37
-#   → digest sha256:81033683ce790e593524b2105945ee0d81bf6608f0c85eb5e0c1082cc74ff03d
-#
-# Pinned by tag (like kubernetes/apps/immich/source.yaml). This object lives next to the
-# HelmRelease that consumes it, in flux-system (the namespace the release's sourceRef expects).
-# Alternative: fold this OCIRepository into kubernetes/infrastructure/sources.yaml — but then
-# DELETE this file, or the same object is declared twice and Flux will fight itself.
+# Upstream OCI Helm chart for local-path-provisioner, pinned by tag. Kept next to its HelmRelease
+# (in flux-system, where the release's chartRef expects it).
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: OCIRepository
 metadata:

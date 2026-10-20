@@ -21,4 +21,3 @@ spec:
   values:
     crds:
       enabled: true
-    # TODO(GATE 0): decide DNS-01 (via Technitium) vs internal CA for the internal domain.

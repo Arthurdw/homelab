@@ -7,15 +7,24 @@ except for bootstrapping Flux itself.
 
 ```text
 kubernetes/
-  clusters/homelab/          # Flux entrypoints for THIS cluster (the reconciliation roots)
-    infrastructure.yaml        # -> ./kubernetes/infrastructure            (controllers)
-    infrastructure-configs.yaml# -> ./kubernetes/infrastructure/configs    (CRs; needs CRDs)
-    apps.yaml                  # -> ./kubernetes/apps                      (workloads)
-    flux-system/               # created by `flux bootstrap` (not committed) + SOPS age key
+  clusters/
+    homelab/                   # PRODUCTION (the real Talos cluster) — Flux reconciliation roots
+      cluster-settings.yaml     # ConfigMap `cluster-settings` (ns flux-system): production values
+      infrastructure.yaml        # -> ./kubernetes/infrastructure            (controllers)
+      infrastructure-configs.yaml# -> ./kubernetes/infrastructure/configs    (CRs; needs CRDs)
+      apps.yaml                  # -> ./kubernetes/apps                      (workloads)
+      flux-system/               # created by `flux bootstrap` (not committed) + SOPS age key
+    lab/                       # the throwaway lab cluster (docs/lab.md) — same three Kustomizations,
+      cluster-settings.yaml     # ConfigMap with the lab values
+      infrastructure.yaml | infrastructure-configs.yaml | apps.yaml
   infrastructure/            # cluster-wide controllers/sources (CNI, MetalLB, ingress, DNS, certs, storage)
     configs/                   # custom resources that need CRDs from the controllers above
   apps/                      # user-facing workloads
 ```
+
+There is **one cluster directory per environment** and each has its own `cluster-settings.yaml`.
+The shared tree (`infrastructure/`, `apps/`) is parameterized only where the environments genuinely
+differ — see below.
 
 Reconciliation order is expressed with `dependsOn`:
 **infrastructure (controllers) → infrastructure-configs (CRs) → apps.**
@@ -45,19 +54,41 @@ Every chart version below was verified against its upstream index or registry on
 
 Renovate/Dependabot should keep these current (see `.github/dependabot.yml` and `docs/PROJECT-PLAN.md`).
 
-## Environment-specific values — decided, but NOT yet parameterized
+## Environments and per-cluster settings
 
-The address plan is decided (`docs/decisions.md` §2), yet some manifests still carry placeholders or
-**lab** values, because no per-environment overlay exists yet. This table is the gap, not a wish list:
+The address plan (`docs/decisions.md` §2) is per-environment, so environment-specific values live in
+a ConfigMap named `cluster-settings` (`flux-system`), one per cluster directory, and Flux's native
+post-build substitution fills them into the shared tree:
 
-| Value in the tree | Where | Intended production value |
+| Variable | `clusters/homelab` (production) | `clusters/lab` |
 |---|---|---|
-| `192.0.2.240–250` (TEST-NET-1) | `infrastructure/configs/metallb-pool.yaml` | `10.20.0.100–199` on the K8s VLAN |
-| NAS NFS server `10.99.100.10` | `infrastructure/storage/release.yaml` | `10.99.0.2` over the 10 GbE storage link |
+| `METALLB_POOL` (`infrastructure/configs/metallb-pool.yaml`) | `10.20.0.100-10.20.0.199` | `10.99.100.100-10.99.100.199` |
+| `NFS_SERVER` (`infrastructure/storage/release.yaml`) | `10.99.0.2` | `10.99.100.10` |
 
-**Consequence:** applying this tree to production as it stands would advertise a non-routable TEST-NET-1
-range and mount NFS from the lab NAS. The environment-overlay workstream closes this; until it lands,
-production must not be applied from this tree.
+Each `Kustomization` in a cluster directory carries:
+
+```yaml
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
+```
+
+Only values that genuinely differ are parameterized. Everything else (the `main/k8s` export path,
+the MetalLB `L2Advertisement`, container CIDRs, chart versions) is identical in both environments and
+stays literal.
+
+### Substitution rules
+
+Flux substitutes only `${...}` (a brace-less `$VAR` is untouched). An undefined variable becomes an
+**empty string**, and an unescaped `${...}` whose name is not a valid identifier fails the whole
+Kustomization. So:
+
+- A literal `${...}` that must survive (the CSI driver's `${pvc.metadata.namespace}`, a braced shell
+  variable in a container script) is escaped as **`$${...}`**.
+- Every variable used in the shared tree must be defined in **every** cluster's `cluster-settings`.
+
+`scripts/ci/check-cluster-settings.sh` (CI and `just check`) enforces both and that the key sets match.
 
 ## Secrets
 

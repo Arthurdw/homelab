@@ -52,16 +52,16 @@ spec:
       annotations:
         cert-manager.io/cluster-issuer: internal-ca
       hosts:
-        # TODO(hostname): the internal app zone is still undecided (docs/network-plan.md → "Still open").
-        # `.invalid` is reserved by RFC 6761 and cannot resolve. Replace with the real hostname at GATE 7.
-        - host: audiobookshelf.invalid
+        # Internal zone <app>.lab.ardw.be (decisions.md §5.7), served by Technitium only.
+        # TODO: switch the issuer from internal-ca to Let's Encrypt DNS-01 once configured.
+        - host: audiobookshelf.lab.ardw.be
           paths:
             - path: /
               pathType: Prefix
       tls:
         - secretName: audiobookshelf-tls
           hosts:
-            - audiobookshelf.invalid
+            - audiobookshelf.lab.ardw.be
 
     audiobookshelf:
       # TODO(timezone): set to the owner's real TZ when the app is handed over.

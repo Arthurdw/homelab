@@ -1,5 +1,8 @@
 ---
+# Pod Security: the Talos default enforces baseline; this component runs privileged / host-level pods.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: metallb
+  labels:
+    pod-security.kubernetes.io/enforce: privileged

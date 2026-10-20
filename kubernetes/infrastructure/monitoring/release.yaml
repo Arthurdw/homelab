@@ -1,23 +1,14 @@
 ---
-# Monitoring & alerting baseline (Phase 6). One HelmRelease brings up the standard
-# kube-prometheus-stack: the prometheus-operator plus Prometheus, Alertmanager, Grafana,
-# node-exporter and kube-state-metrics (spec §4.3). Deliberately minimal and honest for a
-# single-node, no-HA lab (docs/architecture.md §3; risk R11): one replica of everything, no
-# remote-write, no Thanos, no long-term-storage promise.
+# Monitoring baseline: kube-prometheus-stack (Prometheus, Alertmanager, Grafana, node-exporter,
+# kube-state-metrics). One replica of everything, no remote-write or long-term storage
+# (docs/architecture.md §3; risk R11).
 #
-# Why this lives here (kubernetes/infrastructure/, not infrastructure/configs/): this release
-# installs the monitoring.coreos.com CRDs (ServiceMonitor/PodMonitor/PrometheusRule). Flux
-# dry-runs a whole Kustomization before applying any of it, so a CR cannot share a
-# Kustomization with the crds-installing release that creates its own kind (the lab hit exactly
-# that: see kubernetes/README.md and docs/runbooks/phase-reports/). The starter alerts below are
-# therefore supplied as Helm values (additionalPrometheusRulesMap) and rendered BY the release —
-# no separate PrometheusRule CR is reconciled by kustomize, so there is nothing to dry-run early.
+# The starter alerts are Helm values (additionalPrometheusRulesMap), not PrometheusRule CRs: this
+# release installs the monitoring.coreos.com CRDs, and Flux dry-runs a whole Kustomization before
+# applying it (see kubernetes/README.md).
 #
-# Secrets: Grafana admin credentials AND the Alertmanager SMTP password are NOT created
-# here — see the grafana and alertmanager blocks below. Both are referenced as
-# externally-managed Secrets, so no credential is ever committed.
-# Persistence: no StorageClass exists yet; metrics and Grafana state are ephemeral — see the
-# storage comments below.
+# Secrets (grafana-admin, alertmanager-smtp) are created out-of-band and never committed.
+# Prometheus, Alertmanager and Grafana state is ephemeral for now (no PVCs).
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -38,60 +29,35 @@ spec:
   upgrade:
     crds: CreateReplace
   values:
-    # --- No HA: one replica of each component (architecture §3; risk R11). -----------------
-    # All nodes run on one physical host, so extra replicas buy no real availability here.
+    # Single host: extra replicas buy no availability.
     prometheus:
       prometheusSpec:
         replicas: 1
-        # No remote-write, no Thanos, no long-term storage (spec §7: no LTS promise).
-        # With no StorageClass available, Prometheus keeps samples on ephemeral emptyDir and
-        # loses them when the pod restarts.
-        # TODO(Phase 5 storage): move to a PVC once a StorageClass is chosen.
+        # Ephemeral emptyDir: samples are lost on pod restart.
+        # TODO: move to a PVC (local-path) if retention across restarts is wanted.
         storageSpec: {}
     alertmanager:
       alertmanagerSpec:
         replicas: 1
-        # Same as above: silences/notification state are ephemeral (emptyDir).
-        # TODO(Phase 5 storage): move to a PVC once a StorageClass is chosen.
         storage: {}
-        # Mount the externally-managed SMTP password Secret into the Alertmanager
-        # container. prometheus-operator mounts each entry here read-only at
-        # /etc/alertmanager/secrets/<name>/; the config below reads the password from
-        # that file with `auth_password_file`, so the credential never enters git
-        # (docs/runbooks/secrets.md).
-        #
-        # OPERATOR ACTION — out-of-band, never committed. Create it, SOPS-encrypted, in
-        # the `monitoring` namespace before the release is expected to become Ready:
-        #   kubectl -n monitoring create secret generic alertmanager-smtp \
-        #     --from-literal=smtp-password='<your-smtp-password>'
-        # Required key: `smtp-password`. A missing Secret means the Alertmanager pod will
-        # NOT start — intentional fail-closed, exactly like the Grafana admin Secret below.
-        # TODO(secrets workstream): add monitoring/alertmanager-smtp.sops.yaml once the
-        # GATE 4 production age recipient exists (nothing can be encrypted before then).
+        # Mounted at /etc/alertmanager/secrets/<name>/ and read via `auth_password_file` below.
+        # Required Secret `alertmanager-smtp` (namespace monitoring, key `smtp-password`),
+        # SOPS-encrypted; without it the Alertmanager pod does not start (docs/runbooks/secrets.md).
         secrets:
           - alertmanager-smtp
 
-      # --- Alerting: routing, receivers, inhibition (docs/decisions.md §5.1) -------------
-      # Baseline path = email/SMTP (the owner has SMTP). Telegram is prepared but DISABLED
-      # until a bot token exists — §5.1 "SMTP now, Telegram later".
-      #
-      # SECRETS: the SMTP password is NOT here (see alertmanagerSpec.secrets above). The
-      # relay host, sender, recipient and username are deliberately left as TODO
-      # placeholders — they are site-specific and only the owner can supply them.
+      # Alerting (docs/decisions.md §5.1): email now, Telegram later. The relay host, sender,
+      # recipient and username are site-specific TODO placeholders.
       config:
         global:
           resolve_timeout: 5m
-          # TODO(owner): replace these four placeholders with the real relay, sender and
-          # username. We do not invent a hostname or username here.
+          # TODO(owner): replace the TODO_* placeholders.
           smtp_smarthost: 'TODO_SMTP_HOST:587'   # relay as host:port
           smtp_from: 'TODO_SMTP_FROM'            # envelope/From address
           smtp_auth_username: 'TODO_SMTP_USERNAME'
           # smtp_require_tls: true               # uncomment if the relay requires STARTTLS
-        # --- Inhibition -------------------------------------------------------------------
-        # Keep the chart's severity + InfoInhibitor rules, and add one homelab rule: on this
-        # single-host, no-HA cluster a NotReady node is a full outage (architecture §3;
-        # risk R11), so suppress the warning/info storm it produces for that node. Critical
-        # alerts are deliberately NOT suppressed — they are what you actually want to see.
+        # The chart's severity + InfoInhibitor rules, plus one homelab rule (last): a NotReady
+        # node suppresses its own warning/info alerts. Critical alerts are not suppressed.
         inhibit_rules:
           - source_matchers:
               - 'severity = critical'
@@ -115,20 +81,12 @@ spec:
               - 'namespace'
           - target_matchers:
               - 'alertname = InfoInhibitor'
-          # Homelab: when a node is NotReady everything scheduled on it is unreachable, so
-          # its warning/info alerts are noise until it returns. Only alerts carrying the
-          # same `node` label are inhibited (equality on `node`).
           - source_matchers:
               - 'alertname = HomelabNodeNotReady'
             target_matchers:
               - 'severity =~ warning|info'
             equal:
               - 'node'
-        # --- Routing ----------------------------------------------------------------------
-        # group_by [namespace, alertname] collapses a burst (e.g. many pods) into one
-        # notification per alert type per namespace; repeat_interval keeps a persistent
-        # problem visible without re-mailing on every evaluation. Tuned for a quiet,
-        # single-node homelab rather than a busy production fleet.
         route:
           receiver: email
           group_by: ['namespace', 'alertname']
@@ -136,15 +94,14 @@ spec:
           group_interval: 5m     # how soon a changed group is re-sent
           repeat_interval: 12h   # steady-state re-notify for warnings
           routes:
-            # The always-firing pipeline self-test and the inhibit sentinel must never be
-            # emailed (they would repeat forever); the chart also routes Watchdog to null.
+            # Watchdog (always firing) and InfoInhibitor must never be emailed.
             - receiver: 'null'
               matchers:
                 - alertname = "Watchdog"
             - receiver: 'null'
               matchers:
                 - alertname = "InfoInhibitor"
-            # Critical (e.g. the node down on this no-HA cluster) re-notifies sooner.
+            # Critical re-notifies sooner.
             - receiver: email
               matchers:
                 - severity = "critical"
@@ -157,11 +114,8 @@ spec:
                 send_resolved: true
                 # Password comes from the mounted alertmanager-smtp Secret, never git.
                 auth_password_file: /etc/alertmanager/secrets/alertmanager-smtp/smtp-password
-          # --- Telegram (prepared, DISABLED) --------------------------------------------
-          # TODO(owner): when a bot token exists, uncomment this receiver and add a
-          # `receiver: telegram` route above. The token is NOT committed: it is read from
-          # an `alertmanager-telegram` Secret (also add that name to alertmanagerSpec.secrets
-          # above, which mounts it at /etc/alertmanager/secrets/alertmanager-telegram/).
+          # Telegram (disabled): with a bot token, uncomment, add a `receiver: telegram` route and
+          # add an `alertmanager-telegram` Secret to alertmanagerSpec.secrets.
           #
           # - name: telegram
           #   telegram_configs:
@@ -172,26 +126,17 @@ spec:
           - '/etc/alertmanager/config/*.tmpl'
 
     grafana:
-      # Use an externally-managed admin Secret. This ALSO stops the chart from generating a
-      # random admin password into an in-repo-created Secret.
-      # TODO(secrets workstream — docs/secrets-and-state.md): create this Secret out-of-band
-      # (SOPS-encrypted), in the `monitoring` namespace, with keys `admin-user` and
-      # `admin-password`. Until it exists the Grafana pod will NOT become Ready — that is
-      # intentional: we never commit or auto-generate a credential.
+      # Required Secret `grafana-admin` (namespace monitoring, keys `admin-user`, `admin-password`),
+      # SOPS-encrypted; Grafana is not Ready without it (docs/runbooks/secrets.md).
       admin:
         existingSecret: grafana-admin
-      # Grafana state is disposable and there is no StorageClass yet.
+      # Grafana state is disposable.
       persistence:
         enabled: false
 
-    # --- Control-plane targets that do not exist on Talos --------------------------------
-    # Talos runs etcd and the control-plane components outside the normal scrape surface:
-    # etcd metrics on :2381 need mTLS cert extraction, and controller-manager (:10257) /
-    # scheduler (:10259) bind to 127.0.0.1. Their default ServiceMonitors would never be
-    # reachable, so the matching default alerts (KubeEtcdDown, KubeControllerManagerDown,
-    # KubeSchedulerDown, KubeProxyDown) would fire forever on a healthy cluster. Disable them
-    # and their rule groups; re-enable only after metrics are deliberately exposed.
-    # kube-apiserver, kubelet and CoreDNS remain scraped.
+    # Not scrapable on Talos (etcd needs mTLS, controller-manager/scheduler bind to localhost,
+    # kube-proxy is disabled): disable the targets and their alert groups, which would otherwise
+    # fire forever.
     kubeEtcd:
       enabled: false
     kubeScheduler:
@@ -208,20 +153,14 @@ spec:
         kubeControllerManager: false
         kubeProxy: false
 
-    # --- Starter alerts (spec §7.8; docs/backup-policy.md §7) -----------------------------
-    # The chart already ships a broad, maintained rule set (defaultRules.create=true),
-    # including KubeNodeNotReady, KubeNodePressure (kubelet DiskPressure) and
-    # NodeFilesystemAlmostOutOfSpace. Only add what those do not cover for this lab.
+    # Starter alerts on top of the chart's default rules (spec §7.8).
     additionalPrometheusRulesMap:
       homelab-starters:
         groups:
           - name: homelab.node
             rules:
               - alert: NodeRootDiskSpacePressure
-                # Proactive disk warning. The chart's default filesystem alerts only fire at
-                # <5% free (<3% critical); the compute host has a single SSD and no ZFS
-                # (risk R1), so warn earlier at ~85% used. Pseudo filesystems are excluded;
-                # verify the real mountpoints on the live Talos node when it exists.
+                # The chart's filesystem alerts fire at <5% free; warn earlier (single SSD, risk R1).
                 expr: |
                   (
                     node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs|overlay|squashfs"}
@@ -236,10 +175,7 @@ spec:
                   summary: "Node filesystem is above 85% used."
                   description: "{{ $labels.instance }} mount {{ $labels.mountpoint }} has less than 15% free."
               - alert: HomelabNodeNotReady
-                # Complements the chart's KubeNodeNotReady, which is gated on
-                # kube_node_spec_unschedulable == 0 and so stays silent for a cordoned node.
-                # This fires for any NotReady node. On this single-host, no-HA cluster
-                # (architecture §3; risk R11) a NotReady node is a full outage.
+                # KubeNodeNotReady is silent for cordoned nodes; this fires for any NotReady node.
                 expr: kube_node_status_condition{condition="Ready",status="true"} == 0
                 for: 10m
                 labels:
@@ -250,11 +186,7 @@ spec:
           - name: homelab.backup
             rules:
               - alert: BackupStale
-                # PLACEHOLDER — deliberately inert until the backup workstream (Phase 8)
-                # exposes a "last successful backup" timestamp. Nothing exports
-                # `backup_last_success_timestamp_seconds` today, so this expression yields
-                # no series and never fires; it records the alert the backup system must
-                # eventually satisfy (docs/backup-policy.md §7; spec §7.8).
+                # Inert placeholder: nothing exports backup_last_success_timestamp_seconds yet.
                 expr: (time() - backup_last_success_timestamp_seconds) > 60 * 60 * 36
                 for: 15m
                 labels:

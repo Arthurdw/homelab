@@ -19,11 +19,10 @@ spec:
   upgrade:
     crds: CreateReplace
   values:
-    # A LoadBalancer Service served by MetalLB (see metalb/pool.yaml).
+    # LoadBalancer Service, address from the MetalLB pool (configs/metallb-pool.yaml).
     service:
       type: LoadBalancer
-    # CRDs are managed above; chart defaults otherwise.
-    # TODO(GATE 0): TLS/redirect + internal-vs-external entrypoints, dashboard exposure.
+    # TODO: HTTP→HTTPS redirect, the default wildcard certificate (decisions §5.7), dashboard exposure.
     ingressClass:
       enabled: true
       isDefaultClass: true

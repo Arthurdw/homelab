@@ -1,45 +1,18 @@
 ---
-# Dynamic NFS-backed storage for application PVCs (docs/decisions.md §4.1, §4.2).
+# Dynamic NFS storage for application PVCs (docs/decisions.md §4.1, §4.2): StorageClass `nas-nfs`.
 #
-# WHY csi-driver-nfs AND NOT democratic-csi
-#   Both give a StorageClass over NFS. The difference is what they manage:
-#     * csi-driver-nfs (chosen) is stateless: it owns no datasets, no API credentials and no
-#       state beyond the cluster. It provisions each PV as a sub-directory under an EXISTING
-#       NFS export that TrueNAS already owns, so the NAS remains the single owner of the data
-#       (docs/architecture.md §7) and there is nothing to restore out-of-band.
-#     * democratic-csi would additionally create a ZFS dataset per PVC through the TrueNAS API.
-#       That buys per-PVC ZFS snapshots and per-PVC quotas — but it needs a TrueNAS API key
-#       (a Secret, which this repo does not have and must not invent) and extra controller
-#       machinery to run on a 4-thread host (docs/architecture.md §1).
-#   decisions.md §4.1 already gives PVC data its own dataset (`main/k8s`) with a NAS-side
-#   recursive snapshot policy. Dataset-per-PVC management is therefore duplicated here, for a
-#   cost (credentials + complexity) we are told to avoid. The simpler driver wins.
-#   CONCRETE REASON TO SWITCH to democratic-csi later: needing per-PVC ZFS snapshots or hard
-#   per-PVC quotas. Neither is a requirement today; both are NAS-admin features on this export.
+# csi-driver-nfs, not democratic-csi: it is stateless and provisions each PV as a sub-directory
+# of an existing TrueNAS export (the NAS stays the single owner of the data), with no API key
+# Secret. Switch to democratic-csi only if per-PVC ZFS snapshots or hard quotas are needed.
 #
-# WHAT THIS IS NOT
-#   This class is deliberately NOT the cluster default. The default StorageClass is what an
-#   un-annotated PVC silently gets; making a NETWORK class the default would let a database
-#   PVC land on the NAS and violate decisions.md §4.3 ("latency-sensitive databases stay off
-#   the network"). Databases must name the local-SSD class explicitly. There is no local-path
-#   provisioner in the repo yet — that is a separate workstream and a prerequisite for any
-#   database workload.
-#   TODO(separate workstream, NOT done here): add a local-SSD `local-path` StorageClass for
-#   databases (decisions.md §4.3), with logical dumps to the NAS. Until it exists there is no
-#   correct class for a database; do not use `nas-nfs` as a workaround.
+# Not the cluster default, so a database PVC can never silently land on the network
+# (decisions.md §4.3). Databases use the `local-path` class (infrastructure/local-path).
 #
-# SNAPSHOTS
-#   VolumeSnapshot is intentionally not wired up here: point-in-time protection is the NAS's
-#   recursive per-dataset snapshot policy (decisions.md §4.1), which already covers every PV
-#   directory inside `main/k8s`. `controller.enableSnapshotter` is off so the unused
-#   csi-snapshotter sidecar does not consume memory on the worker, and the VolumeSnapshot
-#   CRDs are not installed (externalSnapshotter.enabled stays false).
+# Snapshots: point-in-time protection is the NAS's recursive snapshot policy on `main/k8s`
+# (decisions.md §4.1), so the snapshotter sidecar and VolumeSnapshot CRDs are not installed.
 #
-# NAS-SIDE PREREQUISITE (out of scope for this repo — recorded, not fixed: decisions.md §1.2)
-#   The export must be readable/writable by UID 0 with root squash DISABLED (TrueNAS: `no_root_squash` /
-#   Maproot = root), or provisioning and `fsGroup` mounts fail (the driver mkdirs and chowns as root).
-#   TODO(GATE 0 / NAS build): create the `main/k8s` dataset + NFS export with no_root_squash, and keep it
-#   on the dedicated storage link. Not performable against the live NAS (decisions.md §1.2).
+# NAS prerequisite (decisions.md §1.2): the `main/k8s` dataset and NFS export must exist with
+# no_root_squash (the driver mkdirs and chowns as root), reachable on the storage link.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -50,8 +23,6 @@ spec:
   chart:
     spec:
       chart: csi-driver-nfs
-      # Verified 2026-10-16: `helm search repo csi-driver-nfs --versions` → 4.13.5 is the newest
-      # stable (GitHub release v4.13.5, prerelease=false). See versions.yaml.
       version: 4.13.5
       sourceRef:
         kind: HelmRepository
@@ -62,58 +33,27 @@ spec:
   upgrade:
     crds: CreateReplace
   values:
-    # ======================================================================================
-    # ENVIRONMENT-SPECIFIC VALUES — the ONE place to change them. Nothing below this block
-    # depends on the NAS address.
-    #
-    #   lab (this cluster, kubernetes/clusters/homelab):  server 10.99.100.10
-    #   production:                                       server 10.99.0.2
-    #     (the dedicated 10 GbE point-to-point storage link, docs/decisions.md §2.2)
-    #
-    # The export path is identical in both (`main/k8s` → `/mnt/main/k8s`, decisions.md §4.1).
-    # When a production cluster overlay exists it should patch only `parameters.server` and
-    # `parameters.share`; if it ever differs it differs HERE.
-    # ======================================================================================
+    # ${NFS_SERVER} comes from the per-cluster cluster-settings ConfigMap (Flux postBuild).
     storageClass:
-      # Created BY the chart (chart value `storageClass.create`), not as a separate kustomize
-      # resource. This is deliberate: a StorageClass CR must be applied by the driver that
-      # serves it, and putting it in its own Kustomization would re-create the
-      # controllers-vs-custom-resources ordering problem documented in
-      # kubernetes/infrastructure/configs/ (Flux dry-runs the whole set before the CRD exists).
-      # Rendering it from the HelmRelease sidesteps that ordering entirely.
       create: true
       name: nas-nfs
       parameters:
-        # IP, not a hostname: kubelet must mount this before/independently of cluster DNS, so
-        # the mount path must not depend on in-cluster resolution (same reason bootstrap must
-        # not depend on DNS — docs/architecture.md §6).
-        server: 10.99.100.10
+        # An IP, so mounting does not depend on cluster DNS (docs/architecture.md §6).
+        server: ${NFS_SERVER}
         share: /mnt/main/k8s
-        # One directory PER PVC, not per namespace. The driver substitutes these tokens literally
-        # (upstream docs/driver-parameters.md), so a namespace-only subDir resolves every PVC in
-        # that namespace to the SAME directory — a silent collision for any app with more than one
-        # volume (e.g. an app's config PVC and its media PVC would share storage). `namespace/name`
-        # is unique (PVC names are unique within a namespace) and stays browsable by a human.
-        # Consequence, given `reclaimPolicy: Retain` below: re-creating a PVC with the same name
-        # re-mounts the retained directory instead of provisioning a fresh one.
-        subDir: "${pvc.metadata.namespace}/${pvc.metadata.name}"
-      # Retain, not Delete: deleting a PVC must never delete the only copy of application data.
-      # A Released PV is the visible "this still holds data" signal and cleanup is a deliberate
-      # admin step. Trade-off: directories accumulate on the NAS and are reclaimed by hand.
-      # (Retain also means the CSI driver never calls DeleteVolume for these volumes, so no
-      # `csi.storage.k8s.io/provisioner-secret` is needed to carry mount options — no Secret.)
+        # One directory per PVC (<namespace>/<name>) so PVCs in a namespace never share storage.
+        # With Retain, re-creating a PVC of the same name re-mounts its old directory.
+        # `$${...}` is Flux's escape: the driver receives the literal `${pvc.metadata.*}` tokens,
+        # whereas an unescaped one fails Flux's substitution for the whole Kustomization.
+        subDir: "$${pvc.metadata.namespace}/$${pvc.metadata.name}"
+      # Retain: deleting a PVC never deletes data; directories are cleaned up by hand.
       reclaimPolicy: Retain
       volumeBindingMode: Immediate
-      # Pin the protocol instead of letting the client negotiate: a silent fall back to NFSv3
-      # would change locking and performance behaviour invisibly. TrueNAS SCALE exports NFSv4.1.
-      # Must match the export's configured minor version; revisit with measurements at cutover
-      # (docs/decisions.md §2.2 makes the storage-link MTU/throughput provisional anyway).
+      # Pinned so the client cannot silently fall back to NFSv3; must match the export.
       mountOptions:
         - nfsvers=4.1
 
-    # --- Resource footprint on the single-host lab (docs/architecture.md §1) --------------
-    # Everything is one replica; there is no HA to gain (docs/decisions.md §3.1). The csi-snapshotter
-    # sidecar is dropped because snapshots are the NAS's job (see SNAPSHOTS above).
+    # Single replica; no snapshotter sidecar (snapshots are the NAS's job).
     controller:
       replicas: 1
       enableSnapshotter: false

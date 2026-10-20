@@ -1,6 +1,6 @@
 ---
-# Internal DNS resolver — see docs/network-plan.md. What ultimately serves the internal
-# resolver is a GATE 0 decision; this is the proposed in-cluster option.
+# Internal DNS resolver (Technitium, docs/decisions.md §5.7 and §6.1); serves the split-horizon
+# A records for *.lab.ardw.be (§5.7). See docs/network-plan.md.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -28,6 +28,6 @@ spec:
     service:
       main:
         type: LoadBalancer
-    # TODO(GATE 0): persistence (PVC/storage class), upstream forwarders, a stable LoadBalancer IP
+    # TODO: persistence (PVC/storage class), upstream forwarders, a stable LoadBalancer IP
     # from the MetalLB pool so clients can use it as their resolver, and trim the exposed ports
     # (the chart defaults to web 80/443, DNS 53 tcp+udp, DHCP 67, DoT 853, DoH 8053).

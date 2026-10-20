@@ -23,8 +23,8 @@ newest published chart.
   (`className: traefik`, TLS via the `internal-ca` ClusterIssuer).
 - **Not exposed:** nothing else is published; Audiobookshelf has no separate administrative port (admin
   lives in the authenticated UI), so the single Ingress is the whole surface.
-- **To whom:** the `*.invalid` placeholder resolves nowhere; once replaced with the real internal
-  hostname the surface is intended for **LAN + Tailscale** clients only. There is **no public
+- **To whom:** the host is `audiobookshelf.lab.ardw.be` (`docs/decisions.md` §5.7), resolved only by the
+  internal Technitium resolver. The surface is intended for **LAN + Tailscale** clients only. There is **no public
   exposure** (`docs/decisions.md` §5.2).
 - **Authentication:** Audiobookshelf's own users/roles (first-run root user). SSO via Authentik is
   **not** wired yet.
@@ -47,7 +47,7 @@ exactly why `config` (the SQLite DB) is on `local-path`. Its `library` doc-strin
 sentence, but the library is bulk media, not the database, so it correctly goes on `nas-nfs`
 (`docs/decisions.md` §4.1).
 
-`nas-nfs` and `local-path` are **platform-provided StorageClasses** (Phase 6, `kubernetes/infrastructure`)
+`nas-nfs` and `local-path` are **platform-provided StorageClasses** (`kubernetes/infrastructure`)
 and are out of scope for this directory.
 
 ## Secrets
@@ -55,7 +55,7 @@ and are out of scope for this directory.
 - **None required.** Audiobookshelf keeps its accounts inside the SQLite database (on `local-path`); the
   chart needs no external Secret and this directory creates none.
 - If an integration ever needs a credential, follow the same rule as the other apps: reference an
-  externally managed, SOPS-encrypted Secret by name (`.sops.yaml` fails closed until GATE 4) — never a
+  externally managed, SOPS-encrypted Secret by name (`.sops.yaml` fails closed until the production recipient exists) — never a
   cleartext Secret manifest.
 
 ## Resources
@@ -81,7 +81,7 @@ Single worker, 3 vCPU / 16 GiB, no HA.
   snapshot.
 - **Classification:** `docs/backup-matrix.md` → "Audiobookshelf config/media" (classify media by
   replaceability — **open**).
-- **Not yet done:** no restore performed (Phase 10); no backup monitoring yet (Phase 8).
+- **Not yet done:** no restore performed; no backup monitoring yet.
 
 ## Upgrade & rollback
 
@@ -108,9 +108,10 @@ kubectl kustomize kubernetes/apps/audiobookshelf
 
 ## Open items / TODOs
 
-- **Hostname** is a `.invalid` placeholder — replace at GATE 7 (internal DNS zone undecided).
+- **Certificate** — switch the Ingress issuer from `internal-ca` to the Let's Encrypt wildcard once the
+  Cloudflare DNS-01 issuer exists (`docs/decisions.md` §5.7).
 - **Timezone** set to `Etc/UTC` — set to the owner's real TZ when handed over.
 - **Scheduled backups** must be enabled in the app UI (Settings → Backups).
 - **Authentik SSO** — not wired yet.
-- **Restore drill** and **backup monitoring** — Phase 8/10.
+- **Restore drill** and **backup monitoring** — not done yet.
 - **StorageClasses** `nas-nfs` / `local-path` are provided by the platform layer.

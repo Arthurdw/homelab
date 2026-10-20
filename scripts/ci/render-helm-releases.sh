@@ -259,7 +259,7 @@ log "rendered ok   : $pass"
 log "incomplete    : $incomplete"
 log "failed        : $failed"
 if [ "${#incomplete_list[@]}" -gt 0 ]; then
-  log "incomplete (values pending at GATE 0 — rerun with --strict after filling them):"
+  log "incomplete (values still pending — rerun with --strict after filling them):"
   for i in "${incomplete_list[@]}"; do log "  - $i"; done
 fi
 if [ "${#failed_list[@]}" -gt 0 ]; then

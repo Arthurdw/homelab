@@ -12,8 +12,7 @@ StorageClass **`local-path`** that the database manifests already name
 | `nas-nfs` | NAS over NFS (`main/k8s` export) | Bulk/application data that can tolerate network latency (kubernetes/infrastructure/storage). |
 | `local-path` | **Node SSD**, Talos user volume `/var/mnt/local-path-provisioner` | **Latency-sensitive databases** — `docs/decisions.md` §4.3. No replication. |
 
-Neither class is the cluster default on purpose, so a PVC that forgets to name one fails loudly
-instead of landing somewhere wrong.
+Neither class is the cluster default, so a PVC without a class stays Pending.
 
 ```yaml
 apiVersion: v1
@@ -30,19 +29,14 @@ spec:
 
 ## Read this before trusting the data — Talos + no-HA
 
-- **The data path is a Talos user volume, not a directory on `/var`.** `/var` is the wipeable
-  `EPHEMERAL` partition; the chart's default `/opt/local-path-provisioner` is on Talos' read-only
-  rootfs and cannot be written at all. We point `nodePathMap` at `/var/mnt/local-path-provisioner`.
-  See `release.yaml` for the full evidence trail and URLs.
-- **The user volume and its data disk exist** (implemented 2026-10-16, `docs/decisions.md` §3.4).
-  `talos-wk-1` gets a dedicated 100 GiB data disk from OpenTofu, and `talos/patches/worker.yaml`
-  declares the matching `UserVolumeConfig` (`minSize`/`maxSize` 90GiB), which Talos mounts at
-  `/var/mnt/local-path-provisioner`. The name is the contract: it must stay in sync with
-  `nodePathMap` in `release.yaml`, or the provisioner points at a directory on the read-only rootfs.
-  Not runtime-verified — no cluster has been built yet, so this is static verification only.
-- **No HA.** One worker, one host (`docs/decisions.md` §3.1). Rebuild the node, destroy the VM, or
-  wipe its data disk and the Local PVs are gone. There is no replica. The only recovery path is the
-  scheduled logical database dumps on the NAS — this class protects *latency*, not *durability*.
+- **The data path is a Talos user volume.** The chart default `/opt/local-path-provisioner` is on
+  Talos' read-only rootfs, and `/var` is the wipeable `EPHEMERAL` partition. `nodePathMap` points at
+  `/var/mnt/local-path-provisioner`, the mount point of the worker's `UserVolumeConfig`
+  (`talos/patches/worker.yaml`, on the 100 GiB data disk, `docs/decisions.md` §3.4). The volume name
+  and `nodePathMap` must stay in sync. Not runtime-verified. The libvirt lab worker has no such
+  volume, so there the path lives on EPHEMERAL.
+- **No HA.** One worker (`docs/decisions.md` §3.1): if the node or its data disk is lost, the PVs
+  are gone. Recovery is the scheduled logical database dumps on the NAS.
 - **`reclaimPolicy: Retain`** — deleting a PVC leaves the directory and a `Released` PV behind.
   Clean both up deliberately when you mean to.
 

@@ -22,3 +22,8 @@ spec:
     provider: sops
     secretRef:
       name: sops-age
+  # ${VAR} values come from cluster-settings.yaml.
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings

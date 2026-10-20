@@ -1,49 +1,17 @@
 ---
 # Cilium CNI with kube-proxy replacement (docs/decisions.md §3.3; docs/architecture.md §6).
 #
-# WHY CILIUM
-#   NetworkPolicy enforcement is a security requirement in this build, not a nice-to-have, and
-#   replacing kube-proxy removes a component from a 4-thread host (decisions.md §3.3). One release
-#   delivers both. The fallback, if RAM proves insufficient, is Talos' bundled Flannel — recorded as
-#   a deviation with evidence, never silently.
-#
-# CIDRs
-#   Pods 10.244.0.0/16 and Services 10.96.0.0/12 are the fixed, environment-independent ranges of
-#   decisions.md §2.3. They are set by the TALOS machine config (the KubeNetworkConfig document in
-#   the generated configs), NOT here — which is exactly why ipam.mode must be `kubernetes`: Cilium
-#   then reads each node's podCIDR from the Node object instead of allocating its own range.
-#
-# TALOS REQUIREMENTS — followed verbatim from the official guide for Talos v1.14
-#   https://docs.siderolabs.com/kubernetes-guides/cni/deploying-cilium  ("Without kube-proxy")
-#   Talos already provides cgroupv2 and bpffs, and it does NOT let Kubernetes workloads load kernel
-#   modules. So, relative to the chart defaults:
-#     * cgroup.autoMount.enabled=false + cgroup.hostRoot=/sys/fs/cgroup — Talos mounts cgroup2
-#       itself; Cilium must not try to mount it (the chart default is autoMount=true and
-#       hostRoot=/run/cilium/cgroupv2, both wrong here);
-#     * the ciliumAgent capability list below DROPS SYS_MODULE (the Talos prohibition). It is the
-#       guide's list, reproduced exactly, overriding the chart default.
-#   kubeProxyReplacement=true needs a reachable API endpoint. Talos runs kubePrism on
-#   127.0.0.1:7445 on every node (the generated KubePrismConfig has `port: 7445`), so
-#   k8sServiceHost=localhost / k8sServicePort=7445 needs no VIP and no DNS — correct for this
-#   single-host, no-HA lab (decisions.md §3.1), and the same shape Talos uses for its own clients.
-#   Talos' kube-proxy is disabled separately in the machine config (KubeProxyConfig enabled=false,
-#   talos/patches/controlplane.yaml), so nothing else provides service routing.
-#
-# DELIBERATELY LEFT OUT (deliberate scope, not oversights)
-#   * Hubble is OFF (hubble.enabled=false; relay/ui are off by default and are pinned off here too).
-#     Its flow store and observer buy observability we do not need yet, at a RAM cost this 4-thread
-#     host cannot spare (architecture.md §1). Flipping one value turns it on later.
-#   * operator.replicas=1 (chart default 2): there is exactly one worker and no HA to gain
-#     (decisions.md §3.1).
-#   * bpf.masquerade pinned to false (also today's chart default). Talos enables
-#     forwardKubeDNSToHost by default, and the Talos Cilium guide's "Known issues" flags
-#     bpf.masquerade=true together with forwardKubeDNSToHost=true as CoreDNS-breaking. Pinning it
-#     false keeps DNS correct and guards against a future chart-default change.
-#
-# NAMESPACE
-#   Cilium runs in its own `cilium` namespace (repo convention: one namespace per component), not
-#   `kube-system` as the guide's example shows. Cilium is namespace-agnostic; users of `cilium-cli`
-#   just add `-n cilium`.
+# - Pod/service CIDRs (10.244.0.0/16, 10.96.0.0/12) come from the Talos machine config, so
+#   ipam.mode is `kubernetes`: Cilium reads each node's podCIDR instead of allocating its own.
+# - Talos guide "Without kube-proxy" (https://docs.siderolabs.com/kubernetes-guides/cni/deploying-cilium):
+#   Talos mounts cgroup2 itself (autoMount off, hostRoot /sys/fs/cgroup) and forbids kernel modules,
+#   so the agent capability list drops SYS_MODULE.
+# - k8sServiceHost=localhost:7445 is KubePrism, present on every Talos node. Talos' own kube-proxy is
+#   disabled in talos/patches/controlplane.yaml.
+# - bpf.masquerade=false: the Talos guide lists true + forwardKubeDNSToHost (Talos default) as
+#   breaking CoreDNS.
+# - Hubble off and operator.replicas=1: single worker, RAM-constrained host (architecture.md §1).
+# - Runs in its own `cilium` namespace (privileged Pod Security, see namespace.yaml).
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -64,21 +32,18 @@ spec:
   upgrade:
     crds: CreateReplace
   values:
-    # --- Talos-side prerequisites (see header) --------------------------------------------
     ipam:
       mode: kubernetes
     kubeProxyReplacement: true
     k8sServiceHost: localhost
     k8sServicePort: 7445
     bpf:
-      # See "DELIBERATELY LEFT OUT" above (Talos known issue).
       masquerade: false
     cgroup:
       autoMount:
         enabled: false
       hostRoot: /sys/fs/cgroup
-    # Talos provides cgroupv2/bpffs and forbids loading kernel modules, so the agent must NOT keep
-    # the chart default's SYS_MODULE. This is the official Talos guide's list, reproduced exactly.
+    # The Talos guide's list: the chart default additionally has SYS_MODULE.
     securityContext:
       capabilities:
         ciliumAgent:
@@ -97,7 +62,6 @@ spec:
           - NET_ADMIN
           - SYS_ADMIN
           - SYS_RESOURCE
-    # --- Lab footprint (see "DELIBERATELY LEFT OUT" above) --------------------------------
     hubble:
       enabled: false
       relay:

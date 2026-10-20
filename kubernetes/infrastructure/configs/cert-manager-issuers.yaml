@@ -1,7 +1,8 @@
 ---
-# Internal CA ClusterIssuer chain — placeholder for the internal domain.
-# TODO(GATE 0): either configure a DNS-01 issuer backed by Technitium for a real CA,
-# or keep an internal CA and distribute its root to clients. Technique TBD.
+# Internal CA ClusterIssuer chain. Per docs/decisions.md §5.7 this is the FALLBACK only: apps get a
+# Let's Encrypt wildcard for *.lab.ardw.be via DNS-01 against Cloudflare.
+# TODO: add the letsencrypt ClusterIssuer once the zone-scoped Cloudflare token exists (SOPS secret),
+# then move the app ingresses off internal-ca.
 #
 # Lives under infrastructure/configs: the cert-manager.io CRDs are installed BY the
 # cert-manager HelmRelease, so these CRs are only applied after the controllers are healthy.

@@ -1,0 +1,17 @@
+---
+# Per-cluster settings for `homelab` (production). Substituted into the shared tree
+# (kubernetes/infrastructure, kubernetes/apps) via each Kustomization's postBuild.substituteFrom.
+# An undefined ${VAR} becomes an empty string, so scripts/ci/check-cluster-settings.sh checks that
+# this and the lab ConfigMap define the same keys and that every used variable is defined.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-settings
+  namespace: flux-system
+data:
+  # MetalLB L2 address pool on the K8s VLAN (docs/decisions.md §2.1, §2.6:
+  # nodes 10.20.0.11-29, pool 10.20.0.100-199).
+  METALLB_POOL: 10.20.0.100-10.20.0.199
+  # NAS NFS server over the dedicated 10 GbE point-to-point storage link
+  # (docs/decisions.md §2.2: Proxmox 10.99.0.1, NAS 10.99.0.2).
+  NFS_SERVER: 10.99.0.2

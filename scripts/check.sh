@@ -64,6 +64,14 @@ else
   echo "== actionlint == skipped (missing: actionlint) =="
 fi
 
+# --- Flux postBuild variables (needs mikefarah yq) ---
+if have yq && yq --version 2>&1 | grep -q mikefarah; then
+  echo "== cluster settings =="
+  ./scripts/ci/check-cluster-settings.sh || { echo "FAILED: cluster settings"; fail=1; }
+else
+  echo "== cluster settings == skipped (missing: mikefarah yq)"
+fi
+
 # --- HelmRelease render (abstract; needs helm + yq) ---
 if have helm && have yq; then
   echo "== helm render =="

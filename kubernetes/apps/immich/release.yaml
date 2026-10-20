@@ -84,10 +84,9 @@ spec:
             # (harmless). Left in place rather than fought with — see docs/apps/immich.md.
             cert-manager.io/cluster-issuer: internal-ca
           hosts:
-            # TODO(hostname): the internal app zone is still undecided (docs/network-plan.md → "Still
-            # open"). `.invalid` is reserved by RFC 6761 and cannot resolve, so it can never be
-            # accidentally published. Replace with the real hostname at GATE 7.
-            - host: immich.invalid
+            # Internal zone <app>.lab.ardw.be (decisions.md §5.7), served by Technitium only.
+            # TODO: switch the issuer from internal-ca to Let's Encrypt DNS-01 once configured.
+            - host: immich.lab.ardw.be
               paths:
                 - path: /
                   pathType: Prefix
@@ -96,7 +95,7 @@ spec:
           tls:
             - secretName: immich-tls
               hosts:
-                - immich.invalid
+                - immich.lab.ardw.be
 
     # --------------------------------------------------------------------------------------------
     # machine-learning — face/object detection + smart search. The memory-hungry component.

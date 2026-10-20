@@ -1,6 +1,9 @@
 ---
-# MetalLB L2 address pool. PLACEHOLDER range (RFC 5737 TEST-NET-1) — replace with a range
-# reserved at GATE 0 (see docs/network-plan.md). Never take addresses from the DHCP pool.
+# MetalLB L2 address pool. The range is PER-ENVIRONMENT: `${METALLB_POOL}` comes from the
+# cluster-settings ConfigMap of whichever cluster directory Flux is reconciling this from
+# (kubernetes/clusters/homelab = 10.20.0.100-199 production; kubernetes/clusters/lab =
+# 10.99.100.100-199). Always a range reserved in docs/network-plan.md — never take
+# addresses from the DHCP pool. See kubernetes/README.md.
 #
 # Lives under infrastructure/configs (not alongside the HelmRelease): the IPAddressPool/
 # L2Advertisement CRDs are installed BY that HelmRelease, so these CRs must be applied only
@@ -12,7 +15,7 @@ metadata:
   namespace: metallb
 spec:
   addresses:
-    - 192.0.2.240-192.0.2.250
+    - ${METALLB_POOL}
 ---
 apiVersion: metallb.io/v1beta1
 kind: L2Advertisement

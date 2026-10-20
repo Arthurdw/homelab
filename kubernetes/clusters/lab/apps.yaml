@@ -1,0 +1,27 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps
+  namespace: flux-system
+spec:
+  interval: 30m
+  retryInterval: 1m
+  timeout: 10m
+  path: ./kubernetes/apps
+  prune: true
+  wait: false
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  dependsOn:
+    - name: infrastructure-configs
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  # ${VAR} values come from cluster-settings.yaml. A literal `${...}` is escaped as `$${...}`.
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
