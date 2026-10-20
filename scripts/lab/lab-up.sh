@@ -2,6 +2,10 @@
 # Bring up the local lab: a kind cluster + an in-cluster Git server serving THIS repo, with Flux
 # reconciling the REAL kubernetes/ tree. Touch nothing outside this workstation.
 #
+# The Git server is baked from the CURRENT WORKING TREE (see scripts/lab/lab-git-image.sh), and
+# Flux reconciles the LAB cluster directory kubernetes/clusters/lab — so the lab exercises the
+# lab cluster-settings (10.99.100.0/24), not the production ones.
+#
 # See docs/lab.md. Expected outcome: `flux get all -A` shows the GitRepository and the
 # infrastructure/apps Kustomizations reconciling the committed manifests.
 #
@@ -40,11 +44,11 @@ kubectl config use-context "kind-${CLUSTER}" >/dev/null
 log "3/8 build + load the lab Git server image"
 CTX="$(mktemp -d)"
 trap 'rm -rf "$CTX"' EXIT
-cp scripts/lab/gitserver/Dockerfile scripts/lab/gitserver/nginx.conf scripts/lab/gitserver/entrypoint.sh "$CTX/"
-git clone --quiet --mirror "$REPO_ROOT" "$CTX/homelab.git"
-docker build -q -t homelab-git:lab "$CTX" >/dev/null
+# shellcheck source=SCRIPTDIR/lab-git-image.sh
+. "$REPO_ROOT/scripts/lab/lab-git-image.sh"
+bake_lab_git_image "$CTX" "$BRANCH" "$REPO_ROOT"
 kind load docker-image homelab-git:lab --name "$CLUSTER"
-note "image baked from $(git -C "$CTX/homelab.git" rev-parse --short "$BRANCH")"
+note "image baked from the WORKING TREE (${BRANCH}@$(git -C "$CTX/homelab.git" rev-parse --short "$BRANCH"))"
 
 log "4/8 deploy the Git server"
 kubectl apply -f scripts/lab/gitserver/k8s.yaml >/dev/null
@@ -72,11 +76,14 @@ flux create source git flux-system --url="$GIT_URL" --branch="$BRANCH" --interva
 flux reconcile source git flux-system
 kubectl -n flux-system wait --for=condition=Ready gitrepository/flux-system --timeout=120s
 
-log "8/8 apply the REAL cluster Kustomizations"
-kubectl apply -f kubernetes/clusters/homelab/infrastructure.yaml \
-  -f kubernetes/clusters/homelab/infrastructure-configs.yaml >/dev/null
+log "8/8 apply the REAL cluster Kustomizations (lab cluster dir)"
+# cluster-settings must exist before the Kustomizations reconcile, or Flux would substitute
+# EMPTY STRINGS for every ${VAR} (and the CI guard is not involved at runtime).
+kubectl apply -f kubernetes/clusters/lab/cluster-settings.yaml >/dev/null
+kubectl apply -f kubernetes/clusters/lab/infrastructure.yaml \
+  -f kubernetes/clusters/lab/infrastructure-configs.yaml >/dev/null
 if [ "$SYNC" = "all" ]; then
-  kubectl apply -f kubernetes/clusters/homelab/apps.yaml >/dev/null
+  kubectl apply -f kubernetes/clusters/lab/apps.yaml >/dev/null
 else
   note "SYNC=$SYNC — apps Kustomization not applied"
 fi

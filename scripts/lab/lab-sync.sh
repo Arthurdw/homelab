@@ -14,16 +14,24 @@ log() { printf '\n\033[1m== %s ==\033[0m\n' "$*"; }
 
 kubectl config use-context "kind-${CLUSTER}" >/dev/null
 
-log "rebuild + reload the Git server image"
+log "rebuild + reload the Git server image (working tree)"
 CTX="$(mktemp -d)"
 trap 'rm -rf "$CTX"' EXIT
-cp scripts/lab/gitserver/Dockerfile scripts/lab/gitserver/nginx.conf scripts/lab/gitserver/entrypoint.sh "$CTX/"
-git clone --quiet --mirror "$REPO_ROOT" "$CTX/homelab.git"
-docker build -q -t homelab-git:lab "$CTX" >/dev/null
+# shellcheck source=SCRIPTDIR/lab-git-image.sh
+. "$REPO_ROOT/scripts/lab/lab-git-image.sh"
+bake_lab_git_image "$CTX" "$BRANCH" "$REPO_ROOT"
 kind load docker-image homelab-git:lab --name "$CLUSTER"
 kubectl -n lab-git rollout restart deploy/homelab-git
 kubectl -n lab-git rollout status deploy/homelab-git --timeout=120s
-printf '   serving revision %s\n' "$(git -C "$CTX/homelab.git" rev-parse --short "$BRANCH")"
+printf '   serving working tree as %s\n' "$(git -C "$CTX/homelab.git" rev-parse --short "$BRANCH")"
+
+log "re-apply the lab cluster Kustomizations (picks up path/postBuild changes)"
+kubectl apply -f kubernetes/clusters/lab/cluster-settings.yaml >/dev/null
+for k in infrastructure infrastructure-configs apps; do
+  if kubectl -n flux-system get kustomization "$k" >/dev/null 2>&1; then
+    kubectl apply -f "kubernetes/clusters/lab/$k.yaml" >/dev/null
+  fi
+done
 
 log "reconcile Flux"
 flux reconcile source git flux-system

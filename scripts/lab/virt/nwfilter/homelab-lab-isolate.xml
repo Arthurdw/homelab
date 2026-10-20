@@ -1,0 +1,64 @@
+<!--
+  homelab-lab-isolate — attached to every lab guest interface.
+
+  Purpose: the lab must never be able to reach (or be reached from) the real servers. The
+  homelab-lab network is NAT-only, so inbound connections from the house LAN are already
+  impossible; this filter closes the outbound direction as well by dropping the address ranges
+  docs/decisions.md §2.4 lists as "never use":
+
+      10.0.0.0/16    house LAN
+      10.10.0.0/16   server VLAN 4 (poseidon 10.10.1.1, hercules-nas 10.10.1.10)
+      169.254.0.0/16 link-local
+      172.16.0.0/12  NAS Docker bridges
+      100.64.0.0/10  Tailscale CGNAT
+
+  10.0.0.0/8 is dropped except for the two lab prefixes, which are accepted first (priority 100 is
+  evaluated before 500). Everything else — i.e. the internet, reached through the host's NAT for
+  image and package pulls — is untouched.
+
+  Loaded and attached by scripts/lab/virt/up.sh (see WITH_NWFILTER). Reference:
+  https://libvirt.org/formatnwfilter.html
+-->
+<filter name='homelab-lab-isolate' chain='ipv4'>
+  <!-- allow the lab subnets, in both directions, before the 10.0.0.0/8 drop below -->
+  <rule action='accept' direction='out' priority='100'>
+    <ip dstipaddr='10.99.100.0' dstipmask='255.255.255.0'/>
+  </rule>
+  <rule action='accept' direction='out' priority='100'>
+    <ip dstipaddr='10.99.101.0' dstipmask='255.255.255.252'/>
+  </rule>
+  <rule action='accept' direction='in' priority='100'>
+    <ip srcipaddr='10.99.100.0' srcipmask='255.255.255.0'/>
+  </rule>
+  <rule action='accept' direction='in' priority='100'>
+    <ip srcipaddr='10.99.101.0' srcipmask='255.255.255.252'/>
+  </rule>
+
+  <!-- the house LAN and the server VLAN: unreachable in both directions -->
+  <rule action='drop' direction='out' priority='500'>
+    <ip dstipaddr='10.0.0.0' dstipmask='255.0.0.0'/>
+  </rule>
+  <rule action='drop' direction='in' priority='500'>
+    <ip srcipaddr='10.0.0.0' srcipmask='255.0.0.0'/>
+  </rule>
+
+  <!-- link-local, Docker bridges, Tailscale CGNAT -->
+  <rule action='drop' direction='inout' priority='500'>
+    <ip dstipaddr='169.254.0.0' dstipmask='255.255.0.0'/>
+  </rule>
+  <rule action='drop' direction='inout' priority='500'>
+    <ip srcipaddr='169.254.0.0' srcipmask='255.255.0.0'/>
+  </rule>
+  <rule action='drop' direction='inout' priority='500'>
+    <ip dstipaddr='172.16.0.0' dstipmask='255.240.0.0'/>
+  </rule>
+  <rule action='drop' direction='inout' priority='500'>
+    <ip srcipaddr='172.16.0.0' srcipmask='255.240.0.0'/>
+  </rule>
+  <rule action='drop' direction='inout' priority='500'>
+    <ip dstipaddr='100.64.0.0' dstipmask='255.192.0.0'/>
+  </rule>
+  <rule action='drop' direction='inout' priority='500'>
+    <ip srcipaddr='100.64.0.0' srcipmask='255.192.0.0'/>
+  </rule>
+</filter>

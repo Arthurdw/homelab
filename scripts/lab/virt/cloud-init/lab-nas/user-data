@@ -1,0 +1,50 @@
+#cloud-config
+# lab-nas — a plain Debian stand-in for the storage layer, deliberately NOT nested TrueNAS
+# (docs/lab.md: ZFS-in-ZFS burns the RAM budget and tests the wrong layer). It exports NFS and SMB
+# so the storage path can be exercised end to end. The NFS export uses the production share path
+# (/mnt/main/k8s, kubernetes/infrastructure/storage/release.yaml) so the nas-nfs StorageClass works unchanged.
+#
+# Lab only: the network it lives on is private and NAT-only, and the nwfilter attached to its
+# interfaces drops the house LAN and the server VLAN. Nothing here authenticates: it is a fixture.
+hostname: lab-nas
+fqdn: lab-nas.homelab.lab
+manage_etc_hosts: true
+
+package_update: true
+packages:
+  - nfs-kernel-server
+  - samba
+
+write_files:
+  - path: /etc/exports
+    owner: root:root
+    permissions: '0644'
+    content: |
+      # lab-only export; 10.99.100.0/24 is the private lab network (docs/decisions.md §2.4)
+      /mnt/main/k8s 10.99.100.0/24(rw,sync,no_subtree_check,no_root_squash)
+      /mnt/main/k8s 10.99.101.0/30(rw,sync,no_subtree_check,no_root_squash)
+  - path: /etc/samba/lab.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      [lab]
+      comment = homelab lab SMB export (stand-in, no auth)
+      path = /srv/lab/smb
+      browseable = yes
+      read only = no
+      guest ok = yes
+      create mask = 0664
+      directory mask = 0775
+
+runcmd:
+  - 'mkdir -p /mnt/main/k8s /srv/lab/smb'
+  - 'chown -R nobody:nogroup /mnt/main/k8s'
+  - 'chmod -R 0775 /srv/lab/smb'
+  - 'chmod 0755 /srv/lab'
+  - 'grep -q "^include = /etc/samba/lab.conf" /etc/samba/smb.conf || printf "include = /etc/samba/lab.conf\n" >> /etc/samba/smb.conf'
+  - 'systemctl enable --now nfs-kernel-server'
+  - 'exportfs -ra'
+  - 'systemctl enable --now smbd'
+  - 'touch /srv/lab/.cloud-init-ready'
+
+final_message: "lab-nas ready — NFS /mnt/main/k8s, SMB /srv/lab/smb"

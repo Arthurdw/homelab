@@ -1,0 +1,18 @@
+# libvirt lab guests — THE single place to edit sizes, addresses and MACs.
+#
+# Columns are whitespace separated (spaces or tabs). '#' starts a comment, blank lines are
+# ignored, '-' means "not applicable". Parsed by scripts/lab/virt/lib.sh:load_guests().
+#
+#   name          kind    vcpu  mem_mib  disk_gib  mac_lab            ip_lab        mac_storage        ip_storage
+#   ----          ----    ----  -------  --------  -------            ------        -----------        ----------
+#
+# kind:     talos  -> boots the pinned Talos metal ISO, driven by talosctl (docs/runbooks/talos-bootstrap.md)
+#           debian -> boots the Debian cloud image + cloud-init (NFS + SMB stand-in, NOT TrueNAS)
+# mac_lab:  fixed so the homelab-lab network can reserve ip_lab by MAC (deterministic addressing)
+# ip_lab:   docs/decisions.md §2.4 — 10.99.100.0/24, disjoint from the house LAN / server VLAN
+# mac_storage/ip_storage: only the NAS is on the /30 storage link today; 10.99.101.1 is the
+#           libvirt bridge (the lab's stand-in for the Proxmox end of that point-to-point link).
+
+lab-talos-cp  talos   2  2048  20  52:54:00:99:10:11  10.99.100.11  -  -
+lab-talos-wk  talos   3  4096  40  52:54:00:99:10:12  10.99.100.12  -  -
+lab-nas       debian  2  2048  50  52:54:00:99:10:10  10.99.100.10  52:54:00:99:11:02  10.99.101.2

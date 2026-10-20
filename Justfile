@@ -149,6 +149,18 @@ lab-down:
 lab-status:
   ./scripts/lab/lab-status.sh
 
+# Bring up the libvirt guests (Talos + NAS stand-in). Try: `just lab-virt-up --dry-run`
+lab-virt-up *args:
+  ./scripts/lab/virt/up.sh {{args}}
+
+# Tear the libvirt guests down (only harness-owned, name-prefixed domains/networks)
+lab-virt-down *args:
+  ./scripts/lab/virt/down.sh {{args}}
+
+# Show libvirt networks, guests, DHCP leases and Talos state
+lab-virt-status *args:
+  ./scripts/lab/virt/status.sh {{args}}
+
 # Show lab prerequisites / resource requirements (no changes)
 lab-doctor:
   #!/usr/bin/env bash

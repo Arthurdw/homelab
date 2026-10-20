@@ -1,85 +1,123 @@
 # Lab & Local Test-Driven Development
 
-Goal: **every piece of IaC/config is exercised in a disposable local lab before it ever touches the real
-hosts.** The physical hosts are treated as production and are never the test bed.
+Goal: every piece of IaC/config is exercised in a disposable local lab before it touches the real hosts.
+The physical hosts are production and are never the test bed.
 
 ## Layers
 
 | Layer | What | Where | Runs on PR? |
 |---|---|---|---|
 | L0 static | `tofu fmt/validate`, tflint, trivy/checkov, `kustomize build`, `kubeconform`, `conftest`, `helm lint`, shellcheck/shfmt, yamllint, markdownlint, gitleaks | CI + local | yes (no live creds) |
-| L1 fixtures | nested **Proxmox VE** VM, **TrueNAS SCALE** VM, **UniFi Network Application** container, **Talos** (`talosctl cluster create`/QEMU), **kind/k3d** cluster | this workstation | optional |
-| L2 rehearsal | full stack in the lab (PVE + NAS + Talos + Flux) end-to-end | workstation / dedicated lab host | manual |
+| L1 fixtures | kind cluster + Flux, libvirt Talos nodes, libvirt NAS stand-in; later nested Proxmox VE, UniFi Network Application | this workstation | optional |
+| L2 rehearsal | full stack (PVE + NAS + Talos + Flux) end-to-end | workstation / dedicated lab host | manual |
 | L3 restore/DR | restore backups into isolated targets | lab | manual |
 
-## What is built today (L1)
+## Prerequisites
 
-`just lab-up` brings up a disposable Kubernetes lab on this workstation:
+- `docker`, `git`, `rsync`, `kubectl` for the kind lab; `just lab-tools` installs pinned `kind`, `flux`, `age`,
+  `sops` into `~/.local/bin` (no sudo). `just lab-tools --native` uses distro packages instead (needs sudo, may
+  lag the pins; the script reports drift). `--dry-run` previews both.
+- For the libvirt lab: `virsh`, `qemu-img`, `xorriso`, `curl`, `talosctl`; the user must be in the `libvirt`
+  group (`virsh -c qemu:///system list` works without sudo). `libvirtd` is socket-activated and exits after
+  120 s idle, which is normal. No script uses sudo.
+- RAM is the binding constraint (30 GiB host, Docker and kind already use a lot). Run the libvirt guests one at
+  a time; `up.sh` refuses to start more than the free RAM allows (minus 1 GiB headroom) unless `--force`.
 
-| Component | What it is | Status |
-|---|---|---|
-| kind cluster `homelab-lab` | a real Kubernetes API | built |
-| in-cluster Git server (`lab-git`) | smart-HTTP git serving a bare mirror of this repo | built |
-| Flux | installed by the harness; reconciles the **real** `kubernetes/` tree | built |
-| SOPS age key | generated lab key → `sops-age` Secret (lab-only) | built |
+## kind + Flux lab
 
-Commands: `just lab-up` · `just lab-status` · `just lab-sync` · `just lab-down` · `just lab-tools`.
+`just lab-up` · `just lab-sync` · `just lab-status` · `just lab-down` (also `lab-doctor`, `lab-kind-up/down`).
 
-`just lab-tools` installs the pinned binaries (`kind`, `flux`, `age`, `sops`) into `~/.local/bin` — **no sudo**
-and exact versions, so the agent/CI can always run it. On Arch/Omarchy, `just lab-tools --native` installs the
-distro packages instead (`kind`, `fluxcd`, `age`, `sops` are all in `extra`; no AUR helper needed). That mode
-needs sudo and may lag the pins (e.g. `fluxcd` 2.9.5 vs pin 2.9.6) — the script **reports the drift** rather
-than hiding it. Use `--dry-run` to preview either mode.
+| Component | What it is |
+|---|---|
+| kind cluster `homelab-lab` | a real Kubernetes API |
+| in-cluster Git server (`lab-git`) | smart-HTTP git serving a bare mirror of this repo plus one commit of your current working tree |
+| Flux | installed by the harness; reconciles the real `kubernetes/` tree via `kubernetes/clusters/lab/` |
+| SOPS age key | generated lab key, stored as the `sops-age` Secret (lab only) |
 
-### Why HTTP, not `git://` or SSH
+The Git server is baked into the `homelab-git:lab` image from tracked and untracked-but-not-ignored files only
+(`git ls-files --cached --others --exclude-standard`), so gitignored material such as `talos/out`, `*.agekey`
+and `docs/private` never enters the image. It is served over HTTP because Flux accepts only `http(s)://` and
+`ssh://`, and it must be reachable before any ingress exists (Traefik is deployed from it), so it sits behind a
+plain ClusterIP Service rather than Traefik.
 
-- Flux's `GitRepository` accepts only `http(s)://` and `ssh://` — the `git://` protocol is out.
-- The Git server must be reachable **before** any ingress exists (Traefik is deployed *from* it), so it is
-  fronted by a plain ClusterIP Service (`homelab-git.lab-git.svc.cluster.local`), never by Traefik.
-- SSH would need per-client key distribution for no benefit here; anonymous read over smart HTTP is simpler.
+## libvirt guests (Talos + NAS)
 
-## Target fixtures still to build (libvirt guests)
+`just lab-virt-up` · `just lab-virt-status` · `just lab-virt-down`. All scripts take `--dry-run` (prints the
+exact `virsh`/`qemu-img`/`talosctl` commands and generated XML, creates nothing) and `--only <guest>`.
 
-The lab is moving from "kind only" to **libvirt / virt-manager guests**, because what has to be proven is the
-*platform* — Talos nodes on virtualised hardware, storage over the network, and Flux reconciling on top — not
-just the GitOps tree. See `docs/decisions.md` §1.1 and §2.4.
+| Guest | Kind | vCPU | RAM | Disk | Address |
+|---|---|---|---|---|---|
+| `lab-talos-cp` | Talos metal ISO | 2 | 2 GiB | 20 GiB | `10.99.100.11` |
+| `lab-talos-wk` | Talos metal ISO | 3 | 4 GiB | 40 GiB | `10.99.100.12` |
+| `lab-nas` | Debian cloud image | 2 | 2 GiB | 50 GiB | `10.99.100.10` |
 
-- **Talos nodes** → two libvirt guests booting Talos; validates machine config, bootstrap, Cilium, MetalLB and
-  the entire Flux tree end-to-end. This is the primary fixture.
-- **NAS stand-in** → a small Linux guest exporting **NFS and SMB** (+ snapshots, + a ZFS-on-disk option).
-  Deliberately **not** nested TrueNAS: ZFS-in-ZFS burns the RAM budget and tests the wrong layer. Real TrueNAS
-  still gets its own fixture when the `truenas` OpenTofu root needs exercising.
-- **Proxmox provider** → an on-demand nested PVE guest; `tofu` applies against its API only.
-- **UniFi provider** → self-hosted UniFi Network Application container as the controller fixture.
-  ⚠️ The real **UDM Pro** cannot be virtualized and its API differs from the self-hosted controller. Per
-  decision 1.2, the real UDM is not written to at all before cutover.
+```sh
+just lab-virt-up --only lab-talos-cp      # boot, apply-config, bootstrap the control plane
+just lab-virt-up --only lab-talos-wk      # joins the existing cluster
+just lab-virt-down                        # remove everything the harness created
+```
 
-## Hard constraints on this workstation (verified 2026-10-16)
+How it is built:
 
-- Intel Ultra 7 155H, 22 threads; `vmx` present and `kvm_intel nested=Y` — nested VMs work.
-- `virsh`, `virt-install`, `virt-manager` and `qemu-system-x86_64` are all installed, but **`libvirtd` is
-  disabled and inactive**. Enabling it needs root and the agent has no passwordless sudo:
-  `sudo systemctl enable --now libvirtd` and `sudo usermod -aG libvirt $USER` (re-login). **Owner action.**
-- **RAM is the binding constraint, not disk.** 30 GiB total with ~10 GiB available and swap already in use;
-  disk is fine at ~393 G free.
-- Docker already runs many images/containers, and the **kind** lab cluster (kube-apiserver et al.) is one of the
-  bigger consumers — stop it before starting the heavy libvirt guests.
+- **Networks** (generated by `lib.sh`): `homelab-lab` is `10.99.100.0/24`, NAT, node addresses reserved by MAC
+  (bridge `mlt-lab`); `homelab-lab-storage` is `10.99.101.0/30`, isolated (bridge `mlt-labstor`). Neither is
+  bridged to the house LAN. The `homelab-lab-isolate` nwfilter drops the ranges `docs/decisions.md` §2.4 marks
+  "never use" (`10.0.0.0/16`, `10.10.0.0/16`, `169.254.0.0/16`, `172.16.0.0/12`, `100.64.0.0/10`) in both
+  directions.
+- **Bridge names** must be at most 15 characters (kernel `IFNAMSIZ`) and match a prefix UFW already allows. UFW's
+  input policy is `DROP` and `/etc/ufw/before.rules` accepts libvirt bridges by name (`-i mlt+`); a bridge
+  with another name gets no DHCP, silently (no `[UFW BLOCK]` log line).
+- **Guests** come from `scripts/lab/virt/guests.tsv`; sizes, MACs and addresses are edited only there. Domains
+  are defined with `virsh define` because `virt-install` is broken on this host (`ModuleNotFoundError: gi`).
+- **Talos** boots the `metal-amd64.iso` pinned in `versions.yaml`. `up.sh` follows
+  `docs/runbooks/talos-bootstrap.md`: wait for the maintenance-mode lease, `apply-config --insecure`, wait for
+  the node, `bootstrap` once. Configs come from `scripts/talos/gen-configs.sh` with `talos/inputs.lab.env`
+  (`INSTALL_DISK=/dev/vda`) into the gitignored `talos/out/lab`. The CNI is Cilium with kube-proxy replacement
+  (`docs/decisions.md` §3.3), installed by Flux, so a bootstrapped node stays `NotReady` until Cilium is up.
+  The generated `talosconfig` has `endpoints: []`; the harness passes `--endpoints` and lists both node
+  addresses in `ADDITIONAL_SANS`.
+- **`lab-nas`** is a Debian cloud image (cloud-init NoCloud seed ISO) exporting NFS at the production share path
+  `/mnt/main/k8s` (so the `nas-nfs` StorageClass works unchanged) and SMB at `/srv/lab/smb`, with
+  no authentication (lab only). Deliberately not nested TrueNAS: ZFS-in-ZFS burns RAM and tests the wrong layer.
+- **Files** live in `/var/tmp/homelab-lab-virt` (`LAB_VIRT_DIR`); the qemu user must be able to traverse the
+  path, so `$HOME` does not work. systemd-tmpfiles may prune idle images; they are re-downloaded.
+- **Teardown** (`down.sh`) removes only the `lab-`-prefixed domains named in `guests.tsv`, the two networks, the
+  nwfilter and the harness's disks. With `--only`, the shared networks and filter are kept. Other domains are
+  listed and left alone. `--purge` also deletes downloaded images.
 
-### Sizing that fits the current machine
+The 10 GbE link's MTU 9000 is not simulated; measure it at cutover (`docs/decisions.md` §2.2).
 
-| Guest | RAM | Disk | Purpose |
-|---|---|---|---|
-| `lab-talos-cp` | 2 GiB | 20 GiB | control plane, direct on libvirt |
-| `lab-talos-wk` | 4 GiB | 40 GiB | worker (all workloads) |
-| `lab-nas` | 2 GiB | 50 GiB | Linux stand-in exporting NFS + SMB (not nested TrueNAS) |
-| `lab-pve` | 4 GiB | 40 GiB | on-demand, only to exercise the OpenTofu Proxmox layer |
+## Status and known issues
 
-Keep **kind** for the K8s/Flux layer, and run the heavy libvirt guests **one at a time** rather than all at
-once. If the full stack must run together, the honest options are freeing ~12 GiB on this machine or adding
-RAM — recorded rather than assumed.
+Verified (2026-10-16, `--only lab-talos-cp`): both networks, DHCP reservations and the nwfilter work, DHCP
+completes through the filter, the node reaches Talos v1.14.4 maintenance mode and answers ICMP and `tcp/50000`,
+and `down.sh` removes only harness resources.
+
+Known issues:
+
+- **Talos install does not complete.** `apply-config` is accepted and the authenticated API answers, but
+  `bootstrap` is refused (*bootstrap is not available yet*). The guest cannot install its default route
+  (*network is unreachable* via `10.99.100.1`), so it has no DNS and cannot pull
+  `ghcr.io/siderolabs/installer`; the installer then fails with `error flushing meta: file does not exist`.
+  The libvirt network XML, DHCP config and nwfilter do not explain it (ICMP and the Talos API work), so the cause
+  is probably Talos-side. Next steps: `talosctl get addresses,routes,links` against the node, a VNC screenshot
+  (below), and trying a lab-only static network patch (address `/24`, default route via `10.99.100.1`,
+  resolver `10.99.100.1`) passed to `apply-config`.
+- The worker, the NAS (NFS/SMB) path and the Proxmox/UniFi fixtures are unverified.
+- The lab worker gets no local-path user volume: `talos/inputs.lab.env` sets `WORKER_PATCH=""` because the
+  90 GiB volume cannot fit its 40 GiB disk. local-path PVs land on the EPHEMERAL partition in the lab.
+- The lab Proxmox fixture (nested PVE, `tofu` against its API only) and the UniFi fixture (self-hosted
+  controller; the real UDM Pro cannot be virtualised and is not written to before cutover, decision 1.2) are
+  still to build.
+
+Looking at a headless guest: domains have no graphics and `<video><model type='none'/>`, and libvirt's
+`-nodefaults` suppresses firmware serial output, so a silent guest is not necessarily broken. Define a
+throwaway copy of the XML with `<video><model type='vga'/></video>` and
+`<graphics type='vnc' port='-1' autoport='yes' listen='127.0.0.1'/>`, start it, and run
+`virsh screenshot <domain> /tmp/guest.png`. `virsh console` does not help: Talos draws on VGA, not `ttyS0`.
 
 ## Non-negotiables
 
 - CI (L0) never requires production credentials and never applies anything.
-- No lab fixture ever reaches the real UDM Pro / NAS / Proxmox until its layer passes and a gate is opened.
-- Results of lab runs are recorded in `docs/runbooks/phase-reports/` — actual output, pass/fail, limitations.
+- No lab fixture reaches the real UDM Pro / NAS / Proxmox until its layer passes and a gate is opened.
+- Lab run results are recorded in `docs/runbooks/phase-reports/` (actual output, pass/fail, limitations).
