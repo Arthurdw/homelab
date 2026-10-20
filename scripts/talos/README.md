@@ -1,14 +1,14 @@
 # `scripts/talos` — Talos helpers
 
-Phase 5 helpers for the Talos nodes on `poseidon`. See `talos/README.md` for the configuration itself
+Helpers for the Talos nodes. See `talos/README.md` for the configuration itself
 and `docs/runbooks/talos-bootstrap.md` for the end-to-end procedure.
 
 | Script | Contacts hardware? | Purpose |
 |---|---|---|
 | `gen-configs.sh` | **No** — writes local files only | Generate machine configs + talosconfig into the gitignored `talos/out/`. |
 | `validate.sh` | **No** — reads local files only | `talosctl validate --mode metal` on every generated config. |
-| `bootstrap.sh` | **Yes** — guarded | `talosctl bootstrap` the control plane. GATE 5. |
-| `kubeconfig.sh` | **Yes** — guarded | Retrieve the admin kubeconfig into `talos/out/`. GATE 5. |
+| `bootstrap.sh` | **Yes** — guarded | `talosctl bootstrap` the control plane. |
+| `kubeconfig.sh` | **Yes** — guarded | Retrieve the admin kubeconfig into `talos/out/`. |
 
 ## Safe, offline helpers
 
@@ -19,8 +19,8 @@ and `docs/runbooks/talos-bootstrap.md` for the end-to-end procedure.
 just talos-validate                        # the same via the Justfile
 ```
 
-`TALOS_OUT_DIR` overrides the output directory (relative to the repo root, or absolute). `TALOS_INPUTS`
-overrides the inputs file (`talos/inputs.env`).
+`TALOS_INPUTS` selects the inputs file (default `talos/inputs.env`; the lab uses `talos/inputs.lab.env`).
+`TALOS_OUT_DIR` overrides the output directory and `WORKER_PATCH` the worker patch (empty skips it).
 
 ## Guarded, live helpers
 

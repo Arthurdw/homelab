@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Bootstrap the Talos control plane (`talosctl bootstrap`).
 #
-# !! LIVE OPERATION — Phase 5, GATE 5. Read docs/runbooks/talos-bootstrap.md first. This talks to a
+# !! LIVE OPERATION. Read docs/runbooks/talos-bootstrap.md first. This talks to a
 # !! real node, creates etcd and CANNOT be undone in place. It is deliberately hard to run by accident:
 # !!   * the control-plane node must be named explicitly (no default, no "the only node");
 # !!   * `--confirm` must be passed or TALOS_BOOTSTRAP_CONFIRM=1 set.
@@ -44,7 +44,7 @@ esac
 TALOSCONFIG="${TALOSCONFIG:-$OUT_DIR/talosconfig}"
 
 if [ -z "$NODE" ]; then
-  echo "refused: --node <control-plane-ip> is required (TODO(GATE 0): the CP address is undecided)" >&2
+  echo "refused: --node <control-plane-ip> is required (TODO(GATE 4): the CP address is set at cutover)" >&2
   exit 2
 fi
 if [ ! -f "$TALOSCONFIG" ]; then
@@ -65,11 +65,11 @@ fi
 
 if [ "$CONFIRM" != 1 ]; then
   echo "refused: this creates etcd on $NODE and cannot be undone in place." >&2
-  echo "re-read docs/runbooks/talos-bootstrap.md, then pass --confirm (GATE 5)." >&2
+  echo "re-read docs/runbooks/talos-bootstrap.md, then pass --confirm." >&2
   echo "command that would run:" >&2
   printf '  %s\n' "${cmd[*]}" >&2
   exit 3
 fi
 
-printf '== bootstrapping %s (GATE 5 confirmed) ==\n' "$NODE"
+printf '== bootstrapping %s (confirmed) ==\n' "$NODE"
 "${cmd[@]}"

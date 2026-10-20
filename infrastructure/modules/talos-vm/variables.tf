@@ -226,7 +226,7 @@ variable "data_disk" {
 
 variable "os_image_file_id" {
   description = <<-EOT
-    Status of a *compressed / iso* image to import as the boot disk, e.g.
+    ID of a *compressed / iso* image to import as the boot disk, e.g.
     `local:iso/talos-v1.14.4-nocloud-amd64.img`. Take it from
     `proxmox_download_file.<x>.id`. Use this for the Talos Image Factory `.raw.zst`
     artifact (compressed images cannot use `os_image_import_from`).
@@ -237,7 +237,7 @@ variable "os_image_file_id" {
 
 variable "os_image_import_from" {
   description = <<-EOT
-    Status of an *uncompressed* image of `import` content type, e.g.
+    ID of an *uncompressed* image of `import` content type, e.g.
     `local:import/talos-nocloud-amd64.raw`. Alternative to `os_image_file_id`; the
     module accepts exactly one of the two.
   EOT
@@ -381,7 +381,7 @@ variable "machine_config_delivery" {
 }
 
 variable "machine_config_snippet_id" {
-  description = "Status of the snippet holding the machine config (e.g. `local:snippets/talos-cp-1.yaml`). Required when machine_config_delivery = \"cloud-init-snippet\"."
+  description = "ID of the snippet holding the machine config (e.g. `local:snippets/talos-cp-1.yaml`). Required when machine_config_delivery = \"cloud-init-snippet\"."
   type        = string
   default     = null
 }

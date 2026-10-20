@@ -59,6 +59,9 @@ CLUSTER_ENDPOINT="${CLUSTER_ENDPOINT:-}"
 INSTALL_DISK="${INSTALL_DISK:-/dev/sda}"
 INSTALL_IMAGE="${INSTALL_IMAGE:-}"
 ADDITIONAL_SANS="${ADDITIONAL_SANS:-}"
+# Worker patch (the local-path user volume). An inputs file may point this at another file, or at
+# an empty string to skip it, for environments whose worker has no dedicated data disk (the lab).
+WORKER_PATCH="${WORKER_PATCH-$REPO_ROOT/talos/patches/worker.yaml}"
 
 # --- authoritative versions (single source: versions.yaml) -----------------
 yaml_get() {
@@ -77,7 +80,7 @@ if [ -z "$INSTALL_IMAGE" ]; then
 fi
 
 if [ -z "$CLUSTER_ENDPOINT" ]; then
-  echo "CLUSTER_ENDPOINT is empty — set it in $INPUTS (TODO(GATE 0))" >&2
+  echo "CLUSTER_ENDPOINT is empty — set it in $INPUTS (TODO(GATE 4))" >&2
   exit 1
 fi
 
@@ -105,22 +108,22 @@ args=(
   --with-examples=false
   --output "$OUT_DIR"
 )
+[ "$FORCE" = 1 ] && args+=(--force)
 
 # patch_args <flag> <file> — add <file> as a patch only if it has non-comment content.
-# talosctl rejects an empty/comment-only patch (it is parsed as JSON6902), so such a file must be
-# skipped rather than passed. This keeps patches/worker.yaml as a safe, inactive template.
+# talosctl rejects an empty/comment-only patch (it is parsed as JSON6902), so such a file is skipped.
 patch_args() {
   local flag="$1" file="$2"
-  if [ -f "$file" ] && grep -qvE '^[[:space:]]*(#|$)' "$file"; then
+  if [ -n "$file" ] && [ -f "$file" ] && grep -qvE '^[[:space:]]*(#|$)' "$file"; then
     args+=("$flag" "@$file")
   else
-    log "note: $file is empty/comments-only — skipping $flag"
+    log "note: no patch for $flag (${file:-unset} is empty, comments-only or missing)"
   fi
 }
 
 patch_args --config-patch               "$REPO_ROOT/talos/patches/common.yaml"
 patch_args --config-patch-control-plane "$REPO_ROOT/talos/patches/controlplane.yaml"
-patch_args --config-patch-worker        "$REPO_ROOT/talos/patches/worker.yaml"
+patch_args --config-patch-worker        "$WORKER_PATCH"
 
 if [ -n "$ADDITIONAL_SANS" ]; then
   IFS=',' read -ra sans <<<"$ADDITIONAL_SANS"

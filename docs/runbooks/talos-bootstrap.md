@@ -1,30 +1,28 @@
 # Runbook: Talos and Kubernetes bootstrap
 
-This is the Phase 5 procedure for turning freshly booted Talos nodes into a working Kubernetes cluster.
-It is **gated by GATE 5** (`docs/PROJECT-PLAN.md` §6): nothing here runs until the owner answers the
-open questions (§10) and explicitly opens the gate. Until then the configuration is *scaffolded*, not
-applied.
+Procedure for turning freshly booted Talos nodes into a working Kubernetes cluster. Run it only with
+the owner present: it applies configuration to live nodes.
 
-> **Ownership.** VM creation (Proxmox) is OpenTofu's job (Phase 4). This runbook starts **after** the
+> **Ownership.** VM creation (Proxmox) is OpenTofu's job. This runbook starts **after** the
 > node VMs already exist and are powered on with a Talos image. Everything it does is a **Talos tooling**
 > action (§4.2 ownership matrix) — do not let an ordinary `tofu apply` bootstrap or upgrade the cluster.
 
 ## 0. Interactive nodes
 
-Replace every `<ANGLE_BRACKET>` token with the value the owner decided at GATE 0. The undecided values
+Replace every `<ANGLE_BRACKET>` token with the value the owner decided. The values
 live in exactly one place — `talos/inputs.env` — so set them there and re-generate rather than editing
 commands ad hoc.
 
 | Token | Meaning | Decided at |
 |---|---|---|
-| `<CP_IP>` | control-plane node address | GATE 0 |
-| `<WORKER_IP>` | worker node address | GATE 0 |
-| `<API_ENDPOINT>` | Kubernetes API endpoint / VIP (set as `CLUSTER_ENDPOINT`) | GATE 0 |
-| `<CNI_MANIFEST>` | the chosen CNI's install manifest | GATE 0 (CNI is TBD) |
+| `<CP_IP>` | control-plane node address | owner |
+| `<WORKER_IP>` | worker node address | owner |
+| `<API_ENDPOINT>` | Kubernetes API endpoint / VIP (set as `CLUSTER_ENDPOINT`) | owner |
+| `<CNI_MANIFEST>` | the chosen CNI's install manifest | Cilium manifest (`docs/decisions.md` §3.3) |
 
 ## 1. Pre-checks
 
-- [ ] GATE 5 is open and the owner is present.
+- [ ] The owner is present and has approved applying to the live nodes.
 - [ ] `talos/inputs.env` reflects the decisions: endpoint, install disk, SANs (no `192.0.2.1` placeholder left).
 - [ ] `versions.yaml` pins the intended Talos (`v1.14.4`) and Kubernetes (`v1.37.1`) — read the release
       notes and confirm the pair is still supported before upgrading either.
@@ -32,7 +30,7 @@ commands ad hoc.
       A mismatched client is reported by the tooling; upgrade it rather than ignoring the skew.
 - [ ] A **restorable, off-box** copy of `talos/out/controlplane.yaml`, `worker.yaml` and `talosconfig`
       exists (Tier-2 secret — see `docs/runbooks/upgrades.md` §5). Losing them loses cluster admin.
-- [ ] The node VMs exist and are powered on (Proxmox/Phase 4, out of scope here).
+- [ ] The node VMs exist and are powered on (Proxmox/OpenTofu, out of scope here).
 - [ ] You have out-of-band access to `poseidon` in case networking goes wrong.
 
 ## 2. Generate configuration
@@ -51,12 +49,16 @@ directory is **gitignored** and the files embed the cluster PKI and secrets — 
 git check-ignore -v talos/out/controlplane.yaml
 ```
 
+The worker config carries the `local-path-provisioner` user volume (`talos/patches/worker.yaml`), so the
+worker VM needs its data disk (decisions §3.4). The libvirt lab uses `TALOS_INPUTS=talos/inputs.lab.env`,
+which skips that patch (`WORKER_PATCH=""`) and writes to `talos/out/lab`.
+
 `gen-configs.sh` is idempotent: a second run is a no-op. Only `--force` regenerates, and that **replaces
 the cluster PKI/secrets**, invalidating any node already configured from the previous files.
 
 ## 3. Boot the node VMs
 
-Out of scope for this runbook. Building a Talos VM (image acquisition, disk bus, size, VLAN) is Phase 4
+Out of scope for this runbook. Building a Talos VM (image acquisition, disk bus, size, VLAN) is OpenTofu's job
 Proxmox work owned by OpenTofu. Once the VMs are up, each Talos node exposes a maintenance API on its IP
 and is ready for the next step.
 
@@ -109,8 +111,8 @@ CNI and pods are not yet networked. Install the chosen CNI:
 kubectl --kubeconfig talos/out/kubeconfig apply -f <CNI_MANIFEST>
 ```
 
-The CNI is **TBD** (architecture.md §6). Whichever is chosen, confirm it tolerates the pinned Kubernetes
-`v1.37.1` and the 4-core host before installing, and record the choice in `versions.yaml`.
+The CNI is Cilium with kube-proxy replacement (`docs/decisions.md` §3.3). Confirm the Cilium version
+supports the pinned Kubernetes `v1.37.1` before installing, and record it in `versions.yaml`.
 
 ## 8. Verification
 

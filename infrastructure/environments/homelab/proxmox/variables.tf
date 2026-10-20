@@ -180,7 +180,7 @@ variable "talos_machine_config_delivery" {
 }
 
 variable "talos_machine_config_snippet_id" {
-  description = "Status of a machine-config snippet (e.g. local:snippets/talos-cp-1.yaml). Required only when talos_machine_config_delivery = \"cloud-init-snippet\"."
+  description = "ID of a machine-config snippet (e.g. local:snippets/talos-cp-1.yaml). Required only when talos_machine_config_delivery = \"cloud-init-snippet\"."
   type        = string
   default     = null
 }

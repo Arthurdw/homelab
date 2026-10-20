@@ -19,6 +19,11 @@ resource "proxmox_virtual_environment_vm" "this" {
 
   lifecycle {
     precondition {
+      condition     = var.machine_config_delivery != "cloud-init-snippet" || var.machine_config_snippet_id != null
+      error_message = "machine_config_snippet_id is required when machine_config_delivery = \"cloud-init-snippet\"."
+    }
+
+    precondition {
       condition     = (var.os_image_file_id != null) != (var.os_image_import_from != null)
       error_message = "Set exactly one of os_image_file_id (compressed/iso image) or os_image_import_from (uncompressed import image)."
     }
@@ -60,9 +65,7 @@ resource "proxmox_virtual_environment_vm" "this" {
     ssd         = var.disk_ssd
   }
 
-  # Optional extra disk, separate from the boot disk above (kept as its own block so
-  # the boot-disk handling is untouched). The caller passes `data_disk` only for the
-  # node that needs local storage; the boot disk alone is unchanged.
+  # Optional second disk (see var.data_disk).
   dynamic "disk" {
     for_each = var.data_disk == null ? [] : [var.data_disk]
     content {
