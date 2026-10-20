@@ -11,15 +11,17 @@ Infrastructure-as-code and GitOps for a small, fully reproducible homelab: **Pro
 
 | Document | What it is |
 |---|---|
-| [`docs/SPEC.md`](docs/SPEC.md) | The governing project specification |
-| [`docs/PROJECT-PLAN.md`](docs/PROJECT-PLAN.md) | Execution plan, phases, gates, and agent operating rules |
-| [`docs/architecture.md`](docs/architecture.md) | Target architecture (proposal) |
+| [`docs/PROJECT-PLAN.md`](docs/PROJECT-PLAN.md) | Execution plan, phase checklist, gates, open items |
+| [`docs/decisions.md`](docs/decisions.md) | Every decision and its reasoning — the source of truth |
+| [`docs/architecture.md`](docs/architecture.md) | Target architecture (summary of the decisions) |
 | [`docs/hardware.md`](docs/hardware.md) | Hardware inventory (verified) |
 | [`docs/network-plan.md`](docs/network-plan.md) | Network topology and plan |
 | [`docs/storage.md`](docs/storage.md) | Storage layout and plan |
 | [`docs/risk-register.md`](docs/risk-register.md) | Known risks |
 | [`docs/lab.md`](docs/lab.md) | Local test-driven development / lab strategy |
-| [`versions.yaml`](versions.yaml) | Pinned tool and provider versions |
+| [`docs/runbooks/`](docs/runbooks/) · [`docs/apps/`](docs/apps/) | Procedures, and per-application notes |
+| [`docs/SPEC.md`](docs/SPEC.md) | The original project brief (historical; `decisions.md` wins) |
+| [`versions.yaml`](versions.yaml) | Pinned tool, provider and chart versions |
 
 ## Operating rules (short version)
 
@@ -34,10 +36,11 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the workflow and commit conventions
 ## Repository layout
 
 ```text
-docs/            specification, plan, architecture, runbooks, risk register
-infrastructure/  OpenTofu roots per system (proxmox, truenas, unifi) — validated, nothing applied
-kubernetes/      Flux GitOps: clusters/ (roots) + infrastructure/ (controllers) + apps/
-scripts/         check.sh, backup/ (restic), lab/ (kind)
+docs/            plan, decisions, architecture, runbooks, risk register
+infrastructure/  OpenTofu: modules/ + environments/homelab/{proxmox,truenas,unifi} — validated, nothing applied
+talos/           machine-config patches + inputs (inputs.env = prod, inputs.lab.env = lab); output is gitignored
+kubernetes/      Flux GitOps: clusters/{homelab,lab} (per-env roots + cluster-settings) + infrastructure/ + apps/
+scripts/         check.sh, ci/, talos/, secrets/, backup/ (restic), lab/ (kind + git server) and lab/virt/ (libvirt)
 Justfile         task runner: `just --list`
 ```
 
@@ -46,12 +49,15 @@ Justfile         task runner: `just --list`
 Everything is testable locally; nothing requires live infrastructure.
 
 ```sh
-just --list        # all tasks
-just check         # markdownlint + yamllint + shellcheck + gitleaks + tofu fmt/validate
-just validate      # tofu validate for every root (backend disabled)
-just k8s-validate  # render kustomizations and (if installed) kubeconform them
-just ci            # run the GitHub Actions workflow locally with `act`
-just lab-kind-up   # local kind cluster for manifest/Flux experiments (see docs/lab.md)
+just --list          # all tasks
+just check           # local gate: lint + gitleaks + tofu fmt/validate + helm render
+just k8s-validate    # build every kustomization and kubeconform it
+just talos-validate  # generate and validate Talos machine configs offline
+just ci              # run the GitHub Actions workflow locally with `act`
+
+just lab-up          # kind + in-cluster git server + Flux reconciling this working tree
+just lab-sync        # re-bake the working tree into the lab and re-sync Flux
+just lab-virt-up     # libvirt guests: Talos control plane + worker + NAS stand-in (try --dry-run)
 ```
 
 CI is static (no credentials, no applies) and is verified locally with [`act`](https://github.com/nektos/act)

@@ -1,8 +1,8 @@
 # Target Architecture
 
-> **Status:** proposal for GATE 0 review. Grounded in the 2026-10-16 audit (`docs/hardware.md`,
-> `network-plan.md`, `storage.md`). Items marked **TBD** require an owner decision. Nothing here has been
-> applied to the live hosts. Governing spec: `docs/SPEC.md`.
+> **Status:** accepted at GATE 0 (2026-10-16); nothing here has been applied to the live hosts. Grounded in
+> the audit (`docs/hardware.md`, `network-plan.md`, `storage.md`). The reasoning behind each choice is in
+> `docs/decisions.md`, which wins wherever this summary and it disagree.
 
 ## 1. Principles
 
@@ -31,7 +31,7 @@
                                     │ encrypted, versioned, offsite
                                     ▼
                          ┌───────────────────────┐
-                         │ Offsite backup target │  (family home — TBD)
+                         │ Offsite backup target │  (undecided — §5.5)  
                          └───────────────────────┘
 ```
 
@@ -41,33 +41,29 @@ Verified: i5-7400 (4c/4t), 46 GiB RAM, single 489 GiB SSD (SPOF), no ZFS on host
 
 - **VM boot disks live on `local-lvm`** (local SSD) — *not* on the NAS. The current setup puts a 3 TB VM disk
   on SMB; that couples VM I/O to the network and the NAS and should not continue.
-- **Kubernetes topology (hypothesis): 1 control-plane + 1 worker** initially, both on the single host.
-  Expandable later. *No HA claim* — host loss = cluster loss. **TBD:** exact vCPU/RAM (proposal below,
-  sized to leave headroom for the hypervisor and any non-K8s VM).
+- **Kubernetes topology: 1 control plane + 1 worker**, both on the single host (`docs/decisions.md` §3.1,
+  provisional until the lab measures real usage). *No HA claim* — host loss = cluster loss.
 - Reserve capacity for the hypervisor + at least one non-Kubernetes service VM; never overcommit RAM to the
   point where the host thrashes (today's 42/46 GiB usage is a temporary outlier, not a target).
 
-| Guest (proposal) | vCPU | RAM | Disk |
+| Guest | vCPU | RAM | Disk (local-lvm) |
 |---|---|---|---|
-| Talos control-plane | 2 | 2–4 GiB | 20 GiB (local-lvm) |
-| Talos worker | 2–3 | 6–10 GiB | 40–80 GiB boot + data (local-lvm) |
-| (later) app/GPU VM | TBD | TBD | TBD |
-
-> The worker also carries a **100 GiB data disk** for the node-local `local-path` StorageClass
-> (`docs/decisions.md` §3.4); the boot column above is deliberately left as the original proposal range.
+| `talos-cp-1` | 2 | 2 GiB | 20 GiB |
+| `talos-wk-1` | 3 | 16 GiB | 80 GiB boot + 100 GiB data (`local-path`, decisions §3.4) |
+| (later) app/GPU VM | — | — | — |
 
 ## 4. Storage plan (TrueNAS)
 
 Verified: `main` = RaidZ3, 8×4 TB (~29.1 T raw), 1 TB NVMe L2ARC, 3-way SSD boot mirror, ~492 G of apps.
 
-- Keep the existing **RaidZ3 pool** (preserve/re-import on rebuild unless a rebuild is explicitly approved —
-  spec §6.2). Reassess whether the 3-way boot mirror and the L2ARC are right-sized for the role.
-- **Proposed dataset hierarchy (TBD names):** separate datasets for *Tier-1 personal*, *Tier-2 operational/apps*,
-  *Tier-3 media*, *Tier-4 scratch* — so snapshot + backup policy can differ per tier.
+- The fate of the **RaidZ3 pool** (preserve/import vs rebuild) is **deferred to cutover**, after the owner's
+  backups are verified (decisions §1.4). Reassess whether the 3-way boot mirror and the L2ARC are right-sized.
+- **Dataset hierarchy:** one dataset tree per tier (decisions §4.1) so snapshot and backup policy differ
+  per tier.
 - **Snapshots:** replace the single non-recursive daily task with **per-dataset, recursive** policies and
   explicit retention. Child datasets (currently unsnapshotted) must be covered.
-- **Protocol:** decide NFS vs SMB vs other for Proxmox storage and any Kubernetes CSI based on measured
-  latency/consistency. **Do not** place latency-sensitive databases on network storage without evidence.
+- **Protocols:** NFS for Proxmox backups/ISOs and the Kubernetes CSI (`nas-nfs`); SMB for user shares
+  (decisions §4.2). Databases stay on node-local `local-path` with logical dumps to the NAS (§4.3).
 - No Ceph/Longhorn for a single-host setup unless justified.
 
 ## 5. Network plan
@@ -82,7 +78,7 @@ See `docs/network-plan.md`. **Decided at GATE 0** (rationale: `docs/decisions.md
 - **Lab addresses are disjoint**: nodes/VIPs `10.99.100.0/24`, storage link `10.99.101.0/30`.
 - **IPv6 disabled** on the new K8s and storage segments; the house LAN is left untouched.
 - **Management stays private.** Emergency access is Tailscale — no DMZ, no inbound ports.
-- **UniFi policy: additive-only** — never modify existing objects that serve house devices (plan §4.4).
+- **UniFi policy: additive-only** — never modify existing objects that serve house devices (`docs/PROJECT-PLAN.md` §4.4).
 
 ## 6. Kubernetes & GitOps
 
@@ -109,19 +105,18 @@ See `docs/network-plan.md`. **Decided at GATE 0** (rationale: `docs/decisions.md
 
 ## 8. Applications (incremental; each must document pins, ingress/auth, storage, secrets, resources, backup+restore, upgrade/rollback, exposure)
 
-Order proposal: ingress+certs → DNS → identity → monitoring → Immich → Audiobookshelf → private cloud
+Order: ingress+certs → DNS → identity → monitoring → Immich → Audiobookshelf → private cloud
 (Nextcloud **or** Seafile, decided once) → local-only services → Forgejo (later). No Jellyfin.
 
 - **Traefik** + **cert-manager** (Cloudflare DNS-01, narrowly scoped creds); management UIs never public.
 - **Authentik** for web SSO; never required to recover infrastructure; break-glass creds kept independently.
-- **Immich:** media on TrueNAS; DB backed up consistently; media+DB treated as a related recovery set;
-  P4 passthrough proven on this host but its intended consumer is **TBD**.
+- **Immich:** media on TrueNAS; DB backed up consistently; media+DB treated as a related recovery set.
+  The P4 GPU passthrough is proven on this host; its consumer is not yet chosen.
 
-## 9. Backup & DR (summary — full design in Phase 2/8)
+## 9. Backup & DR (summary — `docs/backup-policy.md`, `docs/backup-matrix.md`)
 
-- Four tiers (see `docs/SPEC.md` §7); Tier-1 offsite, encrypted, versioned; Tier-3 excluded by default.
-- Destination: family-home machine (**TBD**) — assess capacity/power/network before committing.
-- Mechanism: remote ZFS replication **or** restic/borg (compare on evidence) — one primary, no duplicates.
+- Four tiers; Tier-1 offsite, encrypted, versioned; Tier-3 excluded by default.
+- Destination: **undecided** (decisions §5.5); the design stays target-agnostic and restic-shaped.
 - Deletion protection + independent key storage; **restore tests are the proof**, not job success.
 
 ## 10. Secrets, state & CI
@@ -143,19 +138,7 @@ Order proposal: ingress+certs → DNS → identity → monitoring → Immich →
 | D3 | Mandatory lab testing before any live apply (beyond spec §15 "optional") | spec §2.3 honesty + safety |
 | D4 | Owner performs the wipe/reset; agents read-only until gated | owner instruction |
 
-## 12. Open decisions — **all answered 2026-10-16**
+## 12. Open items
 
-See `docs/decisions.md` for the reasoning and `docs/PROJECT-PLAN.md` §10 for the summary. In short:
-
-1. Topology + VM sizing → `docs/decisions.md` §3.1 (1 control plane + 1 worker; no HA claim).
-2. Preserve/re-import the `main` pool → **deferred to cutover**, after the owner's backups are verified (§1.4).
-3. Storage subnet → `10.99.0.0/30` over the 10 GbE link, provisional (§2.2).
-4. CIDRs + CNI → §2.3 and §3.3.
-5. Dataset hierarchy + per-tier snapshot policy → §4.1.
-6. Backup mechanism → target-agnostic until offsite hardware exists (§5.5).
-7. Offsite destination → to be purchased or built (§5.5).
-8. DNS → the "internal resolver" was dead; Technitium is a genuine fix, not a replacement (§6.1).
-9. Git: GitHub canonical, self-hosted **read-only mirror**, SSH over LAN/Tailscale (§5.4, §5.6).
-
-**Still open:** the management VLAN tag and the NAS/Proxmox VLAN mismatch — neither can be resolved without the
-UniFi configuration export.
+All GATE 0 questions are answered in `docs/decisions.md`. Still open: the management VLAN tag and the
+NAS/Proxmox VLAN mismatch (both need the UniFi configuration export) and the offsite target (§5.5).

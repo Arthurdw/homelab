@@ -59,7 +59,7 @@ If the age key and restic password exist and the offsite data is intact, the hom
 3. Restore app data (Immich DB+media, etc.) from offsite; the manifests are already in Git.
 4. Verify Ingress/TLS/DNS and backup jobs.
 
-## 6. Restoring data from restic (sketch)
+## 6. Restoring data from restic (sketch; the offsite target is not chosen yet, `docs/decisions.md` §5.5)
 
 ```sh
 export RESTIC_REPOSITORY='sftp:backup@CHANGE-ME:/srv/restic/homelab'

@@ -1,7 +1,8 @@
 # Network Plan
 
 > Current state **discovered** 2026-10-16 (read-only). Sanitized for the public repo — exact addresses
-> and hostnames live in `docs/private/`. Target items are proposals, not applied changes.
+> and hostnames live in `docs/private/`. The target plan was decided at GATE 0
+> (`docs/decisions.md` §2); nothing has been applied.
 
 ## Current topology (as found)
 
@@ -12,25 +13,19 @@
 | NAS management NIC | **1 GbE** |
 | Proxmox management NIC | **1 GbE** |
 | Dedicated storage link | **10 GbE confirmed at both ends** (Proxmox dual-port NIC ↔ NAS `enp1s0f0`); point-to-point; addresses use **link-local (`169.254.0.0/16`)** |
-| Storage protocol over that link | **SMB/CIFS** (Proxmox mounts the NAS `proxmox` share) — *not* NFS |
+| Storage protocol over that link | **SMB/CIFS** (Proxmox mounts the NAS `proxmox` share). Target: NFS, backups/ISOs only (`docs/decisions.md` §4.2) |
 | VLAN naming | mismatch observed between the Proxmox side and the NAS side for the management VLAN — verify tags |
-| DNS (NAS) | configured primary `10.10.1.53` — but **nothing listens there** (refused on UDP and TCP, verified 2026-10-16 from the workstation). It silently falls back to **`1.1.1.1`**. The UDM Pro (`10.10.0.1`, dnsmasq) is what actually answers on the server VLAN. The earlier claim that "the internal resolver is in use" was **wrong** — see `docs/decisions.md` §6.1 |
+| DNS (NAS) | configured primary `10.10.1.53` — but **nothing listens there** (refused on UDP and TCP, verified 2026-10-16 from the workstation). It silently falls back to **`1.1.1.1`**. The UDM Pro (`10.10.0.1`, dnsmasq) is what actually answers on the server VLAN (`docs/decisions.md` §6.1) |
 | DNS (Proxmox) | points at the gateway |
 | IPv6 | present on the LAN (link + global addresses); UniFi warns IPv6 DNS can bypass custom IPv4 DNS — must be made intentional |
 
-## Target considerations (to be decided in Phase 0/2)
+## Standing constraints
 
-- **Storage link:** the spec suggests a **private `/24`, static, no default gateway** on the storage-only
-  interface. Current use of link-local addressing works but is unconventional; decide whether to keep or
-  renumber on rebuild. Verify MTU (9000?) and that traffic is bound to the 10 GbE path.
-- **Kubernetes CIDRs:** choose node / pod / service CIDRs that do not collide with the existing LAN,
-  the Docker bridges on the NAS, or future VLANs.
-- **DNS:** Technitium as internal resolver with a **stable LAN address** (MetalLB only if the network
-  design allows). Must not be a bootstrap circular dependency; document a fallback resolver and a restore
-  procedure. Confirm IPv6 behaviour.
-- **Management access stays private**; document the emergency/out-of-band path.
-- **UniFi policy:** additive-only — see plan §4.4. New VLANs/subnets for new infra are fine; existing
-  objects that serve house devices must not be modified by IaC.
+- **Management access stays private**; the emergency path is Tailscale (no DMZ, no inbound ports).
+- **UniFi policy: additive-only** (`docs/PROJECT-PLAN.md` §4.4). New VLANs/subnets are fine; existing objects
+  that serve house devices are never modified by IaC.
+- **DNS must not be a bootstrap circular dependency:** Technitium gets a stable address and the UDM stays the
+  fallback resolver.
 
 ## Resolved
 

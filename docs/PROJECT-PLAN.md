@@ -1,380 +1,281 @@
-# Homelab Infrastructure — Master Plan & Agent Playbook
+# Homelab — Project Plan
 
-**Status:** Phase 0 (audit) in progress
+**Status (2026-10-20):** the platform is built and validated **offline**. The Flux tree reconciles in the kind
+lab. Nothing has been applied to a real cluster or to the physical hosts.
 **Owner:** Arthur
-**Mode:** **Greenfield rebuild, owner-driven.** Once the project is ready, the **owner** will fully wipe and
-reinstall both hosts (`poseidon` Proxmox and `hercules-nas` TrueNAS). Agents **never** perform the reset —
-they only build, lab-test, and (with approval) apply the IaC that reconfigures the hosts afterwards.
-OpenTofu import/adoption of existing resources is not required; today's live config matters only as
-(a) data to preserve and (b) design input. **Both hosts are treated as production and are read-only to
-agents until the owner explicitly opens a gate.**
-**Repo state:** public; contains `LICENSE`, `.gitignore`, `docs/`.
+**Mode:** greenfield rebuild, proven on local VMs first (`docs/decisions.md` §1.1). The physical hosts
+(`poseidon` Proxmox, `hercules-nas` TrueNAS) stay read-only until the owner wipes and reinstalls them from ISO.
+After that install, everything comes from IaC (§1.2–1.4).
 
-This document is the single source of truth for how the project is executed. Read it fully before making
-changes. The governing specification is **`docs/SPEC.md`** (the owner's project brief); where this plan is
-ambiguous or differs, `docs/SPEC.md` wins unless a deviation is recorded in §9 below.
+This file is the to-do list and the execution rules. Where things are defined:
 
-Raw discovery output (addresses, serials) lives in **`docs/private/`** and must never be committed.
+- **Decisions:** `docs/decisions.md` wins over everything else, including this file.
+- **Architecture:** `docs/architecture.md`.
+- **Facts:** `docs/hardware.md`, `docs/network-plan.md`, `docs/storage.md`.
+- **The owner's original brief:** `docs/SPEC.md`. It is historical; where it differs, decisions.md applies.
+
+Raw discovery output (addresses, serials) lives in the gitignored **`docs/private/`** and is never committed or
+quoted.
 
 ---
 
 ## 0. Rules of engagement
 
-1. **Audit before implementation.** Inventory → propose → wait → change. No installing software or touching live systems first.
-2. **No inventions.** Never invent hardware, disks, IPs, API capabilities, provider resources, or backup needs. Inspect read-only, ask, or mark `[UNKNOWN]`.
+1. **Audit before implementation.** Inventory, propose, wait, then change. Never touch live systems first.
+2. **No inventions.** Never invent hardware, disks, IPs, API capabilities or provider resources. Inspect
+   read-only, ask, or mark the item `[UNKNOWN]`.
 3. **No destructive actions without per-operation approval.** See §1.
-4. **Verify claims.** Label everything: *implemented / validated statically / tested in lab / tested live / documented-not-implemented / planned*.
-5. **Small reviewable diffs.** One logical change per commit; no platform for its own sake.
-6. **Challenge the spec.** Material deviations get reasoned documentation (§9 decision log), not silent changes.
-7. **Stop at every ⛔ GATE** until the owner explicitly approves.
-8. **Update this file** (checkboxes, status log, decision log) in the same PR as the work.
-9. **Nothing private in tracked files.** Addresses, serials, credentials → `docs/private/` (gitignored) or chat.
-10. **Read-only until the owner opens the gate.** Both hosts are production. Do not modify them — and do not script, automate, or plan an automated reset — until the owner explicitly says that step may run.
+4. **Label every claim:** *implemented / validated statically / tested in lab / tested live / documented, not
+   implemented / planned*. A successful command is not proof.
+5. **Small reviewable diffs:** one logical change per commit.
+6. **Challenge the spec in writing:** record a deviation in `docs/decisions.md`; never change course silently.
+7. **Stop at every ⛔ GATE** until the owner explicitly approves. In code, `TODO(GATE 4)` marks a value that
+   can only be confirmed at cutover, such as the control-plane address or a VLAN tag.
+8. **Update this file** (checkboxes, open items, status log) in the same change as the work.
+9. **Nothing private in tracked files.** Addresses from discovery, serials and credentials go in `docs/private/`
+   or in chat.
 
-## 1. Red lines — never without explicit, operation-specific approval
+## 1. Red lines: never without explicit, operation-specific approval
 
-- Destroy/recreate a VM, container, pool, dataset, or filesystem.
-- Repartition, format, wipe, or repurpose any physical disk.
-- Create, destroy, or change a ZFS pool.
-- The **wipe/reinstall of Proxmox or TrueNAS** — **the owner performs this, never the agent**; agents must not initiate, script, automate, or `tofu destroy` toward it. Requires a verified backup + rollback/restore plan first.
-- Live UniFi changes beyond the additive policy in §4.4.
-- `tofu apply` that destroys/replaces existing resources. **Never `-auto-approve` on live infra.**
+- Destroy or recreate a VM, container, pool, dataset or filesystem.
+- Repartition, format, wipe or repurpose a physical disk; create, destroy or change a ZFS pool.
+- **Wipe or reinstall Proxmox or TrueNAS.** The owner does this, never an agent. Agents do not initiate, script,
+  automate or `tofu destroy` toward it.
+- Any write to the physical hosts before cutover (decisions §1.2).
+- Live UniFi changes beyond the additive policy in §4.
+- A `tofu apply` that destroys or replaces resources. **Never `-auto-approve` on live infra.**
 - Delete persistent app data or backups.
-- Credential rotation that could lock out admins or break services.
-- Any migration that removes the source before the destination is verified.
-- Enabling auto-prune on a backup destination before retention + deletion-protection are tested.
+- Credential rotation that could lock out admins.
+- A migration that removes the source before the destination is verified.
+- Auto-prune on a backup destination before retention and deletion protection are tested.
 
-A successful command is not proof of safety.
+## 2. Priorities and non-negotiables
 
-## 2. Priorities & non-negotiables
+Priorities, in order:
 
-Priorities (in order): data safety/recoverability → security → correctness/reproducibility → maintainability →
-hardware/cost efficiency → convenience.
+1. Data safety and recoverability.
+2. Security.
+3. Correctness and reproducibility.
+4. Maintainability.
+5. Efficiency.
+6. Convenience.
 
-- **Out of scope, do not touch or depend on:** the external Dokploy server and its Tailscale route.
-- **UniFi must not break the house.** Current network stays as-is; new config is *added beside* it (§4.4).
-- Repo stays public/open-source; never commit credentials, keys, Talos secrets, kubeconfigs, state, plans, `.env`.
-- No Jellyfin.
-- Management interfaces stay private; recovery must not depend on Kubernetes being up.
+Non-negotiables:
 
----
+- **Out of scope; do not touch or depend on:** the external Dokploy server and its Tailscale route.
+- **The house network must keep working.** UniFi changes are additive only (§4).
+- **The repo is public.** Never commit credentials, keys, Talos secrets, kubeconfigs, state, plans or `.env`.
+- **No Jellyfin.**
+- **Management interfaces stay private.** Recovery must not depend on Kubernetes being up.
+- **The lab must not change host networking.** The libvirt harness (`just lab-virt-up`) is run by the owner.
 
-## 3. Verified environment facts (from 2026-10-16 read-only discovery)
+## 3. How things are tested
 
-> Sanitized — no addresses/serials here. Full detail: `docs/private/audit-findings.md`.
-
-| Item | Finding | Impact |
+| Layer | What | Where |
 |---|---|---|
-| Proxmox host | Debian 12, **PVE 8.4.11**, kernel 6.8.12-13-pve | matches spec |
-| Proxmox CPU/RAM | i5-7400 4c/4t, 46 GiB RAM — currently ~42 GiB used by one 40 GB VM | real capacity ≠ current load; spec's warning confirmed |
-| Proxmox storage | single Crucial SSD → LVM (root 96 G ext4, lvmthin 360 G free, 8 G swap). **No ZFS** | local-lvm is empty → room for VM disks |
-| GPU | **Tesla P4 present**, IOMMU already enabled | passthrough plausible; verify IOMMU group before promising |
-| Proxmox VMs | one VM (`portainer`, 40 GB RAM, 3 TB disk) | temporary workload |
-| Proxmox↔NAS link | dedicated point-to-point link, **link-local addressing**, used as **CIFS/SMB** storage | **spec assumed NFS — actual is SMB** |
-| TrueNAS | **SCALE 24.10.2.4**, i5-7400, **32 GiB non-ECC**, 141 d uptime | matches "separate NAS" |
-| NAS boot device | **3-way mirror of 3×250 GB SSDs** | over-provisioned for boot; note for redesign |
-| NAS pool `main` | **raidz3, 8×4 TB HDD**, 29.1 T raw / 17.8 T used / 11.3 T free, 61 % full, frag 17 % | spec's numbers confirmed exactly; `free` is physical (parity included) → true usable free is lower |
-| NAS cache | **1 TB NVMe as L2ARC, 76 % full** | suggests RAM-starved reads; reassess in redesign |
-| NAS apps | **Docker containers running + Tailscale up on the NAS** | "NAS is just storage" is false today |
-| Snapshots / BEs | 82 snapshots; **5 boot environments** | cleanup opportunity |
-| Management network | VLAN-tagged; NAS side labels differ from Proxmox side | verify tag consistency during redesign |
-| UniFi | UDM Pro is the LAN gateway; current DNS/DHCP/inventory **not yet captured** | needs API token or UI export |
+| L0, static | gitleaks, the SOPS gate, `tofu fmt`/`validate`, kustomize + kubeconform, the cluster-settings guard, `helm template` of every HelmRelease, actionlint, markdownlint, yamllint, shellcheck | CI (`.github/workflows/ci.yml`), runnable locally with `just ci` (act) or `just check` |
+| L0, Talos | `talosctl validate --mode metal` on generated configs | `just talos-validate` (local only) |
+| L1, Kubernetes | kind + an in-cluster git server + Flux reconciling the real tree | `just lab-up` |
+| L1, nodes | libvirt guests: Talos CP + worker, a Debian NFS/SMB stand-in for the NAS | `just lab-virt-*` (`docs/lab.md`) |
+| L1, providers | nested PVE (proxmox provider), self-hosted UniFi controller (unifi provider) | **not built** |
+| L2 | the full stack in the lab before any live apply | not started |
+| L3 | restore drills into isolated targets | not started |
 
-**Unknowns still open** (see §10 for the full capture list): `main` datasets/shares/ACLs, snapshot &
-replication tasks, service list, DNS resolver config, UniFi VLAN/DHCP/DNS state, NIC speeds, P4 IOMMU group,
-what the `portainer` VM actually holds.
+These cannot be virtualised: Tesla P4 passthrough and the real UDM Pro. They are tested on hardware only, under
+a gate. **Rule:** a config used against live infra must first pass its L1/L2 target.
 
----
+## 4. UniFi policy: additive only, non-breaking
 
-## 4. Target architecture
+1. IaC may **create** objects (new VLANs and subnets, DHCP reservations, firewall rules for new infra).
+2. IaC must **never modify, rename or delete** objects that serve current house devices.
+3. An existing object is adopted only as an explicit per-object task: a fresh export, a written rollback, and
+   approval at a gate.
+4. Take a config export before any change. Keep the previous export until the change is validated.
+5. Check that IPv6 DNS does not silently bypass the internal resolver.
+6. The API key is full-access (no read-only option exists), so these rules are enforced by process:
+   - plan-only by default;
+   - applies are manual, with the owner present;
+   - the key lives outside the repo (`docs/secrets-and-state.md`, decisions §5.3).
 
-| Layer | Choice | Notes |
-|---|---|---|
-| Hypervisor | Proxmox VE | existing host, to be rebuilt clean |
-| IaC | OpenTofu, separate state per system | `unifi` / `proxmox` / `truenas` (+ `talos` only if justified) |
-| Storage | TrueNAS for persistent data; local SSD for VM boot disks | decide NFS vs SMB vs CSI from requirements |
-| Network | UniFi UDM Pro, **additive-only** automation (§4.4) | storage link subnet to be redesigned deliberately |
-| Kubernetes | Talos Linux + Flux CD | topology per §4.1 |
-| Ingress/certs | Traefik + cert-manager (Cloudflare DNS-01) | mgmt stays private; Tunnel for select apps only |
-| Identity | Authentik (web SSO) | never required for infra recovery |
-| DNS | Technitium (candidate) | must not be a bootstrap circular dependency |
-| Apps | Immich, Audiobookshelf, Nextcloud **or** Seafile (pick one), Stremio/debrid (local-only), Forgejo (later) | incremental |
-
-### 4.1 Topology decision (Phase 0 hypothesis)
-One physical host ⇒ multiple control-plane VMs ≠ HA. **Hypothesis: 1 control-plane + 1–2 workers**, expandable
-later. Never claim host-level HA. Decide from measured workload need.
-
-### 4.2 Ownership boundaries (no overlaps)
-- **OpenTofu:** infra resources + VM lifecycle.
-- **Talos tooling:** bootstrap, machine config, OS upgrades.
-- **Flux:** all ongoing Kubernetes config (platform + apps).
-- **Runbooks/scripts:** exceptional recovery/migration ops.
-
-### 4.3 Testing & lab strategy  ← core requirement
-We will not test against live hardware. Tests run in layers:
-
-- **L0 — Static (CI, no infra):** `tofu fmt -check -recursive` + `validate` + tflint + trivy/checkov;
-  `kustomize build` + `kubeconform` + `conftest` (+ `helm lint`/`template`, `flux-local` for Flux rendering);
-  `shellcheck`+`shfmt`, `yamllint`, `markdownlint`, `gitleaks`. Pinned tool versions. PRs never touch live.
-- **L1 — Disposable fixtures (ephemeral):**
-  - *Proxmox provider* → nested **PVE-in-a-VM** (workstation reports `kvm_intel nested=Y`).
-  - *TrueNAS provider* → **TrueNAS SCALE VM** with a few small virtio disks.
-  - *UniFi provider* → **self-hosted UniFi Network Application in Docker** as a fixture (caveat: UDM Pro's
-    internal controller API differs — best-effort; real UDM changes stay gated/manual).
-  - *Talos* → `talosctl cluster create` (docker) or QEMU; validates machine config + bootstrap offline.
-  - *OpenTofu modules* → native `tofu test`.
-- **L2 — Integration rehearsal:** full stack in the lab (nested PVE + nested NAS + Talos + Flux) before any
-  real apply. The eventual **wipe + rebuild itself is a rehearsed runbook**, executed only with approval.
-- **L3 — Restore/DR drills:** restore backups into isolated targets; record results.
-
-**Constraints to respect**
-- Workstation: 22 threads, KVM + libvirt/qemu present, but **~6.6 GiB RAM free and disk 91 % full (~90 G free)** →
-  needs cleanup and/or a dedicated disk/NVMe before it can host PVE+NAS guests simultaneously.
-- `poseidon` has only 4 cores and is currently RAM-saturated → poor host for heavy nested labs until rebuilt.
-- **Can't be virtualized:** Tesla P4 passthrough and the real UDM Pro → these are tested on hardware only, under gate.
-
-**Rule:** every module/config used against live infra must first pass its L1/L2 target; CI is L0-only.
-
-### 4.4 UniFi policy — additive-only, non-breaking
-1. IaC may **create new** objects (new VLANs/subnets, DHCP reservations, firewall rules for new infra) freely.
-2. IaC must **never modify, rename, or delete** existing objects that serve current house devices.
-3. Adoption/migration of an existing UniFi object happens **only** as an explicit, scheduled per-object task,
-   with a fresh config export and a written rollback, approved at a gate.
-4. Take a UniFi config export before any change; keep the previous one until validated.
-5. IPv6 DNS behaviour must be checked so it doesn't silently bypass the internal resolver.
-6. The UniFi API key is **full-access** (no read-only option), so these rules are enforced by **process**:
-   plan-only by default, applies are manual with the owner present, and the key lives outside the repo
-   (see `docs/secrets-and-state.md` §4).
-
----
-
-## 5. Target repo structure
+## 5. Repo map
 
 ```text
-homelab/
-├── README.md  CONTRIBUTING.md  SECURITY.md  LICENSE
-├── versions.yaml
-├── docs/
-│   ├── architecture.md  hardware.md  network-plan.md  storage.md
-│   ├── backup-policy.md  backup-matrix.md  security.md
-│   ├── secrets-and-state.md  upgrades.md  disaster-recovery.md
-│   ├── private/            # gitignored — raw audit data
-│   └── runbooks/           # incl. phase-reports/
-├── infrastructure/{modules,environments/homelab/{unifi,proxmox,truenas,talos}}
-├── kubernetes/{bootstrap,infrastructure,security,platform,apps}
-├── scripts/                # incl. lab fixture bring-up
-├── tests/
-└── .github/workflows/
+versions.yaml        every pinned version (authoritative) + open compatibility checks
+Justfile             task runner: check, ci, validate, k8s-validate, render, talos-*, lab-*, secrets-*
+docs/                decisions, architecture, hardware, network-plan, storage, backup-policy, backup-matrix,
+                     secrets-and-state, disaster-recovery, risk-register, lab, apps/, runbooks/
+                     private/ (gitignored)
+infrastructure/      OpenTofu: modules/talos-vm, environments/homelab/{proxmox,truenas,unifi}
+talos/               Talos inputs (prod + lab) and machine-config patches; out/ is gitignored
+kubernetes/          Flux: clusters/{homelab,lab}, infrastructure/ (controllers + configs), apps/
+scripts/             check.sh, ci/, lab/ (kind + virt/), secrets/, talos/, backup/
+.github/             CI workflow, dependabot
 ```
 
 ---
 
 ## 6. Phases
 
-Legend: `[x]` done · `[ ]` not done · `[ ]` + a *partial* note = started but incomplete.
-Last reconciled against the repo: **2026-10-16**.
+Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled against the repo on **2026-10-20**.
 
-### Phase 0 — Audit & architecture (**complete**; GATE 0 answered 2026-10-16 → `docs/decisions.md`)
-- [x] Repo state inspected; prior work confirmed intentionally deleted
-- [x] Read-only discovery of Proxmox + TrueNAS (raw in `docs/private/`, sanitized in `docs/`)
-- [x] Capture gaps closed: `main` datasets, shares, services, snapshot task, DNS, NIC speeds, VM 100, P4 IOMMU group
-- [x] Drafted `docs/hardware.md`, `network-plan.md`, `storage.md`, `risk-register.md`, `lab.md` + `versions.yaml`
-- [ ] Capture UniFi state *(approved: full-access key + guardrails; key not yet handed over — the VLAN tag is still unknown)*
-- [ ] Data-preservation plan: confirm Tier-1 directories + the VM disk on the `proxmox` share *(deferred to cutover prep, owner-driven)*
-- [x] Write `docs/architecture.md` (target) + migration/rebuild plan
-- [x] Produce open-questions list (§10) → **⛔ GATE 0** — **answered** (§10 / `docs/decisions.md`)
+### Phase 0: Audit and architecture (complete; GATE 0 answered 2026-10-16)
 
-### Phase 1 — Repository foundation (**deliverables complete**)
-- [x] README/CONTRIBUTING/SECURITY/versions.yaml; scaffolding per §5
-- [x] CI L0 (fmt/validate/lint/scan) + secret scanning *(gitleaks clean; lint-tool versions not yet pinned)*
-- [x] Secret strategy (SOPS+age) + **state backend** design → `docs/secrets-and-state.md` *(design only)*
-- [x] Lab harness: `just lab-up` = kind + in-cluster Git server + Flux reconciling the real tree; `just ci`
-      verified with `act`; **libvirt guests** for the Talos/NAS layer being added (`just lab-virt-*`) *(the
-      UniFi controller fixture is still pending)* → **⛔ GATE 1**
+- [x] Read-only discovery of Proxmox and TrueNAS (raw data in `docs/private/`, sanitized in `docs/hardware.md`)
+- [x] Architecture, address plan, topology, storage mapping, CNI and alerts decided (`docs/decisions.md`)
+- [ ] Capture UniFi state: the export and the management VLAN tag *(key approved, not yet handed over)*
+- [ ] Data-preservation plan: confirm the Tier-1 directories *(deferred to cutover prep, owner-driven)*
 
-### Phase 2 — TrueNAS inventory & backup design
-- [ ] Finish NAS inventory incl. `main` datasets, shares, SSO/users, tasks, services
-- [ ] Classify every dataset into backup tiers (§7) *(matrix drafted; classification needs owner input)*
-- [ ] Choose mechanism (remote ZFS replication vs restic/borg) with evidence *(drafts: `docs/backup-policy.md`, `docs/backup-matrix.md`)*
-- [ ] Evaluate offsite machine at family member's home (capacity/power/network/admin)
-- [ ] Verify `truenas/truenas` provider *(OpenTofu 1.13.1 compatibility verified; API version + resource coverage pending)*
-- [ ] Local snapshot policy → **⛔ GATE 2**
+### Phase 1: Repository foundation and lab, ⛔ GATE 1
 
-### Phase 3 — Infrastructure IaC (greenfield — build, don't import)
-- [x] OpenTofu roots per state boundary; providers pinned + compatibility documented
-      (`proxmox`, `truenas`, `unifi`; `tofu validate` passes; lock files committed)
-- [ ] Author UniFi/Proxmox/TrueNAS configs under the **additive-only** policy (§4.4) *(the Proxmox VM module and
-      topology are authored and validate; TrueNAS/UniFi resources still to come — they need live-API
-      verification we do not have)*
-- [ ] **Every config validated in L1 fixtures before any live plan**
-- [ ] CI: plan preview on PRs; protected environment for applies → **⛔ GATE 3 before any live apply**
+- [x] README, CONTRIBUTING, SECURITY, `versions.yaml`, Justfile
+- [x] CI L0 with pinned tools, runnable locally via `act`
+- [x] SOPS + age secret tooling and the CI gate; state-backend design (`docs/secrets-and-state.md`)
+- [x] kind + Flux lab reconciling the real tree (`just lab-up`)
+- [x] libvirt harness for Talos and NAS guests (`scripts/lab/virt/`)
+- [ ] **Lab Talos install completes.** Blocked: the guest cannot install its default route, so it has no DNS
+      and the installer pull fails (`docs/lab.md`, *Status and known issues*)
+- [ ] Lab worker, lab NAS NFS path (now exported at `/mnt/main/k8s`, unverified), and a Talos + Flux run on the
+      guests
+- [ ] L1 provider fixtures: nested PVE, self-hosted UniFi controller
 
-### Phase 4 — Hardware cutover (owner-executed; agents never touch production)  ⚠️ destructive
-> **Deferred until the VM lab has proven every module.** Until then the physical servers stay exactly as they
-> are: read-only reference, **no writes of any kind** — see `docs/decisions.md` §1.2.
-- [ ] Pre-flight (**owner-driven**): all data verified-backed-up offsite; config exports captured; written step-by-step plan
-- [ ] **Owner** installs/reinstalls Proxmox from ISO — the agent does not touch it
-- [ ] **Owner** installs/reinstalls TrueNAS from ISO — the agent does not touch it
-- [ ] **Everything after the ISO install is applied by IaC** (`proxmox`, `truenas`, `unifi` roots); hand-made config is treated as a defect
-- [ ] Pool: preserve/import vs rebuild is decided **at cutover**, once the owner's backups are verified (§1.4)
-- [ ] Verify the storage link (interface, MTU, throughput) and apply UniFi objects additively → **⛔ GATE 4 per risky step**
+### Phase 2: TrueNAS inventory and backup design, ⛔ GATE 2
 
-### Phase 5 — Talos & Kubernetes bootstrap
-- [ ] Pin Talos + Kubernetes versions; build node VMs via Tofu; secrets kept out of repo *(versions pinned;
-      config generation + offline validation landed (`scripts/talos/`, `talos/`) and passes `talosctl validate
-      --mode metal`; the `talos-vm` module and the decided topology are authored and `tofu validate` clean —
-      but **nothing has been applied**: `tofu plan` needs API access we do not have)*
-- [ ] Bootstrap control plane, join workers, CNI, storage reachability, ingress *(Cilium, NFS CSI and a
-      node-local class being added)*
-- [ ] No HA claims on single host → **⛔ GATE 5**
+- [x] Backup policy and matrix drafted (`docs/backup-policy.md`, `docs/backup-matrix.md`); tiered dataset design
+      (decisions §4.1)
+- [ ] Classify every dataset into a tier *(needs owner input)*
+- [ ] Choose the mechanism (ZFS replication vs restic) once the offsite target exists *(deferred, decisions §5.5)*
+- [ ] Verify the `truenas/truenas` provider against the 24.10 API (`versions.yaml` verification_tasks)
+- [ ] Local snapshot policy
 
-### Phase 6 — Flux & platform services
-- [ ] Bootstrap Flux from repo with clear ordering/health checks *(tree scaffolded and **lab-verified** in kind;
-      real bootstrap pending. The lab found and fixed a CRD-ordering bug — see the phase report)*
-- [ ] Platform: ingress, CSI/storage, DNS (with independent recovery), cert-manager, monitoring baseline
-      *(metallb, traefik, cert-manager, technitium, kube-prometheus-stack and the NAS-backed NFS CSI driver all
-      exist and render; Cilium and a node-local class are being added; no cluster bootstrap yet)*
-- [ ] Bootstrap must not depend on in-cluster DNS or Authentik → break-glass documented → **⛔ GATE 6**
+### Phase 3: Infrastructure IaC (greenfield: build, don't import), ⛔ GATE 3 before any live apply
 
-### Phase 7 — Applications (incremental)
-- [ ] One app at a time; documented per-app (pins, ingress/auth, storage, secrets, resources, backup+restore,
-      upgrade/rollback, exposure) *(Immich and Audiobookshelf are fully specified and render, with per-app notes
-      in `docs/apps/`; the real hostnames, the `immich-db` Secret and Authentik SSO remain TODO)*
-- [ ] Immich media+DB consistency; Audiobookshelf; Nextcloud **or** Seafile (decision documented); Stremio local-only; Forgejo later → **⛔ GATE 7 before any public exposure**
+- [x] OpenTofu roots per state boundary; providers pinned; lock files committed; `tofu validate` clean
+- [x] Proxmox: the `talos-vm` module and the decided topology (1 CP + 1 worker with a data disk)
+- [ ] TrueNAS resources (datasets, NFS share, snapshot tasks) *(needs live-API verification)*
+- [ ] UniFi resources: K8s VLAN 20 and storage link, additive only *(needs the export and provider verification)*
+- [ ] Every config validated in an L1 fixture before any live plan
+- [ ] CI plan preview; protected environment for applies
 
-### Phase 8 — Backup automation & verification
-- [ ] Implement offsite mechanism: encryption, retention, deletion protection, monitoring, schedule
-      *(restic scripts + systemd units written; no repository or schedule yet. Alertmanager now has a working
-      SMTP path, but the backup alerts have nothing to monitor until a repository exists)*
-- [ ] Verify first backup **and restore it** (into a test target)
-- [ ] Alerts: last-success age, failures, size anomalies; document transfer times → **⛔ GATE 8 after a successful restore test**
+### Phase 4: Hardware cutover (owner-executed), ⛔ GATE 4 per risky step
 
-### Phase 9 — Upgrade & operations automation
-- [x] Talos upgrade runbook (pre-checks, order, verification, rollback limitations honored)
-- [ ] K8s/tool/chart upgrades: manual gate, changelog read, one at a time, verify after each *(documented in
-      `docs/runbooks/upgrades.md`; no automation yet)*
-- [ ] Prove normal applies never side-effect OS upgrades → **⛔ GATE 9**
+> Deferred until the VM lab has proven every module. Until then the physical servers get **no writes of any
+> kind** (decisions §1.2).
 
-### Phase 10 — Disaster recovery validation
-- [x] DR runbooks for the spec's scenario list (`docs/disaster-recovery.md`)
-- [ ] Non-destructive restore tests (file-level offsite, config, DB consistency)
-- [ ] Verify recovery without Kubernetes; final recovery checklist → **⛔ GATE 10 = exit**
+- [ ] Pre-flight (owner): all data verified as backed up; config exports captured; written step-by-step plan
+- [ ] Owner reinstalls Proxmox and TrueNAS from ISO
+- [ ] Everything after the ISO install is applied by IaC. Hand-made config is a defect
+- [ ] Pool: preserve/import vs rebuild is decided at cutover, after backups are verified (decisions §1.4)
+- [ ] Fill every `TODO(GATE 4)` value (`grep -rn "TODO(GATE 4)"`); verify the storage link (interface, MTU,
+      throughput)
+
+### Phase 5: Talos and Kubernetes bootstrap, ⛔ GATE 5
+
+- [x] Talos v1.14.4 / K8s v1.37.1 pinned; config generation and offline validation (`talos/`, `scripts/talos/`)
+- [x] Patches: Flannel and kube-proxy off for Cilium; the local-path user volume on the worker data disk
+- [x] Guarded bootstrap/kubeconfig helpers and runbook (`docs/runbooks/talos-bootstrap.md`)
+- [ ] Bootstrap the control plane, join the worker, bring up Cilium, check storage reachability *(lab first)*
+- [ ] No HA claims on a single host
+
+### Phase 6: Flux and platform services, ⛔ GATE 6
+
+- [x] Flux tree with ordering: infrastructure → infrastructure-configs → apps; per-cluster `cluster-settings`
+      (MetalLB pool, NFS server) substituted at build time
+- [x] Cilium, MetalLB, Traefik, cert-manager, Technitium, kube-prometheus-stack (SMTP alerts), csi-driver-nfs
+      (`nas-nfs`), local-path; all render; the kind lab installed cert-manager, MetalLB and Traefik
+- [ ] Real Flux bootstrap against a Talos cluster
+- [ ] Let's Encrypt DNS-01 ClusterIssuer via Cloudflare with a zone-scoped token, and a wildcard for
+      `*.lab.ardw.be` (decisions §5.7). Today only `internal-ca` exists
+- [ ] Traefik: HTTP→HTTPS redirect, default certificate, dashboard exposure
+- [ ] Technitium: persistence, forwarders, a fixed LoadBalancer IP, trimmed ports; the split-horizon records
+- [ ] Monitoring persistence (Prometheus, Alertmanager and Grafana state is ephemeral today)
+- [ ] mDNS reflection across zones, if needed (decisions §2.6)
+- [ ] Break-glass access that does not depend on in-cluster DNS or Authentik is documented
+
+### Phase 7: Applications, ⛔ GATE 7 before any public exposure
+
+- [x] Immich and Audiobookshelf specified, rendering, with per-app notes (`docs/apps/`); hosts are
+      `<app>.lab.ardw.be`
+- [ ] `immich-db` Secret (SOPS) before first deploy; move the app certificates to the LE wildcard
+- [ ] Authentik SSO
+- [ ] Nextcloud **or** Seafile (decision recorded), Stremio local-only, Forgejo mirror later (decisions §5.4)
+
+### Phase 8: Backup automation and verification, ⛔ GATE 8 after a successful restore test
+
+- [x] restic backup/check scripts and systemd units (`scripts/backup/`; dormant until a target exists)
+- [x] Immich database dump job (`kubernetes/apps/immich/backup.yaml`)
+- [ ] Offsite target purchased and built (decisions §5.5, deferred)
+- [ ] Wire the backup failure alerts (`OnFailure=`; see `scripts/backup/README.md`)
+- [ ] First backup **and a restore of it** into a test target
+- [ ] Alerts on last-success age, failures and size anomalies
+
+### Phase 9: Upgrades and operations, ⛔ GATE 9
+
+- [x] Upgrade runbook (`docs/runbooks/upgrades.md`): Talos, K8s, charts, one at a time with verification
+- [ ] Resolve the open compatibility checks in `versions.yaml`: the Flux K8s range, the UniFi provider, Helm 4
+- [ ] Prove that normal applies never trigger OS upgrades
+
+### Phase 10: Disaster recovery validation, ⛔ GATE 10 = exit
+
+- [x] DR runbooks for the spec's scenarios (`docs/disaster-recovery.md`)
+- [ ] Non-destructive restore tests (offsite files, config, DB consistency)
+- [ ] Recovery verified without Kubernetes; final checklist
 
 ---
 
 ## 7. Backup tiers
 
-| Tier | Content | Offsite | Retention/notes |
+| Tier | Content | Offsite | Notes |
 |---|---|---|---|
-| 1 | Irreplaceable personal data (photos, docs, unique projects) | **Yes**, encrypted, versioned, daily | restore-tested; alerts |
-| 2 | Operational (NAS config export, Tofu state, key secrets, app DBs, costly app config, Git/IaC) | Where justified | recoverable without cluster |
-| 3 | Replaceable bulk (movies, ISOs, media, caches) | No by default | local snapshots only if worth it |
-| 4 | Disposable (temp, build/derived data) | No | verify exclusions don't kill sole copies |
+| 1 | Irreplaceable personal data (photos, documents, unique projects) | **Yes**: encrypted, versioned, daily | restore-tested; alerts |
+| 2 | Operational (NAS config, Tofu state, key secrets, app DBs, Git/IaC) | where justified | recoverable without the cluster |
+| 3 | Replaceable bulk (movies, ISOs, media, caches) | no | local snapshots only if worth it |
+| 4 | Disposable (temp, build output) | no | check exclusions don't hit sole copies |
 
-Hard rules: a dataset must have a tier (unclassified data gets flagged); snapshots ≠ backups; DBs need consistent
-dumps; deletion protection must be **tested**; keys stored outside both source and destination; monitor last-success
-age + size anomalies.
+Hard rules:
 
----
+- Every dataset has a tier; unclassified data is flagged.
+- Snapshots are not backups.
+- Databases need consistent dumps.
+- Deletion protection must be **tested**.
+- Keys are stored outside both the source and the destination.
+- Monitor last-success age and size anomalies.
 
-## 8. Fact-collection checklist (read-only) — remaining
-- **TrueNAS:** `zfs list -r main` (used/avail/quota/reservation/mountpoint), `sharing.smb.query`,
-  `sharing.nfs.query`, `user.query`/`group.query`, `replication.query`, `pool.snapshottask.query`,
-  `service.query`, `/etc/resolv.conf`, `smartctl -x` per disk, `ethtool` per NIC.
-- **Proxmox:** `qm config 100` (redact secrets), `ethtool` speeds, P4 IOMMU group, `apt-get -s upgrade`, `smartctl -H`.
-- **UniFi:** VLANs, DHCP ranges, DNS servers, IPv6 settings, firmware (API token preferred, else UI export).
-- **Offsite candidate:** hardware, disks, bandwidth, power, admin, physical security.
+## 8. Still open with the owner
 
----
+- **UniFi:** the API key handover, a config export, and the management VLAN tag and NAS/Proxmox VLAN mismatch.
+- **Offsite:** hardware to purchase or build (decisions §5.5).
+- **Cloudflare:** a token scoped to `lab.ardw.be` for DNS-01 (needed before real certificates).
+- **Tier 1:** the directory list, at cutover prep.
+- **Redaction policy:** `docs/SPEC.md` replaces private addresses with placeholders. `docs/network-plan.md`
+  and `docs/decisions.md` show the planned RFC 1918 addresses. Pick one convention.
 
-## 9. Decision log (append-only)
-
-| Date | Decision | Rationale |
-|---|---|---|
-| 2026-10-16 | **Greenfield rebuild**: no import/adoption; wipe both hosts once ready | owner intent; simplifies IaC |
-| 2026-10-16 | **Owner performs the host reset; agents are read-only** until the owner opens a gate | owner instruction; hosts treated as production |
-| 2026-10-16 | **UniFi key is full-access → process-enforced least privilege** (plan-only, additive-only, key off-repo) | provider offers no read-only keys |
-| 2026-10-16 | **UniFi additive-only**, non-breaking migration | must not disrupt house appliances |
-| 2026-10-16 | **Layered lab testing** (§4.3); no live testing without gate | safety + reproducibility |
-| 2026-10-16 | Raw discovery data kept in gitignored `docs/private/` | repo is public |
-
-## 10. Owner decisions — **answered 2026-10-16**
-
-Full reasoning is in `docs/decisions.md`. Summary:
-
-| # | Question | Answer |
-|---|---|---|
-| 1 | Read-only UniFi API token? | **No read-only key exists upstream.** Full-access key approved under guardrails (plan-only, additive-only, key off-repo, UI export as baseline) — and no writes at all before cutover. (§5.3) |
-| 2 | Tier-1 data set | **Deferred to cutover prep, owner-driven.** The owner backs all data up before reinstalling; we do not touch the NAS. (§1.3, §1.4) |
-| 3 | Preserve or rebuild the pool? | **Decided at cutover**, after the owner's backups are verified. Not ours to choose in advance. (§1.4) |
-| 4 | Offsite machine | **To be purchased/built.** The backup design stays target-agnostic until it exists. (§5.5) |
-| 5 | Alert channel | **SMTP now, Telegram later.** (§5.1) |
-| 6 | Cloudflare / public exposure | Yes for cert-manager DNS-01 with a scoped token; **no management UI public**; the git mirror is a read-only consumer. (§5.4) |
-| 7 | VPN for remote admin | **Reuse Tailscale.** No DMZ and no inbound ports. (§5.2) |
-| 8 | Workstation | The lab runs on this laptop. `virsh` works already — `libvirtd.socket` is enabled and socket-activates on demand (a `.service` showing "disabled" is normal on Arch, and the daemon self-exits after idle timeout), plus `arthur` is already in the `libvirt` group. **RAM is the binding constraint.** (`docs/lab.md`) |
-| 9 | Self-hosted git mirror | **Yes, later.** Read-only mirror; **GitHub stays canonical** (it is what Flux tracks). Clone over LAN/Tailscale SSH (`git@git.lab.ardw.be:arthur/repo.git`); anonymous HTTPS for public reads. A plain *public* port 22 is not available. (§5.4, §5.6) |
-
-**Also decided** (not previously asked): the target environment is **local VMs**; physical hosts stay
-**read-only**; cutover is owner-executed ISO installs with everything afterwards coming from IaC; plus the
-address plan, node topology, storage mapping and CNI — all in `docs/decisions.md`.
-
-**Genuinely still open:** the management VLAN tag and the NAS/Proxmox VLAN mismatch (needs the UniFi export),
-the offsite hardware purchase, and the Cloudflare domain + scoped token (only needed at cutover).
-
-## 11. Status log (append-only)
+## 9. Status log (append-only, one line per event)
 
 | Date | Phase | Event |
 |---|---|---|
-| 2026-10-16 | 0 | Read-only discovery of Proxmox + TrueNAS; findings recorded (private). No changes made. |
-| 2026-10-16 | 0 | Plan document + `.gitignore` created. Greenfield + UniFi additive-only + lab-testing decisions logged. |
-| 2026-10-16 | 0 | Governing spec captured as `docs/SPEC.md`; "owner resets hosts, agents read-only" rule recorded. |
-| 2026-10-16 | 0 | Phase 0 docs drafted (hardware/network/storage/risk/lab) + `versions.yaml` (latest versions verified 2026-10-16). |
-| 2026-10-16 | 1 | Target architecture + repo foundation (README, CONTRIBUTING, SECURITY, CI, linting, secret scanning) + `docs/secrets-and-state.md`. |
-| 2026-10-16 | 1 | Justfile task runner + `.actrc` added; CI verified locally with `act` (opentofu, kubernetes, lint jobs pass). |
-| 2026-10-16 | 2 | Backup policy + backup matrix drafted (`docs/backup-policy.md`, `docs/backup-matrix.md`); mechanism choice still open. |
-| 2026-10-16 | 3 | OpenTofu roots scaffolded for proxmox/truenas/unifi; `tofu validate` passes and provider OpenTofu-1.13.1 compatibility confirmed. |
-| 2026-10-16 | 5-7 | Flux GitOps tree scaffolded (`kubernetes/`): infra controllers + 2 apps; manifests build with kustomize and pass kubeconform. |
-| 2026-10-16 | 8 | restic backup/verify scripts + systemd units added (env-driven, no secrets committed). |
-| 2026-10-16 | 9-10 | Upgrade and disaster-recovery runbooks added (`docs/runbooks/`, `docs/disaster-recovery.md`). |
-| 2026-10-16 | 1 | `install-tools.sh` gained a `--native` mode (pacman: kind/fluxcd/age/sops, all in `extra`) alongside the pinned-binary default, and reports version drift. |
-| 2026-10-16 | 5-7 | **Lab harness built** (`just lab-up`): kind + in-cluster smart-HTTP Git server + Flux reconciling the real `kubernetes/` tree. |
-| 2026-10-16 | 5-7 | **Lab found bug #1**: `ClusterIssuer`/`IPAddressPool` shared a Kustomization with their CRD-installing HelmReleases → dry-run failure. Fixed by splitting controllers from configs with `dependsOn`. |
-| 2026-10-16 | 5-7 | **Lab found bug #2**: technitium HelmRelease used `service.type`; the bjw-s common chart reads every `service.*` key as a service *name* → fixed to `service.main.type`. |
-| 2026-10-16 | 5-7 | Lab verified real installs: cert-manager 1.21.2, metallb 0.16.1, traefik 42.0.0 all `Helm install succeeded`. |
-| 2026-10-16 | 1,5-7 | CI gained an **abstract `helm template` render check** for every HelmRelease (proven to catch the technitium class of failure, no cluster needed). SOPS+age tooling, Talos config tooling and a kube-prometheus-stack baseline also landed. |
-| 2026-10-16 | 0 | **GATE 0 answered.** The target environment is **local libvirt VMs**; the physical hosts stay read-only until an owner-executed ISO cutover. Address plan, topology, storage mapping, CNI, alerts, UniFi key and git mirror all decided → `docs/decisions.md`. |
-| 2026-10-16 | 0 | **Finding (read-only):** the NAS points at `10.10.1.53`, which answers nothing — it has been silently using `1.1.1.1`; the UDM answers on the server VLAN. Recorded, **not** changed (production is not written to). |
-| 2026-10-16 | 1 | **Lab moves to libvirt guests.** Verified that `libvirtd.socket` is socket-activated, so `virsh` already works with no owner action — an earlier claim that `libvirtd` needed enabling was wrong (a `.service` showing "disabled" is normal on Arch). |
-| 2026-10-16 | 3,5-8 | Second parallel round started: Cilium CNI, NFS CSI storage, the Proxmox VM module, Immich/Audiobookshelf values, and alert delivery + the SOPS CI gate. |
-| 2026-10-16 | 3,5 | **OpenTofu `talos-vm` module + the decided topology authored**; all four roots validate, `tofu fmt` clean, the Talos artifact URL verified with `curl -sI` rather than guessed. Nothing applied — `tofu plan` needs API access we do not have. |
-| 2026-10-16 | 6 | **NAS-backed dynamic storage landed** (csi-driver-nfs 4.13.5, StorageClass `nas-nfs`). Review caught a real collision before commit: `subDir` set to the namespace alone maps *every* PVC in a namespace to one directory. |
-| 2026-10-16 | 6,8 | **Alerts became deliverable and the SOPS gate is now enforced by CI** (it runs under `act`, since it is static). Telegram is prepared but disabled: an empty token makes Alertmanager refuse to start entirely, so shipping it active would crashloop the pod. |
-| 2026-10-16 | 7 | **Immich and Audiobookshelf fully specified.** Immich renders (it was INCOMPLETE); its media and database are documented as ONE recovery set. |
-| 2026-10-16 | 1 | **Fixed a false-green gate:** the local `just k8s-validate` ran `kustomize <dir>` instead of `kustomize build <dir>`, so it errored on every directory while the pipe to kubeconform masked the exit code — it returned 0 having validated nothing. CI was never affected. |
-| 2026-10-16 | 5,6 | Cilium 1.20.3 is the CNI, with Talos' bundled Flannel and its own kube-proxy both off. Talos rejects `KubeProxyConfig` on workers, so that half lives in the control-plane patch rather than the shared one — the only arrangement where both configs validate. |
-| 2026-10-16 | 6 | **`local-path` completed end to end**: the StorageClass, the worker data disk, and the Talos user volume it mounts. The first check of that chain "proved" the volume existed by reading a stale temp directory, so it was regenerated into a fresh one to make the check real. |
-| 2026-10-16 | 6 | **Known gap recorded in `kubernetes/README.md`:** the address plan is decided but not parameterized per environment, so the tree still carries a TEST-NET-1 MetalLB pool and a lab NFS server IP. Applying it to production as-is would advertise a non-routable range. |
+| 2026-10-16 | 0 | Read-only discovery of both hosts; findings kept private. No changes made. |
+| 2026-10-16 | 0 | Plan, `docs/SPEC.md`, Phase 0 docs and `versions.yaml` drafted. |
+| 2026-10-16 | 1 | Repo foundation, CI (verified with `act`), Justfile, secrets design. |
+| 2026-10-16 | 2,8 | Backup policy/matrix drafted; restic scripts and systemd units written. |
+| 2026-10-16 | 3 | OpenTofu roots for proxmox/truenas/unifi; providers validate under OpenTofu 1.13.1. |
+| 2026-10-16 | 6,7 | Flux tree scaffolded; kind lab built. The lab found a CRD-ordering bug and a Technitium values bug; both fixed. |
+| 2026-10-16 | 1 | CI gained the `helm template` render check for every HelmRelease. |
+| 2026-10-16 | 0 | **GATE 0 answered** (`docs/decisions.md`). Found that the NAS points at a dead resolver; recorded, not changed. |
+| 2026-10-16 | 3,5 | `talos-vm` module and topology authored; Talos config generation validates. Nothing applied. |
+| 2026-10-16 | 6 | csi-driver-nfs (`nas-nfs`), Cilium with kube-proxy replacement, local-path on a worker data disk. |
+| 2026-10-16 | 6,8 | Alertmanager SMTP delivery; the SOPS gate enforced in CI. |
+| 2026-10-16 | 7 | Immich and Audiobookshelf fully specified. |
+| 2026-10-16 | 1 | Fixed a false-green `just k8s-validate` that validated nothing. |
+| 2026-10-16 | 1 | libvirt guest harness added; the Talos install is blocked on the guest default route. |
+| 2026-10-20 | all | Review-and-cleanup round. Bugs fixed: per-environment `cluster-settings` (no more TEST-NET MetalLB pool in production); PSA `privileged` labels on the cilium/metallb/storage/monitoring namespaces; the Immich dump job's shell; `gen-configs --force` passthrough; the lab worker skips the 90 GiB volume; the lab NAS exports the production NFS path; restic check no longer restores all of Tier 1; `lab-git-image` no longer copies ignored files; the systemd unit fixes. Also: stale gate labels, hostnames per §5.7, and this plan rewritten. |
 
-## 12. Phase report template (`docs/runbooks/phase-reports/phase-NN.md`)
+## 10. Definition of done
 
-```text
-1. What was inspected
-2. What changed (files only)
-3. Design rationale
-4. Validations/tests run
-5. Actual results (pass/fail, exact)
-6. Risks / unresolved issues
-7. Manual actions still required
-8. Live change made? (describe + approval ref / No)
-9. Needed next (approval / info / gate)
-```
-
-## 13. Definition of done (summary)
-
-- [ ] Infra version-controlled + pinned + additive-safe
-- [ ] TrueNAS inventoried with explicit preservation and no unapproved destructive ops
-- [ ] Backup matrix with Tier-1 offsite + **tested** restores and independent keys
-- [ ] Kubernetes reproducibly bootstrapped with clear ownership and documented upgrade/recovery
-- [x] No secrets in the public repo (`.gitignore` + gitleaks in CI; scanned clean)
-- [x] CI does PR validation (static L0; live-apply gating/promotion still to add)
-- [x] Lab tests exist before anything touches hardware (lab covers the K8s/Flux layer; PVE/NAS/UniFi fixtures pending)
+- [ ] Infra version-controlled, pinned and additive-safe, and applied from IaC after cutover
+- [ ] TrueNAS inventoried, with explicit preservation and no unapproved destructive operations
+- [ ] Tier-1 offsite backups with **tested** restores and independent keys
+- [ ] Kubernetes reproducibly bootstrapped, with documented upgrade and recovery
+- [x] No secrets in the public repo (`.gitignore`, gitleaks and the SOPS gate in CI)
+- [x] CI validates every PR statically *(live-apply gating still to add)*
+- [ ] Every live-facing config proven in the lab first *(K8s/Flux layer yes; Talos guests, PVE and UniFi
+      fixtures not yet)*

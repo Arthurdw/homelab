@@ -12,18 +12,20 @@
 | R5 | Capacity accounting discrepancy (17.8 T alloc vs ~8.3 T logical) unexplained | Wrong sizing → bad backup/retention decisions | Medium | `zfs list -o space`, `compressratio`; verify units | Open |
 | R6 | NAS is **non-ECC** RAM | Silent corruption risk | Low–Med | Accept + backups with checksums; document | Accepted (interim) |
 | R7 | L2ARC ~76 % full indicates **RAM pressure** | Poor read performance | Medium | Reassess ARC sizing on rebuild; consider more RAM over L2ARC | Open |
-| R8 | `<INTERNAL_RESOLVER_IP>` is a **single internal resolver** | DNS outage blocks services; possible bootstrap dependency | Medium | Ensure fallback resolver + documented restore; check redundancy | Open |
+| R8 | The NAS's configured internal resolver is **dead**; it silently falls back to a public resolver (`docs/decisions.md` §6.1) | Hidden DNS dependency; misleading config | Medium | Recorded, not fixed (read-only hosts); Technitium + UDM fallback at cutover | Open |
 | R9 | **Kubernetes hosted DNS** could become a recovery circular dependency | Cannot bootstrap cluster without DNS that needs the cluster | Medium | Technitium with stable LAN IP or external fallback; test recovery (spec §9.4) | Open |
 | R10 | **UniFi provider is pre-release** (`0.60.0-beta.0`) | Automation may break/regress | Medium | Prefer stable; test in lab; additive-only policy limits blast radius | Open |
 | R11 | **Single physical host** for all Kubernetes nodes | No real HA; host loss = cluster loss | High (by design) | Do not claim HA; keep control-plane count low; document recovery | Accepted (constraint) |
 | R12 | **185 pending OS updates** on Proxmox | Unpatched vulnerabilities | Medium | Define patch policy; patch windows with reboot plan | Open |
-| R13 | Secrets/state strategy undefined | Leakage or unrecoverable state | Medium | SOPS+age design with keys off-system (Phase 1) | Open |
+| R13 | Secrets/state recovery not yet proven end to end | Leakage or unrecoverable state | Medium | SOPS+age in place (`.sops.yaml`, `scripts/secrets/`); state backend + off-system key backup still to prove (`docs/secrets-and-state.md`) | Mitigating |
 | R14 | GPU passthrough in use by a temporary VM | Reproducibility/conflict when other workloads need the P4 | Low | Document passthrough config; decide intended GPU consumer | Open |
-| R15 | **Offsite destination unconfirmed** (family home) | No independent copy for Tier-1 data | Medium | Phase 2 evaluation; cost/bandwidth/power assessment | Open |
+| R15 | **Offsite destination undecided** (`docs/decisions.md` §5.5) | No independent copy for Tier-1 data | Medium | Keep the design target-agnostic (restic-shaped); choose a target before cutover | Open |
 | R16 | Workstation is disk/RAM constrained for a lab | Limited local TDD capacity | Medium | Clean up disk; add NVMe; or dedicate a lab host | Open |
 | R17 | Unknowns in the audit (UniFi config, ACLs, tags) | Wrong assumptions in design | Medium | Finish capture; verify before depending on any value | Open |
-| R19 | **UniFi API key is full-access** (cannot be read-only) | A leak or mistaken apply can take the house network offline | Medium | Plan-only applies from a trusted host; additive-only; export before change; rotate; re-check for a limited local admin (`docs/secrets-and-state.md` §4) | Open |
 | R18 | "Greenfield wipe" may destroy unbacked-up data if assumptions are wrong | Irreversible data loss | Low–Med | Owner-driven reset; verify backups of Tier-1 **before** any wipe (spec §3.2/§6.2) | Open |
+| R19 | **UniFi API key is full-access** (cannot be read-only) | A leak or mistaken apply can take the house network offline | Medium | Plan-only applies from a trusted host; additive-only; export before change; rotate; re-check for a limited local admin (`docs/secrets-and-state.md` §4) | Open |
+| R20 | `local-path` PVs are **node-local and unreplicated** (`docs/decisions.md` §3.4) | Losing or recreating the worker loses database volumes | Medium | Scheduled logical dumps to the NAS; restore test per app (`docs/backup-matrix.md`) | Open |
+| R21 | All `nas-nfs` PVCs depend on **one NAS export** over one link | NAS or link outage stalls every NFS-backed app | Medium | Accepted for a single-host lab; alerting on NFS mount health; documented restart order | Accepted (constraint) |
 
 ## Assumptions not yet verified
 - UniFi VLAN/DHCP/DNS full configuration (no API token yet).

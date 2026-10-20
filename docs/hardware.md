@@ -12,7 +12,7 @@
 | CPU | Intel Core i5-7400 — 4 cores / 4 threads @ 3.0 GHz | no SMT; limited parallelism |
 | RAM | 46 GiB usable | currently ~42 GiB consumed by one VM |
 | Boot/root disk | 1× Crucial CT525MX300 SSD (~489 GiB) | **SPOF** — no mirror |
-| Root layout | LVM: `pve-root` 96 G ext4 (7 % used), `pve-data` 360 G lvmthin (0 % used), 8 G swap | t=no ZFS |
+| Root layout | LVM: `pve-root` 96 G ext4 (7 % used), `pve-data` 360 G lvmthin (0 % used), 8 G swap | no ZFS on the host |
 | GPU | 1× NVIDIA Tesla P4 (`GP104GL`, `10de:1bb3`) | **already passed through to a VM**; IOMMU on (`intel_iommu=on iommu=pt`); in IOMMU group 2 with its root port |
 | NIC 1 | 1 GbE (`enp0s31f6`) | management VLAN bridge `vmbr0` |
 | NIC 2 | dual-port (`enp2s0f0` down / `enp2s0f1` **10 GbE link up**) | storage bridge `vmbr1` → NAS |
@@ -44,7 +44,7 @@
 | RAM | 30 GiB total, **~6.6 GiB free** | tight for heavy nested labs |
 | Disk | btrfs, 952 G, **91 % full (~90 G free)** | needs cleanup/extra disk for VM images |
 | Virt | `/dev/kvm` present, `kvm_intel nested=Y`, libvirt/qemu installed | can run nested PVE/NAS guests |
-| Tooling present | tofu, kubectl, talosctl, helm, ansible, nix, docker (124 images) | kind/k3d/flux CLI not yet installed |
+| Tooling present | tofu, kubectl, talosctl, helm, ansible, nix, docker (124 images) | at audit time; `just lab-tools` now installs kind, flux, etc. |
 
 ## Open hardware questions
 - Is the Tesla P4 passthrough stable under load, and which driver/VM combo is used?

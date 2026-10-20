@@ -51,14 +51,13 @@ So the NAS is not storage-only; it runs services and holds app data (493 G incl.
 
 The share directories under `main` (`arthur`, `jolien`, `dunia`, `proxmox`) plus any irreplaceable
 content inside `ix-apps` are the from-now-on **treated-as-valuable** set. The `proxmox` share also holds a
-VM disk image. Exact per-directory sizes and which are irreplaceable are **open questions** (Phase 2).
+VM disk image. Exact per-directory sizes and which are irreplaceable are **open questions**.
 
-## Target design (to be decided — Phase 2)
+## Target design
 
-- Dataset hierarchy with explicit per-dataset snapshot + backup policy (the current single non-recursive
-  task is insufficient).
-- Decide NFS vs SMB vs other for Proxmox storage and any Kubernetes CSI, based on latency/consistency —
-  **do not** put latency-sensitive databases on network storage without evidence. *Decided for databases:*
+- Dataset hierarchy with per-dataset snapshot + backup policy: *decided*, `docs/decisions.md` §4.1 (the
+  current single non-recursive task is insufficient).
+- NFS for Proxmox backup/ISO storage and Kubernetes: *decided*, `docs/decisions.md` §4.2. Databases use
   node-local `local-path`, not network storage (see below).
 - Evaluate whether the 3-way boot mirror and 1 TB L2ARC are justified for the role, or right-sized.
 - No Ceph/Longhorn unless justified for a single-host setup.

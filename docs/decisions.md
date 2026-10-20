@@ -96,7 +96,7 @@ without an mDNS reflector**. An IOT pilot must include that reflector and move o
 
 ### 2.7 — No BACKUP VLAN; backups are controlled by policy, not by segmentation — *decided*
 
-Heavy backup traffic does not traverse the house LAN: NAS↔Proxmox is SMB over the dedicated 10 GbE
+Heavy backup traffic does not traverse the house LAN: NAS↔Proxmox traffic uses the dedicated 10 GbE
 point-to-point link (§2.2), and offsite is restic over Tailscale. Household PCs backing up to the NAS are
 HOME→SERVERS traffic, governed by **the firewall policy between those zones** — a VLAN would not change it.
 
@@ -120,11 +120,7 @@ must not share a broadcast domain (e.g. iSCSI). Neither exists here.
 
 5 vCPU on 4 threads is a 1.25× overcommit — normal, because idle control planes use very little.
 **No HA claim**: one physical host means host loss is cluster loss. Provisional until the lab measures
-real usage.
-
-> **Amended 2026-10-16 — see §3.4.** The worker's data disk was added after this entry was written, to
-> give the node-local `local-path` StorageClass (§4.3) a non-system disk to provision a Talos user
-> volume on. The control plane still has a single 20 GiB disk.
+real usage. The worker's data disk is explained in §3.4.
 
 ### 3.2 — All VM disks live on `local-lvm` (the host SSD) — *decided*
 
@@ -182,7 +178,7 @@ protocol for user shares; NFS is for Linux consumers.
 
 ### 4.3 — Latency-sensitive databases stay off the network — *provisional*
 
-Databases run on a `local-path` PV on the Talos VM disk (the SSD), with scheduled **logical dumps** to the NAS.
+Databases run on a `local-path` PV on the worker's data disk (§3.4, on the host SSD), with scheduled **logical dumps** to the NAS.
 That keeps DB latency independent of the network while still giving consistent, restorable copies. Revisit only
 with measurements (spec §6 explicitly warns against DB-on-network-storage without evidence).
 
@@ -209,8 +205,7 @@ cutover.
 A read-only, anonymous **HTTPS** mirror (`git.lab.ardw.be`) via a Flux-managed `cloudflared`, for
 GitHub-outage resilience and fast LAN clones. It mirrors public content only and is never the bootstrap source.
 
-**Correction (2026-10-16):** an earlier version of this entry said flatly "SSH is rejected". That was too
-broad — it described *public anonymous* SSH. Precisely:
+Clone transports for the mirror:
 
 | Transport | What it gives | What each client needs |
 |---|---|---|
@@ -222,17 +217,12 @@ So `git clone git@git.lab.ardw.be:arthur/repo.git` **does** work over the LAN an
 key. It does **not** work as a plain public endpoint from an arbitrary machine; a public IP + port-forward +
 DMZ is explicitly rejected (§5.2).
 
-Note: SSH-key authentication and **commit signing** are different things. If "my commits use my SSH key" means
-signed commits, that is `gpg.format = ssh` + `user.signingkey`, independent of how the clone is carried.
-
-### 5.5 — Offsite backup target — *open*
+### 5.5 — Offsite backup target — *deferred*
 
 To be purchased or built. Until it exists, the backup design stays target-agnostic (encrypted, versioned,
 restic-style) so the mechanism does not change when the hardware arrives.
-
-**Confirmed deferred (2026-10-16):** no vendor and no target are chosen yet, and the owner asked to leave it
-for later rather than pick one now. The design work therefore stays generic — an S3-compatible or self-hosted
-REST target, restic-shaped either way. Nothing downstream may assume a specific provider.
+No vendor or target is chosen (deferred by the owner, 2026-10-16): S3-compatible or self-hosted REST,
+restic-shaped either way. Nothing downstream may assume a specific provider.
 
 ### 5.6 — Canonical git remote: GitHub; the self-hosted git is a read-only mirror — *decided 2026-10-16*
 
@@ -244,8 +234,7 @@ source. A writable mirror would mean two copies to keep aligned, and a remote th
 when the cluster is down — which is when a remote is most useful. Cloning over SSH does not require the mirror
 to be writable.
 
-**Transport (decided):** SSH over **LAN + Tailscale** — plain `git@git.lab.ardw.be:arthur/repo.git` with an SSH
-key, no client agent and no public exposure. Anonymous HTTPS stays available for public reads.
+Clone transports (SSH over LAN/Tailscale, anonymous HTTPS for public reads) are in §5.4.
 
 ### 5.7 — Internal application zone and certificates — *decided 2026-10-16*
 
@@ -279,8 +268,7 @@ TrueNAS is configured with `nameserver1 = 10.10.1.53`, but **nothing listens the
 both UDP and TCP, verified from the workstation). It has been silently falling back to `1.1.1.1`. The UDM Pro
 (`10.10.0.1`, dnsmasq) is what actually answers on the server VLAN. Proxmox points at the UDM directly.
 
-So the earlier statement that "the internal resolver is in use" was **wrong**: Technitium is a genuine gap
-fix, not a replacement for a working service. Per 1.2 this is recorded, not fixed.
+So there is no working internal resolver today: Technitium fills a gap rather than replacing a service. Per 1.2 this is recorded, not fixed.
 
 ### 6.2 — Production has no offsite copy and its snapshots are non-recursive — *confirmed*
 

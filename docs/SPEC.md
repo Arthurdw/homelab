@@ -1,13 +1,12 @@
-**Canonical Project Brief — governing specification**
+**Original Project Brief — historical**
 
-> **Source:** provided by the owner (produced with another AI model) and reproduced here as the
-> **governing specification** for this project.
+> **Source:** provided by the owner (produced with another AI model) at project start and kept here as the
+> original brief. It is **not** the live source of truth: decisions taken since then are recorded in
+> `docs/decisions.md`, and **where the two differ, `docs/decisions.md` wins**. The current execution plan is
+> `docs/PROJECT-PLAN.md`; the repository layout in §13 is illustrative, not the actual tree.
 >
 > **Redaction:** this repository is public, so the one internal RFC1918 resolver address in
 > §3.3 has been replaced with `<INTERNAL_RESOLVER_IP>`. Everything else is unchanged.
->
-> **Precedence:** where this brief and `docs/PROJECT-PLAN.md` differ, this brief governs unless the
-> deviation is explicitly recorded in the plan's decision log (§9 of the plan).
 
 ---
 
