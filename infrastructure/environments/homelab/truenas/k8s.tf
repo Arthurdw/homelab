@@ -34,8 +34,8 @@ resource "truenas_nfs_share" "k8s" {
   comment = "Managed by OpenTofu: csi-driver-nfs (StorageClass nas-nfs)"
   enabled = true
 
-  # Restrict to the storage link only. TODO(GATE 4): see var.k8s_nfs_allowed_networks. The
-  # Talos nodes (10.20.0.0/24) are not on this /30, so this needs a routing decision.
+  # Restrict to the storage link only (10.99.0.0/29). The Talos nodes mount from their own link
+  # NIC (.3/.4), not through a router (decisions.md §2.2).
   networks = var.k8s_nfs_allowed_networks
 
   # no_root_squash: the driver mkdirs and chowns each PVC directory as root. maproot (not mapall)

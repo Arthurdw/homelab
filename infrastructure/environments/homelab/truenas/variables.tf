@@ -26,9 +26,9 @@ variable "k8s_dataset_name" {
 }
 
 variable "k8s_nfs_allowed_networks" {
-  description = "CIDRs allowed to mount the k8s export. Defaults to the storage link (decisions.md §2). TODO(GATE 4): the Talos nodes live on 10.20.0.0/24, not on the 10.99.0.0/30 link (Proxmox .1, NAS .2). Decide how node traffic reaches 10.99.0.2 (Proxmox routing/NAT shows source 10.99.0.1, or a node NIC on the link) and set this to match. Never 0.0.0.0/0."
+  description = "CIDRs allowed to mount the NFS exports (k8s, kopia, seafile). Defaults to the storage link /29 (decisions.md §2.2): poseidon .1, NAS .2, talos-cp-1 .3, talos-wk-1 .4. The Talos nodes have their own NIC on the link and mount directly, unrouted, so their source address is .3/.4. Never 0.0.0.0/0."
   type        = list(string)
-  default     = ["10.99.0.0/30"]
+  default     = ["10.99.0.0/29"]
 
   validation {
     condition     = length(var.k8s_nfs_allowed_networks) > 0 && alltrue([for n in var.k8s_nfs_allowed_networks : can(cidrhost(n, 0)) && !endswith(n, "/0")])
@@ -117,7 +117,7 @@ variable "storage_link_interface" {
 }
 
 variable "storage_link_address" {
-  description = "The NAS's address on the storage link (poseidon's vmbr1 is 10.99.0.1/30). Provisional with the rest of the storage subnet, decisions.md §2.2; keep it inside k8s_nfs_allowed_networks."
+  description = "The NAS's address on the storage link /29 (poseidon .1, talos-cp-1 .3, talos-wk-1 .4; decisions.md §2.2). Keep it inside k8s_nfs_allowed_networks; NFS_SERVER in kubernetes/clusters/homelab/cluster-settings.yaml points here."
   type        = string
   default     = "10.99.0.2"
 
@@ -128,13 +128,13 @@ variable "storage_link_address" {
 }
 
 variable "storage_link_prefix_length" {
-  description = "Prefix length of the storage link subnet (a /30 point to point link)."
+  description = "Prefix length of the storage link subnet: a /29 holding poseidon, the NAS and the two Talos nodes (decisions.md §2.2). Must match storage_link_address in the proxmox root."
   type        = number
-  default     = 30
+  default     = 29
 
   validation {
-    condition     = var.storage_link_prefix_length >= 8 && var.storage_link_prefix_length <= 30
-    error_message = "Use a prefix length between 8 and 30."
+    condition     = var.storage_link_prefix_length >= 8 && var.storage_link_prefix_length <= 29
+    error_message = "Use a prefix length between 8 and 29; the link holds four hosts, so a /30 is too small."
   }
 }
 

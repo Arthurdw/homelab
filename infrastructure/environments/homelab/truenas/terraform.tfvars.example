@@ -9,9 +9,9 @@ truenas_api_key = "REPLACE-ME"
 
 truenas_insecure = true
 
-# Kubernetes NFS export (defaults shown; see variables.tf for the TODO(GATE 4) notes)
+# Kubernetes NFS export (defaults shown; see variables.tf)
 # k8s_dataset_name         = "main/k8s"
-# k8s_nfs_allowed_networks = ["10.99.0.0/30"]
+# k8s_nfs_allowed_networks = ["10.99.0.0/29"]   # the storage link; never 0.0.0.0/0
 # k8s_nfs_maproot_user     = "root"
 # k8s_nfs_maproot_group    = "root"
 
@@ -32,5 +32,5 @@ timemachine_jolien_quota_gib = 1024
 storage_link_interface = "CHANGE-ME"
 # storage_link_name          = "bond1"
 # storage_link_address       = "10.99.0.2"
-# storage_link_prefix_length = 30
+# storage_link_prefix_length = 29
 # storage_link_mtu           = 9000

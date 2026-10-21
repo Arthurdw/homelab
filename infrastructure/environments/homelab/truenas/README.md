@@ -26,7 +26,7 @@ the provider can only import PHYSICAL interfaces, never configure them.
 
 | Resource | What | Source |
 |---|---|---|
-| `storage-link.tf`: `truenas_network_interface.storage_link` | one-port failover bond `bond1` over the 10 GbE port (`storage_link_interface`, no default), `10.99.0.2/30`, MTU 9000, no DHCP; management interface untouched. Fixture-proven only | decisions §2.2 |
+| `storage-link.tf`: `truenas_network_interface.storage_link` | one-port failover bond `bond1` over the 10 GbE port (`storage_link_interface`, no default), `10.99.0.2/29`, MTU 9000, no DHCP; management interface untouched. Fixture-proven only | decisions §2.2 |
 | `truenas_dataset.k8s` | `main/k8s`, parent for csi-driver-nfs PVC directories; `prevent_destroy` | decisions §4.1, §4.2 |
 | `truenas_nfs_share.k8s` | `/mnt/main/k8s`, storage link only, `maproot root:root` (no_root_squash), `sec=sys` | `kubernetes/infrastructure/storage/release.yaml` |
 | `truenas_periodic_snapshot_task.k8s` | daily, recursive, 14 days | decisions §4.1 ("main/k8s NFS export") |
@@ -70,13 +70,13 @@ would break their different retention, so it has none (reasoning in `tiers.tf`).
 
 ## TODO(GATE 4)
 
-- **NFS client network vs routing.** `k8s_nfs_allowed_networks` defaults to the storage link
-  `10.99.0.0/30` (Proxmox `.1`, NAS `.2`). The Talos nodes are on `10.20.0.0/24` and are not on
-  that link. Either Proxmox routes or NATs node traffic onto the link (the NAS then sees `10.99.0.1`, which
-  the default allows), or the design changes. That needs a decision, and the variable must match it.
 - **maproot group name** (`root` on SCALE). Confirm it on the upgraded NAS.
 - **Pool name `main`.** It is a contract with `/mnt/main/k8s` in the StorageClass. If the pool is
   rebuilt under another name, both sides move together.
+
+Resolved 2026-10-21: **NFS client network vs routing.** The storage link is a `/29` and each Talos VM has
+a NIC on it (poseidon `.1`, NAS `.2`, talos-cp-1 `.3`, talos-wk-1 `.4`; decisions §2.2). Nodes mount
+directly, with no routing or NAT, so `k8s_nfs_allowed_networks` defaults to `10.99.0.0/29` for every export.
 
 ## Verified against
 

@@ -1,7 +1,8 @@
 # The NAS end of the 10 GbE storage link to poseidon (docs/decisions.md §2.2, docs/hardware.md).
 #
-# Creates a one-port FAILOVER bond (bond1) on the NAS's 10 GbE port and gives it 10.99.0.2/30 at MTU
-# 9000, no DHCP, so poseidon's vmbr1 (10.99.0.1/30, proxmox root storage-link.tf) can reach it.
+# Creates a one-port FAILOVER bond (bond1) on the NAS's 10 GbE port and gives it 10.99.0.2/29 at MTU
+# 9000, no DHCP. The /29 also holds poseidon's vmbr1 (10.99.0.1, proxmox root storage-link.tf) and the
+# Talos VMs' second NICs (talos-cp-1 .3, talos-wk-1 .4), which mount NFS over it directly.
 #
 # Why a bond: the port itself is PHYSICAL, and this provider can only import PHYSICAL interfaces,
 # never configure them (type = "PHYSICAL" is rejected at validate time; allowed: BRIDGE,

@@ -10,7 +10,7 @@
 # the live root can never leak in. The fixture's own API key is passed through TF_VAR_truenas_api_key.
 #
 # Lab-only overrides, written to fixture.auto.tfvars: truenas_insecure = true (self-signed
-# certificate) and k8s_nfs_allowed_networks = the lab /24 (the production default is the /30
+# certificate) and k8s_nfs_allowed_networks = the lab /24 (the production default is the /29
 # storage link, which does not exist in the lab) and timemachine_jolien_quota_gib = 4 (the data disk is
 # 10 GiB; the real value is the owner's, per Mac). Dataset name, maproot and the snapshot task keep
 # their production values.
@@ -22,7 +22,7 @@
 # and passed only through TF_VAR_user_*_password in the tofu process's environment (never written to disk);
 # any TF_VAR_user_* from the calling shell is dropped.
 #
-# The root also puts the NAS end of the 10 GbE storage link (bond1, a one-port failover bond over the port, alias 10.99.0.2/30,
+# The root also puts the NAS end of the 10 GbE storage link (bond1, a one-port failover bond over the port, alias 10.99.0.2/29,
 # MTU 9000; storage-link.tf) on the fixture's second NIC, on the isolated homelab-lab-link network
 # (truenas-fixture.sh). Its name here is enp2s0 (storage_link_interface, written to fixture.auto.tfvars;
 # on the real NAS the owner supplies it). The NIC starts at MTU 1500 like a real card, so the checks
@@ -226,10 +226,10 @@ echo "$res" | jq -r '.[0][] | "   \(.name) \(.type): mtu \(.state.mtu), dhcp \(.
 echo "$res" | jq -e '([.[0][] | select(.name == "bond1")] | length) == 1
   and ([.[0][] | select(.name == "bond1") | .state.mtu] == [9000])
   and ([.[0][] | select(.name == "enp2s0") | .state.mtu] == [9000])
-  and ([.[0][] | select(.name == "bond1") | .aliases[] | select(.address == "10.99.0.2" and .netmask == 30)] | length) == 1
+  and ([.[0][] | select(.name == "bond1") | .aliases[] | select(.address == "10.99.0.2" and .netmask == 29)] | length) == 1
   and ([.[0][] | select(.name == "bond1") | .ipv4_dhcp] == [false])' >/dev/null \
-  || die "bond1 / enp2s0 are not at MTU 9000 with 10.99.0.2/30 on the NAS after apply"
-note "bond1: 10.99.0.2/30, MTU 9000, port enp2s0 at MTU 9000"
+  || die "bond1 / enp2s0 are not at MTU 9000 with 10.99.0.2/29 on the NAS after apply"
+note "bond1: 10.99.0.2/29, MTU 9000, port enp2s0 at MTU 9000"
 
 log "check the accounts on the fixture NAS (arthur unchanged; jolien and dunia created)"
 res="$(echo '[["user.query",[[["username","in",["arthur","jolien","dunia"]]]]]]' | nas_rpc)"
