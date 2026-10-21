@@ -78,9 +78,12 @@ data:
     OAUTH_TOKEN_URL = "https://auth.lab.ardw.be/application/o/token/"
     OAUTH_USER_INFO_URL = "https://auth.lab.ardw.be/application/o/userinfo/"
     OAUTH_SCOPE = ["openid", "profile", "email"]
+    # Seafile 11+ keys users on "uid". Authentik's userinfo has no "uid" claim, so its stable "sub" fills it;
+    # the email becomes the contact address, so a changed email doesn't orphan the account.
     OAUTH_ATTRIBUTE_MAP = {
-        "email": (True, "uid"),
+        "sub": (True, "uid"),
         "name": (False, "name"),
+        "email": (False, "contact_email"),
     }
 ---
 apiVersion: apps/v1

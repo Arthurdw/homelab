@@ -36,7 +36,8 @@ data:
             - matching_mode: strict
               url: https://seafile.lab.ardw.be/oauth/callback/
           signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
-          sub_mode: user_email
+          # Stable per-user id, so Seafile's uid survives an email change (seafile.yaml OAUTH_ATTRIBUTE_MAP).
+          sub_mode: hashed_user_id
           property_mappings:
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
