@@ -11,8 +11,10 @@ there are created stopped and small; the real host's storage, bridge, VLAN and t
 
 ## Storage link
 
-`storage-link.tf` manages `vmbr1`: port `nic2`, `10.99.0.1/30`, MTU 9000, no gateway (the poseidon end of the
-10 GbE link to the NAS, `docs/decisions.md` §2.2). The role needs no extra privilege. `nic2` itself must carry
+`storage-link.tf` manages `vmbr1`: port `nic2`, `10.99.0.1/29`, MTU 9000, no gateway (the poseidon end of the
+10 GbE link to the NAS, `docs/decisions.md` §2.2). Each Talos VM gets a second NIC (net1) on `vmbr1`, untagged, MTU
+9000, no cloud-init address (`talos_storage_link_nic`, default `true`); Talos machine config gives it `10.99.0.3/29`
+(cp) or `10.99.0.4/29` (worker), so NFS goes straight over the link. Adding it to running VMs is a hotplug, no reboot. The role needs no extra privilege. `nic2` itself must carry
 `mtu 9000` first (a hand-written `iface nic2 inet manual` / `mtu 9000` stanza, see
 `docs/runbooks/host-network-bootstrap.md`), because PVE refuses a bridge MTU above its port's. A hand-made
 `vmbr1` is adopted with `tofu import proxmox_network_linux_bridge.storage_link poseidon:vmbr1`. Variables:

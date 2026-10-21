@@ -178,9 +178,20 @@ log "check the storage-link bridge on the fixture"
 pve_ssh "ip -d link show vmbr1 | head -1; ip -d link show nic2 | head -1; ip -4 -br addr show vmbr1; bridge link show dev nic2 | head -1" | sed 's/^/   /'
 [ "$(pve_ssh "cat /sys/class/net/vmbr1/mtu /sys/class/net/nic2/mtu" | tr '\n' ' ')" = "9000 9000 " ] \
   || die "vmbr1 and nic2 are not both at MTU 9000"
-pve_ssh "ip -4 -o addr show vmbr1" | grep -q '10\.99\.0\.1/30' || die "vmbr1 does not have 10.99.0.1/30"
+pve_ssh "ip -4 -o addr show vmbr1" | grep -q '10\.99\.0\.1/29' || die "vmbr1 does not have 10.99.0.1/29"
 pve_ssh "test -e /sys/class/net/vmbr1/brif/nic2" || die "nic2 is not a port of vmbr1"
-note "vmbr1: 10.99.0.1/30, MTU 9000, port nic2 at MTU 9000"
+note "vmbr1: 10.99.0.1/29, MTU 9000, port nic2 at MTU 9000"
+
+log "check each Talos VM's storage-link NIC (net1 on vmbr1, MTU 9000, no VLAN)"
+for vmid in $(echo "$vms" | jq -r '.[] | select(.name=="talos-cp-1" or .name=="talos-wk-1") | .vmid'); do
+  # Match the fields only; the line also carries a generated MAC, which is never printed.
+  net1="$(pve_ssh "qm config $vmid" | grep '^net1:' || true)"
+  [ -n "$net1" ] || die "vmid $vmid has no net1"
+  case "$net1" in *bridge=vmbr1*) ;; *) die "vmid $vmid net1 is not on vmbr1" ;; esac
+  case "$net1" in *mtu=9000*) ;; *) die "vmid $vmid net1 is not at MTU 9000" ;; esac
+  case "$net1" in *tag=*) die "vmid $vmid net1 is VLAN-tagged" ;; esac
+  note "vmid $vmid: net1 virtio on vmbr1, MTU 9000, untagged"
+done
 
 log "second plan (must be clean)"
 if run_tofu plan -input=false -no-color -detailed-exitcode | tail -n 6; then

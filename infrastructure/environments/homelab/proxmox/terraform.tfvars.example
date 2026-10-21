@@ -76,5 +76,6 @@ proxmox_host_memory_reserve_mb = 8192
 # 10 GbE storage link to the NAS (storage-link.tf; defaults shown). nic2 needs `mtu 9000` set by hand first.
 # storage_link_bridge  = "vmbr1"
 # storage_link_port    = "nic2"
-# storage_link_address = "10.99.0.1/30"
+# storage_link_address = "10.99.0.1/29"
 # storage_link_mtu     = 9000
+# talos_storage_link_nic = true   # net1 on vmbr1 for each Talos VM; false where there is no link

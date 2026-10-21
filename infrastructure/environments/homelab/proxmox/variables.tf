@@ -262,13 +262,13 @@ variable "storage_link_port" {
 }
 
 variable "storage_link_address" {
-  description = "Proxmox end of the storage link, in CIDR form. The /30 holds exactly two hosts: this one and the NAS (10.99.0.2, truenas root). Must stay inside k8s_nfs_allowed_networks of the truenas root."
+  description = "Proxmox end of the storage link, in CIDR form. The /29 (decisions.md §2.2) holds poseidon .1, the NAS .2 (truenas root), talos-cp-1 .3 and talos-wk-1 .4 (talos/patches/network-*.yaml), so the nodes mount NFS directly over the link, unrouted. Must match k8s_nfs_allowed_networks of the truenas root."
   type        = string
-  default     = "10.99.0.1/30"
+  default     = "10.99.0.1/29"
 
   validation {
     condition     = can(cidrhost(var.storage_link_address, 0))
-    error_message = "storage_link_address must be an IPv4 address in CIDR form, e.g. 10.99.0.1/30."
+    error_message = "storage_link_address must be an IPv4 address in CIDR form, e.g. 10.99.0.1/29."
   }
 }
 
@@ -281,4 +281,10 @@ variable "storage_link_mtu" {
     condition     = var.storage_link_mtu >= 1280 && var.storage_link_mtu <= 9216
     error_message = "storage_link_mtu must be between 1280 and 9216."
   }
+}
+
+variable "talos_storage_link_nic" {
+  description = "Give each Talos VM a second NIC (net1) on storage_link_bridge, untagged, at storage_link_mtu, with no cloud-init address: Talos machine config sets 10.99.0.3/.4 on it (decisions.md §2.2). Adding it to running VMs is an in-place hotplug. Set false for a lab or fixture without the link."
+  type        = bool
+  default     = true
 }

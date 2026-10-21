@@ -108,6 +108,13 @@ module "talos" {
   vlan_id     = var.k8s_vlan_id
   mac_address = lookup(var.talos_macs, each.key, null)
 
+  # net1 on the storage link (decisions.md §2.2). Referencing the bridge resource orders the VMs after
+  # vmbr1 on create and before it on destroy.
+  storage_network_device = var.talos_storage_link_nic ? {
+    bridge = proxmox_network_linux_bridge.storage_link.name
+    mtu    = var.storage_link_mtu
+  } : null
+
   ip_address = "${each.value.ipv4}/${var.k8s_prefix_length}"
   ip_gateway = var.k8s_gateway
 

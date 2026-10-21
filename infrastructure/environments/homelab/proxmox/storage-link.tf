@@ -1,6 +1,9 @@
-# The 10 GbE storage link, Proxmox end (docs/decisions.md §2.2, docs/hardware.md). A point-to-point /30
-# between poseidon (this end, 10.99.0.1) and hercules-nas (10.99.0.2, managed by the truenas root).
-# It carries NFS and nothing else: no gateway, no VLAN, no route off the link.
+# The 10 GbE storage link, Proxmox end (docs/decisions.md §2.2, docs/hardware.md). A /29 with no gateway:
+#   10.99.0.1  poseidon (this bridge)
+#   10.99.0.2  hercules-nas (truenas root)
+#   10.99.0.3  talos-cp-1, net1 (talos.tf attaches it; talos/patches/network-controlplane.yaml addresses it)
+#   10.99.0.4  talos-wk-1, net1 (talos/patches/network-worker.yaml)
+# It carries NFS and nothing else: no gateway, no VLAN, no route off the link, no NAT.
 #
 # vmbr1 is a Linux bridge with the fibre NIC as its only port (a bridge, not a bare NIC address, so a
 # later Proxmox storage-access VM or container could attach to the same link). The management bridge
