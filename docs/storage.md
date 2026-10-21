@@ -12,6 +12,11 @@
   mirror later). No L2ARC.
 - **Ashift, compression:** TrueNAS defaults.
 - **Datasets:** created by the TrueNAS root (`infrastructure/environments/homelab/truenas/`), not by hand.
+  The §4.1 tier datasets are authored there in `tiers.tf` (`main/tier1/{arthur,jolien,dunia}`, `main/media`,
+  `main/scratch`) with their snapshot tasks (tier1 hourly / 30 d, media weekly / 4 w, scratch none), next to
+  `main/k8s`, `main/apps` and `main/backups/*`. They are **authored, not yet applied or proven on the
+  fixture, and not applied to the real NAS** (blocked on the TrueNAS upgrade). No shares or quotas are
+  defined: §4.1 does not specify them.
 
 ## TrueNAS `main` pool (before the rebuild)
 

@@ -8,7 +8,7 @@
 
 Manages TrueNAS SCALE resources for the homelab: datasets, NFS shares and snapshot tasks.
 
-**Status:** resources written and **proven against a local fixture**, not against hercules-nas. A throwaway
+**Status:** the resources up to and including `backups.tf` are **proven against a local fixture**, not against hercules-nas. A throwaway
 TrueNAS SCALE 25.10.7 VM (`just lab-truenas`, then `just lab-truenas-plan`) ran init, validate, plan (3 to
 add), apply (3 added), a check of the objects through the API, and a second plan with no changes. No destroy
 step runs, because the dataset and share carry `prevent_destroy`; `just lab-truenas down` discards the
@@ -32,6 +32,8 @@ nothing (deviation D1).
 | `truenas_smb_share.timemachine_jolien` + `_acl`, `truenas_filesystem_acl` | `TIMEMACHINE_SHARE` purpose, one user only (looked up, created by the owner) | decisions §5.9 |
 | `truenas_nfs_share.{kopia,seafile}` | `main/backups/kopia`, `main/apps/seafile`; same networks and maproot as the k8s export | decisions §5.8, §5.9 |
 | snapshot tasks | `timemachine` daily / 7 d, `kopia` daily / 14 d, `main/apps` hourly / 14 d | decisions §4.1 |
+| `tiers.tf`: `main/tier1` + `{arthur,jolien,dunia}` (SMB), `main/media`, `main/scratch` | datasets, `prevent_destroy`; no shares, no quotas | decisions §4.1 |
+| `tiers.tf` snapshot tasks | `tier1` hourly (minute 10) / 30 d, recursive; `media` weekly (Sun 01:00) / 4 w; **none** for `scratch` | decisions §4.1 |
 
 `backups.tf` needs two manual prerequisites on the NAS: the SMB user (`timemachine_jolien_user`) and **Apple SMB2/3
 protocol extensions** on (NAS-wide, so not managed here). See `docs/runbooks/household-backups.md`.
@@ -40,15 +42,26 @@ protocol extensions** on (NAS-wide, so not managed here). See `docs/runbooks/hou
 
 - **A Proxmox backups/ISO export.** decisions §4.2 says they go to a NAS NFS export
   (prune 7d/4w/6m), but it names no dataset or path. Add one once that is decided (`main/backups` now exists).
-- **The other tier datasets** (tier1, apps, media, scratch in §4.1) and their snapshot tasks. The pool
-  was rebuilt empty on 2026-10-21 (§1.4), so they no longer wait on a preserve-vs-rebuild decision;
-  they still wait on sizing per tier.
+- **Shares, quotas and the media protocol for the tier datasets** (`tiers.tf`). decisions §4.1 names no share
+  names, accounts, quotas or, for `main/media`, which of SMB/NFS applies, so none are invented. Each is a
+  `TODO(owner)` in the file. `main/scratch` has no snapshot task on purpose (§4.1: none).
+- **Which data goes in which tier.** The datasets exist and are empty. Classifying the owner's future data
+  is the owner's call.
 - **NFS service settings.** The export needs NFSv4 enabled (csi-driver-nfs pins
   `nfsvers=4.1`) and the NFS service running and bound to the storage-link address. The provider has
   `truenas_nfs_config` and `truenas_service`, but both are NAS-wide singletons that already exist.
   Managing them would take over existing settings that serve the current `arthur` NFS share. Configure
   them by hand at cutover, or adopt them deliberately later. TODO(GATE 4).
 - **Replication / offsite.** The target is undecided (decisions §5.5).
+
+**`tiers.tf` is validated (`tofu fmt`, `tofu validate`) but not yet applied on the fixture.** The host was under
+memory pressure (swap in use, memory PSI above 5 %) on 2026-10-21, so the 6 GiB `lab-truenas` VM was not
+started. Run `just lab-truenas`, `just lab-truenas-plan` and a second plan before relying on it.
+The weekly `dow = "0"` and `lifetime_unit = "WEEK"` values in particular are unchecked against the API.
+
+**Household backup datasets and the tier policy:** the Time Machine and Kopia datasets and `main/apps/seafile`
+are already covered by their own tasks, which match §4.1. `main/backups` holds no data of its own and a task on it
+would break their different retention, so it has none (reasoning in `tiers.tf`).
 
 ## TODO(GATE 4)
 
