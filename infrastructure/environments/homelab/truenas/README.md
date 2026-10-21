@@ -28,11 +28,18 @@ nothing (deviation D1).
 | `truenas_dataset.k8s` | `main/k8s`, parent for csi-driver-nfs PVC directories; `prevent_destroy` | decisions §4.1, §4.2 |
 | `truenas_nfs_share.k8s` | `/mnt/main/k8s`, storage link only, `maproot root:root` (no_root_squash), `sec=sys` | `kubernetes/infrastructure/storage/release.yaml` |
 | `truenas_periodic_snapshot_task.k8s` | daily, recursive, 14 days | decisions §4.1 ("main/k8s NFS export") |
+| `backups.tf`: `main/backups/{timemachine/jolien,kopia}` | datasets; the Time Machine one has a quota (`timemachine_jolien_quota_gib`, no default) | decisions §5.9 |
+| `truenas_smb_share.timemachine_jolien` + `_acl`, `truenas_filesystem_acl` | `TIMEMACHINE_SHARE` purpose, one user only (looked up, created by the owner) | decisions §5.9 |
+| `truenas_nfs_share.{kopia,seafile}` | `main/backups/kopia`, `main/apps/seafile`; same networks and maproot as the k8s export | decisions §5.8, §5.9 |
+| snapshot tasks | `timemachine` daily / 7 d, `kopia` daily / 14 d, `main/apps` hourly / 14 d | decisions §4.1 |
+
+`backups.tf` needs two manual prerequisites on the NAS: the SMB user (`timemachine_jolien_user`) and **Apple SMB2/3
+protocol extensions** on (NAS-wide, so not managed here). See `docs/runbooks/household-backups.md`.
 
 **Not created, and why:**
 
-- **A backups dataset.** decisions §4.2 says Proxmox backups and ISOs go to a NAS NFS export
-  (prune 7d/4w/6m), but it names no dataset or path. Add one once that is decided.
+- **A Proxmox backups/ISO export.** decisions §4.2 says they go to a NAS NFS export
+  (prune 7d/4w/6m), but it names no dataset or path. Add one once that is decided (`main/backups` now exists).
 - **The other tier datasets** (tier1, apps, media, scratch in §4.1) and their snapshot tasks. They
   depend on the pool preserve-vs-rebuild decision at cutover (§1.4) and on the owner's data
   screening (`docs/storage.md`).

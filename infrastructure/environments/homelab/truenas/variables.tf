@@ -47,3 +47,29 @@ variable "k8s_nfs_maproot_group" {
   type        = string
   default     = "root"
 }
+
+# -----------------------------------------------------------------------------
+# Household backups (docs/decisions.md §5.9; docs/runbooks/household-backups.md)
+# -----------------------------------------------------------------------------
+
+variable "timemachine_jolien_quota_gib" {
+  description = "Quota for jolien's Time Machine dataset, in GiB. No default: it depends on the Mac's disk. Twice the Mac's used-plus-free disk size is the usual rule. TODO(owner): ask jolien for the disk size."
+  type        = number
+
+  validation {
+    condition     = var.timemachine_jolien_quota_gib >= 1 && floor(var.timemachine_jolien_quota_gib) == var.timemachine_jolien_quota_gib
+    error_message = "Give a whole number of GiB, at least 1. A quota of 0 (unlimited) is not allowed."
+  }
+}
+
+variable "timemachine_jolien_user" {
+  description = "Existing TrueNAS local user (SMB enabled) that is the only account allowed on jolien's Time Machine share. The owner creates it in the UI; this root only looks it up."
+  type        = string
+  default     = "jolien"
+}
+
+variable "timemachine_jolien_share_name" {
+  description = "SMB share name Time Machine connects to (smb://<nas>/<name>)."
+  type        = string
+  default     = "timemachine-jolien"
+}

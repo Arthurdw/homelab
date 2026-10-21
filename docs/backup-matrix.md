@@ -13,6 +13,9 @@ Legend: **T** = tier · **Irrep.** = irreplaceable? · **Snap** = local snapshot
 | `main` personal dirs (TBD which) | TBD | likely yes (photos/docs) | local | **TBD** | **TBD** | TBD | TBD | TBD | yes | TBD | TBD |
 | `main` media (movies/shows) | 3 | no | re-downloadable | optional | no | — | — | — | n/a | re-download | n/a |
 | `main/ix-apps/...` (app data, 490 G s3 export) | TBD | TBD | app | **none today** ⚠️ | TBD | TBD | TBD | TBD | yes | TBD | TBD |
+| `main/backups/timemachine/jolien` | 2 | no (copy of the Mac) | Mac | daily / 7 d | no | Time Machine over SMB, encrypted on the Mac | hourly while the Mac is on | Time Machine's own thinning | yes (client) | `runbooks/household-backups.md` (a) | TBD |
+| `main/backups/kopia` | 2 | yes (only copy of the Windows and Linux backups) | repo | daily / 14 d | yes (deferred, §5.5) | Kopia client to the repository server, client-side encryption | daily per client | per policy: 14 daily / 8 weekly / 12 monthly | yes (client) | `runbooks/household-backups.md` (b); `kopia` CLI works without the cluster | TBD |
+| `main/apps/seafile` | TBD | yes | app | hourly / 14 d | yes (deferred, §5.5) | ZFS snapshots + DB dump | hourly | 14 d | TBD | restore needs the dump and this dataset from the same time (§5.8) | TBD |
 | `main/proxmox` (incl. 3 TB VM disk) | TBD | TBD | VM | **TBD** | TBD | TBD | TBD | TBD | yes | TBD | TBD |
 
 ## Workloads / configuration
@@ -25,6 +28,7 @@ Legend: **T** = tier · **Irrep.** = irreplaceable? · **Snap** = local snapshot
 | SOPS/age private key | 2 | **critical** | offline escrow | yes | offline | losing it loses all encrypted secrets |
 | Immich DB + media | TBD | likely yes | app | yes | DB dump + media backup | related recovery set; order matters. Dump: daily `pg_dump` (`kubernetes/apps/immich/backup.yaml`), same alerts and `scripts/backup/db-restore-test.sh immich` (lab: restored, 71 tables) |
 | Authentik DB + `authentik-credentials` Secret | TBD | yes (users, flows, providers) | app | TBD | daily `pg_dump` to `nas-nfs` (`kubernetes/apps/authentik/backup.yaml`), 14 kept; alerts on stale, failed and size-anomalous dumps | restore with the same `secret-key`; `scripts/backup/db-restore-test.sh authentik` proves the dump (lab: restored, 230 tables) |
+| Dunia/arthur devices (Kopia clients) | 2 | yes | the device | yes, via `main/backups/kopia` | Kopia snapshot of the home dir | decisions §5.9; run `kopia snapshot list` after setup and check each client has a snapshot under a week old |
 | Audiobookshelf config/media | TBD | depends | app | TBD | TBD | classify media by replaceability |
 | Flux repo (+ secret decryption) | 2 | yes | Git | yes | Git + encrypted secrets | repo is public; secrets separate |
 | UniFi config export | 2 | yes | UDM Pro | yes | file | export before each change |

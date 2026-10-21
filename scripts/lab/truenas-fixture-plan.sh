@@ -11,7 +11,9 @@
 #
 # Lab-only overrides, written to fixture.auto.tfvars: truenas_insecure = true (self-signed
 # certificate) and k8s_nfs_allowed_networks = the lab /24 (the production default is the /30
-# storage link, which does not exist in the lab). Dataset name, maproot and the snapshot task keep
+# storage link, which does not exist in the lab) and timemachine_jolien_quota_gib = 4 (the data disk is
+# 10 GiB; the real value is the owner's, per Mac). The SMB user the Time Machine share needs is created
+# on the fixture first (the owner does that by hand on the real NAS). Dataset name, maproot and the snapshot task keep
 # their production values.
 #
 # Steps: init, fmt -check, validate, plan, apply, check the dataset, the NFS share and the snapshot
@@ -93,9 +95,10 @@ rsync -a --delete --include='*.tf' --include='.terraform.lock.hcl' --exclude='*'
 umask 077
 # Pre-aligned so `tofu fmt -check` stays clean (the `=` signs line up on the longest name).
 cat >"$WORK/fixture.auto.tfvars" <<TFVARS
-truenas_endpoint         = "$ENDPOINT"
-truenas_insecure         = true
-k8s_nfs_allowed_networks = ["$LAB_CIDR"]
+truenas_endpoint             = "$ENDPOINT"
+truenas_insecure             = true
+k8s_nfs_allowed_networks     = ["$LAB_CIDR"]
+timemachine_jolien_quota_gib = 4
 TFVARS
 
 run_tofu() {
@@ -113,6 +116,19 @@ run_tofu() {
 nas_rpc() {  # calls on stdin; uses the fixture API key
   TRUENAS_RPC_API_KEY="$LAB_TRUENAS_API_KEY" python3 -I "$RPC" "$ENDPOINT"
 }
+
+log "SMB user for the Time Machine share (fixture only; the owner creates it by hand on the real NAS)"
+if [ "$(echo '[["user.query",[[["username","=","jolien"]]]]]' | nas_rpc | jq '.[0] | length')" = 0 ]; then
+  pw="$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"
+  jq -n --arg pw "$pw" '[["user.create",[{"username":"jolien","full_name":"Jolien (lab)","group_create":true,"smb":true,"password":$pw,"shell":"/usr/sbin/nologin"}]]]' | nas_rpc >/dev/null
+  note "created user jolien"
+else
+  note "user jolien exists"
+fi
+
+# The Time Machine preset is refused unless the SMB service has the Apple extensions on. On the real NAS
+# that is a manual step (runbooks/household-backups.md); on the fixture it is set here.
+echo '[["smb.update",[{"aapl_extensions":true}]]]' | nas_rpc >/dev/null && note "SMB aapl_extensions on"
 
 log "init (local state, no backend)"
 run_tofu init -backend=false -input=false -no-color | tail -n 4
@@ -135,6 +151,14 @@ echo "$res" | jq -r '"   dataset main/k8s: \(.[0] | length) (share_type NFS aclt
   "   snapshot task: \(.[2] | length) (\(.[2][0].lifetime_value // "?") \(.[2][0].lifetime_unit // "?"), \(.[2][0].naming_schema // "?"))"'
 echo "$res" | jq -e '(.[0] | length) == 1 and (.[1] | length) == 1 and (.[2] | length) == 1' >/dev/null \
   || die "the dataset, the share or the snapshot task is missing on the NAS after apply"
+
+log "check the Time Machine share, its quota and the new NFS exports"
+res="$(echo '[["sharing.smb.query",[[["name","=","timemachine-jolien"]]]],["pool.dataset.query",[[["name","=","main/backups/timemachine/jolien"]]]],["sharing.nfs.query",[[["path","in",["/mnt/main/backups/kopia","/mnt/main/apps/seafile"]]]]]]' | nas_rpc)"
+echo "$res" | jq -r '"   smb share: \(.[0] | length) (purpose \(.[0][0].purpose // "?"), path \(.[0][0].path // "?"), timemachine_quota \(.[0][0].options.timemachine_quota // "?"))",
+  "   tm dataset quota bytes: \(.[1][0].quota.rawvalue // "?")",
+  "   nfs exports: \([.[2][].path] | join(" "))"'
+echo "$res" | jq -e '(.[0] | length) == 1 and .[0][0].purpose == "TIMEMACHINE_SHARE" and (.[1] | length) == 1 and (.[2] | length) == 2' >/dev/null \
+  || die "the Time Machine share or the Kopia/Seafile exports are missing on the NAS after apply"
 
 log "second plan (must be clean)"
 set +e

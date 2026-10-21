@@ -14,3 +14,11 @@ truenas_insecure = true
 # k8s_nfs_allowed_networks = ["10.99.0.0/30"]
 # k8s_nfs_maproot_user     = "root"
 # k8s_nfs_maproot_group    = "root"
+
+# Household backups (docs/runbooks/household-backups.md). The Kopia and Seafile NFS exports reuse
+# k8s_nfs_allowed_networks and the maproot variables above.
+# TODO(owner): required, no default. 2x the Mac's disk is the usual rule (a 512 GB Mac -> 1024).
+timemachine_jolien_quota_gib = 1024
+# The TrueNAS user must already exist (created by hand, SMB enabled):
+# timemachine_jolien_user       = "jolien"
+# timemachine_jolien_share_name = "timemachine-jolien"

@@ -197,6 +197,8 @@ persist. Build pods get no `hostPath` and no container-runtime socket; images ar
 | `main/tier1/{arthur,jolien,dunia}` | SMB | hourly / 30 d | yes |
 | `main/apps/{immich,audiobookshelf,seafile}` | NFS | hourly / 14 d | yes |
 | `main/k8s` (PVC backing) | NFS export | daily / 14 d | yes |
+| `main/backups/timemachine/<mac>` (§5.9) | SMB (Time Machine) | daily / 7 d | no |
+| `main/backups/kopia` (§5.9) | NFS export | daily / 14 d | yes |
 | `main/media` (Tier-3) | SMB/NFS | weekly / 4 w | no |
 | `main/scratch` (Tier-4) | — | none | no |
 
@@ -322,6 +324,44 @@ What follows from it:
   restore needs both the dump and the data dataset from the same point in time.
 - Web sign-in at `seafile.lab.ardw.be` (§5.7) goes through Authentik. The desktop and mobile
   clients keep their own tokens.
+
+### 5.9 — Household device backups: Time Machine for the Mac, Kopia for Windows and Linux, Seafile for anywhere-access — *decided 2026-10-21*
+
+The owner chose one mechanism per kind of device:
+
+- **jolien's Mac: Time Machine** to an SMB share on `main/backups/timemachine/jolien`, one account, with a quota.
+- **dunia (Windows) and arthur (Linux): Kopia.** The clients back up to a Kopia repository server
+  (`kopia.lab.ardw.be`, in the cluster) whose repository is the NFS dataset `main/backups/kopia`.
+- **Anywhere-access: Seafile** (§5.8), data on `main/apps/seafile` over NFS.
+
+Why:
+
+- Time Machine is the native Mac client. It restores through Migration Assistant, which nothing third-party
+  matches, and it needs no software on the Mac.
+- Kopia is open source, runs on Windows and Linux with one tool, encrypts on the client and deduplicates
+  across snapshots, so the NAS never sees plain data and incrementals stay small.
+- The repository is a plain Kopia repository on the NAS. It restores with the `kopia` CLI from any
+  machine that can read the files and has the repository password, **with no Kubernetes involved**. The
+  server is a convenience (shared access, per-user accounts), not a dependency of the data.
+
+Consequences:
+
+- The Kubernetes side is `kubernetes/apps/kopia`; the TrueNAS side is
+  `infrastructure/environments/homelab/truenas/backups.tf`. Both depend on the NFS-from-Talos routing
+  question already open for `main/k8s` (`k8s_nfs_allowed_networks`).
+- The Kopia repository password is the only key to those backups. It lives in the secrets store, with an
+  offline copy (`docs/secrets-and-state.md`); losing it loses the repository.
+- Time Machine needs one TrueNAS SMB account per Mac, created by hand (its password stays out of
+  OpenTofu). A Mac's quota is the owner's number (`timemachine_jolien_quota_gib`, no default).
+- Snapshots follow §4.1. Time Machine and Kopia both keep their own version history, so ZFS snapshots are
+  a second line against a damaged or deleted bundle or repository: daily, 7 d and 14 d. They do not
+  replace offsite.
+- **Offsite** (§5.5, deferred): *Kopia yes*. It is the only copy of the Windows and Linux backups, it is
+  already encrypted, and Kopia can sync a repository to S3-compatible storage later. *Seafile yes*. *Time
+  Machine no*: it is itself a copy of a device that holds the original, and the bundle is large and slow to
+  ship. Revisit if the Mac becomes the only holder of anything irreplaceable (put it in Seafile).
+- Kopia and Time Machine protect devices; neither is a file-sharing tier. Documents that more than one
+  person needs live in Seafile (§5.8) or `main/tier1` (§4.1).
 
 ## 6. Findings that changed the plan
 
