@@ -31,6 +31,10 @@ data:
           invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
           client_type: confidential
           client_id: seafile
+          # Authentik 2026.x refuses every grant a provider doesn't list ("Invalid grant_type for provider").
+          grant_types:
+            - authorization_code
+            - refresh_token
           client_secret: !Env AUTHENTIK_SEAFILE_OIDC_SECRET
           redirect_uris:
             - matching_mode: strict
