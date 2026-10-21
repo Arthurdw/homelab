@@ -46,7 +46,7 @@ still holds. Why:
 - SLOG over L2ARC: the NAS serves sync writes (NFS for Kubernetes, SMB Time Machine), which a log speeds up. With
   32 GiB of RAM, an L2ARC mostly took RAM away from the ARC. The P3 Plus has no power-loss protection, so it
   speeds up sync writes but doesn't make them safer than the pool alone. A second NVMe can be added later as a
-  mirror (Extend in the UI).
+  mirror (Extend in the UI). Accepted risk: §4.4.
 
 ## 2. Addressing
 
@@ -229,6 +229,28 @@ protocol for user shares; NFS is for Linux consumers.
 Databases run on a `local-path` PV on the worker's data disk (§3.4, on the host SSD), with scheduled **logical dumps** to the NAS.
 That keeps DB latency independent of the network while still giving consistent, restorable copies. Revisit only
 with measurements (spec §6 explicitly warns against DB-on-network-storage without evidence).
+
+### 4.4 — SLOG without power-loss protection is accepted — *decided 2026-10-21*
+
+The `main` pool (RAIDZ2, 8x 4 TB) has a 1 TB Crucial P3 Plus NVMe as SLOG, and that drive has no PLP (§1.4).
+Accepted, because ZFS is copy-on-write: a power cut cannot corrupt the pool. The worst case is losing the last
+few seconds of sync writes that were already acknowledged (NFS from Kubernetes, SMB Time Machine), not the pool.
+
+- Mitigation: a UPS with NUT for a clean shutdown. **Not bought yet; owner follow-up.**
+- Never set `sync=disabled` on any dataset to "fix" speed. It removes the sync guarantee for every writer.
+- Later upgrade, if the risk stops being acceptable: a mirrored SLOG (second NVMe, Extend in the UI) or a drive
+  with PLP.
+
+### 4.5 — No HDD spin-down — *decided 2026-10-21*
+
+The Seagate IronWolf drives are rated for 24/7 operation, and the NAS is never idle for long: the hourly tier1
+snapshot tasks (`infrastructure/environments/homelab/truenas/tiers.tf`), NFS from Kubernetes, Kopia and Time
+Machine would wake them all the time. Frequent spin cycles cost drive wear for roughly 30-40 W saved. TrueNAS
+HDD standby stays at "Always On".
+
+This settles the "disk spin-down only if appropriate" line in `docs/SPEC.md` (Low-power operation): for this
+hardware and workload it is not appropriate. Revisit only if the snapshot and backup schedule changes to leave
+long idle windows.
 
 ## 5. Operations
 

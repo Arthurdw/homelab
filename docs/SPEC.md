@@ -596,7 +596,7 @@ Investigate scheduled startup and shutdown where supported:
 - Wake-on-LAN where reliable.
 - A controlled backup window.
 - Graceful shutdown after successful completion.
-- Disk spin-down only if appropriate for the drive type and workload.
+- Disk spin-down only if appropriate for the drive type and workload. (Decided for the NAS: not appropriate, `docs/decisions.md` §4.5.)
 - Monitoring and alerts for missed backup windows.
 
 Do not assume that frequent disk spin-up and spin-down is beneficial. Evaluate actual hardware behavior, reliability, and energy savings.
