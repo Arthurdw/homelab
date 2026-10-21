@@ -152,6 +152,10 @@ talos-bootstrap *args:
 talos-kubeconfig *args:
   ./scripts/talos/kubeconfig.sh --node {{talos_cp}} {{args}}
 
+# Merge talos/out/kubeconfig into ~/.kube/config as context `homelab` (backs it up first); then `kubectx homelab`
+kube-merge *args:
+  ./scripts/talos/kube-merge.sh {{args}}
+
 # Install Cilium before Flux; needs --confirm
 talos-cni *args:
   ./scripts/talos/install-cni.sh --kubeconfig talos/out/kubeconfig {{args}}

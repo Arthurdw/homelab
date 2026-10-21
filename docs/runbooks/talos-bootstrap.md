@@ -101,6 +101,15 @@ Exactly once, against a single control-plane node. This creates etcd and is **ir
 The admin kubeconfig is written to the gitignored `talos/out/kubeconfig` and is **not** merged into
 `~/.kube/config`. It contains admin credentials — treat it like the machine secrets.
 
+To use it from your normal shell, merge it in as the context `homelab` (`~/.kube/config` is backed up first,
+and a re-run replaces the old entry, e.g. after a rebuild):
+
+```sh
+just kube-merge                      # ./scripts/talos/kube-merge.sh
+kubectx homelab
+just kube-merge --name homelab-lab --kubeconfig talos/out/lab/kubeconfig   # the libvirt lab, if wanted
+```
+
 ## 7. Install the CNI
 
 `talos/patches/common.yaml` deletes Talos' bundled Flannel document, so Talos has **not** installed a
