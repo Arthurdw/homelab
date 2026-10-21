@@ -54,7 +54,8 @@ variable "cpu_type" {
   description = <<-EOT
     Emulated CPU type. `x86-64-v2-AES` is the smallest type that satisfies Talos's
     x86-64-v2 requirement and keeps live migration possible. Use `host` for maximum
-    performance (Talos recommends it), accepting that `host` blocks live migration.
+    performance (Talos recommends it) and for nested virtualization (Kata Containers),
+    accepting that `host` blocks live migration.
   EOT
   type        = string
   default     = "x86-64-v2-AES"
@@ -340,10 +341,9 @@ variable "qemu_guest_agent_enabled" {
     Enable the Proxmox QEMU guest agent.
 
     Leave false unless the Talos image includes the `siderolabs/qemu-guest-agent`
-    system extension: the vanilla Image Factory schematic (customization: {}) does
-    NOT, and enabling the agent without it makes Proxmox wait (and time out) for an
-    agent that never appears. To enable it, build a schematic with that extension at
-    factory.talos.dev and pass its id as the image schematic. See the module README.
+    system extension (the repo schematic, talos/schematic.yaml, does): enabling the
+    agent without it makes Proxmox wait (and time out) for an agent that never
+    appears. See the module README.
   EOT
   type        = bool
   default     = false

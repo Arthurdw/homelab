@@ -1,0 +1,11 @@
+# Image Factory schematic for every Talos node (production nocloud image and the libvirt lab's metal image).
+# The platform only changes the image type (nocloud-installer vs metal-installer), never this file.
+# The id is the sha256 of the canonical form, returned by:
+#   curl -sX POST --data-binary @talos/schematic.yaml https://factory.talos.dev/schematics
+# After editing, update TALOS_SCHEMATIC (talos/inputs.env, scripts/talos/gen-configs.sh) and
+# talos_image_schematic_id (infrastructure/environments/homelab/proxmox) together. Decision: docs/decisions.md.
+customization:
+  systemExtensions:
+    officialExtensions:
+      - siderolabs/kata-containers
+      - siderolabs/qemu-guest-agent

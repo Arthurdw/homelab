@@ -24,25 +24,26 @@ locals {
     var.talos_image_compression,
   )
 
-  # Sizing per docs/decisions.md §3.1; addresses are variables so the lab can differ.
+  # Sizing per docs/decisions.md §3.1 (the variable defaults); addresses and sizes are variables so
+  # the L1 fixture can differ.
   # `data_disk_gb` is the non-system disk backing the Talos user volume for `local-path`
   # (§3.4, §4.3); the control plane gets none.
   talos_nodes = {
     "talos-cp-1" = {
       vm_id        = var.talos_cp_vmid
       cpu_cores    = 2
-      memory_mb    = 2048
-      disk_gb      = 20
+      memory_mb    = var.talos_cp_memory_mb
+      disk_gb      = var.talos_cp_disk_gb
       data_disk_gb = null
       ipv4         = var.talos_cp_ipv4
       role         = "controlplane"
     }
     "talos-wk-1" = {
       vm_id        = var.talos_wk_vmid
-      cpu_cores    = 3
-      memory_mb    = 16384
-      disk_gb      = 80
-      data_disk_gb = 100
+      cpu_cores    = var.talos_wk_cpu_cores
+      memory_mb    = var.talos_wk_memory_mb
+      disk_gb      = var.talos_wk_disk_gb
+      data_disk_gb = var.talos_wk_data_disk_gb
       ipv4         = var.talos_wk_ipv4
       role         = "worker"
     }
@@ -92,6 +93,7 @@ module "talos" {
   tags = concat(var.talos_vm_tags, [each.value.role])
 
   cpu_cores           = each.value.cpu_cores
+  cpu_type            = var.talos_cpu_type
   memory_dedicated_mb = each.value.memory_mb
   disk_size_gb        = each.value.disk_gb
 
@@ -109,6 +111,8 @@ module "talos" {
   ip_address = "${each.value.ipv4}/${var.k8s_prefix_length}"
   ip_gateway = var.k8s_gateway
 
+  started                   = var.talos_vm_started
+  on_boot                   = var.talos_vm_on_boot
   qemu_guest_agent_enabled  = var.talos_qemu_guest_agent_enabled
   machine_config_delivery   = var.talos_machine_config_delivery
   machine_config_snippet_id = var.talos_machine_config_snippet_id

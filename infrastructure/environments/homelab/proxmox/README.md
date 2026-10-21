@@ -3,15 +3,17 @@
 Manages Proxmox VE resources for the homelab — currently the two Talos node VMs via the
 [`talos-vm`](../../../modules/talos-vm/README.md) module.
 
-**Status:** VM provisioning authored; **nothing applied**. Provider pinned; state backend
-still TBD (`docs/secrets-and-state.md` §5). `tofu plan`/`apply` need API access we do not
-have yet (see Verification below).
+**Status:** VM provisioning authored; **nothing applied to the real host**. Provider pinned; state
+backend still TBD (`docs/secrets-and-state.md` §5). Proven against the L1 Proxmox fixture (a real
+nested Proxmox VE 8.4, `just lab-pve-plan`): plan, apply, a clean second plan and destroy. The VMs
+there are created stopped and small; the real host's storage, bridge, VLAN and token are unproven
+(see Verification below).
 
 ## Decided topology (docs/decisions.md §3.1)
 
 | Guest | vCPUs | RAM | Disk | Datastore |
 |---|---|---|---|---|
-| `talos-cp-1` | 2 | 2 GiB | 20 GiB | `local-lvm` |
+| `talos-cp-1` | 2 | 4 GiB | 20 GiB | `local-lvm` |
 | `talos-wk-1` | 3 | 16 GiB | 80 GiB boot + **100 GiB data** | `local-lvm` |
 
 **All boot disks live on `local-lvm` (the host SSD)** — never the NAS (§3.2). The old 3 TB
@@ -30,7 +32,7 @@ The OS image is the **Talos Image Factory `nocloud` disk**, fetched by Proxmox i
 `proxmox_download_file` and imported per VM:
 
 ```text
-https://factory.talos.dev/image/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba/<version>/nocloud-amd64.raw.zst
+https://factory.talos.dev/image/2ed2e4794ba4c5fff3e18307516a15accd3c0d992408c0c9522d2d457a79429f/<version>/nocloud-amd64.raw.zst
 ```
 
 - `<version>` is parsed from `versions.yaml` (`kubernetes.talos`), so the URL cannot drift
@@ -96,7 +98,8 @@ them. The NAS remains for backups/ISOs only (never VM disks).
 
 - `tofu fmt -check -recursive infrastructure/` — formatting.
 - `tofu validate` — schema/type correctness (backend disabled; no live access).
-- `tofu plan` — **not possible**: it requires Proxmox API access, which we do not have.
+- `just lab-pve-plan` — plan, apply, second plan (must be clean) and destroy against the L1 fixture
+  only (`docs/lab.md` "Proxmox fixture"). Against the real host, `tofu plan` still needs API access.
 - `curl -sI` on the image URL — confirms the artifact exists for the pinned version.
 
 ## Ownership

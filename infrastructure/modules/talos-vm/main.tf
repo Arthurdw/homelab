@@ -18,6 +18,16 @@ resource "proxmox_virtual_environment_vm" "this" {
   stop_on_destroy = var.stop_on_destroy
 
   lifecycle {
+    # The boot image only seeds the disk at creation. A Talos version (or schematic) bump in
+    # versions.yaml changes the caller's image file id. Without this, `tofu apply` would
+    # rewrite the boot disk or replace the VM, which is a silent OS reinstall. Upgrades go through
+    # `talosctl upgrade` (docs/runbooks/upgrades.md §5; docs/architecture.md §6, §7).
+    # See README "Talos version bumps cannot upgrade or replace nodes".
+    ignore_changes = [
+      disk[0].file_id,
+      disk[0].import_from,
+    ]
+
     precondition {
       condition     = var.machine_config_delivery != "cloud-init-snippet" || var.machine_config_snippet_id != null
       error_message = "machine_config_snippet_id is required when machine_config_delivery = \"cloud-init-snippet\"."

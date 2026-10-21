@@ -1,0 +1,28 @@
+---
+# Kata Containers RuntimeClasses. The handlers are registered in containerd by the Talos
+# `siderolabs/kata-containers` system extension (talos/schematic.yaml); no machine-config patch is needed.
+# RuntimeClass is a core API (node.k8s.io/v1), so this needs no CRD and belongs with the controllers.
+#
+# Use for untrusted workloads (CI build jobs, docs/decisions.md §3.5): `spec.runtimeClassName: kata`. Each pod
+# runs in its own microVM, so the nodes must support nested virtualization (docs/decisions.md §3.5).
+# Overhead values are the extension's documented ones; the scheduler adds them to the pod's requests.
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: kata
+handler: kata # Cloud Hypervisor: fast boot, low overhead
+overhead:
+  podFixed:
+    memory: 130Mi
+    cpu: 250m
+---
+# QEMU variant; on x86-64 it exposes the host CPU virtualization flag to the guest (nested VMs inside the pod).
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: kata-qemu
+handler: kata-qemu
+overhead:
+  podFixed:
+    memory: 160Mi
+    cpu: 250m

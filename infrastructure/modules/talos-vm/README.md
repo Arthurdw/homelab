@@ -84,7 +84,7 @@ module "talos" {
 | Name | Type | Default | Purpose |
 |---|---|---|---|
 | `cpu_cores` | `number` | — (required) | vCPUs (≥ 1). |
-| `cpu_type` | `string` | `"x86-64-v2-AES"` | CPU model. Meets Talos's x86-64-v2 requirement and allows migration; `host` is faster but blocks migration. |
+| `cpu_type` | `string` | `"x86-64-v2-AES"` | CPU model. Meets Talos's x86-64-v2 requirement and allows migration; `host` is faster, exposes VT-x/AMD-V to the guest (required for Kata Containers) and blocks migration. |
 | `memory_dedicated_mb` | `number` | — (required) | Guest RAM in MiB (≥ 2048, Talos's minimum). |
 | `memory_floating_mb` | `number` | `0` | Ballooning ceiling. Must stay 0 — Talos cannot use ballooned memory. |
 
@@ -186,6 +186,45 @@ Exactly one of the two must be set (a `precondition` enforces it):
 | `mac_addresses` | NIC MAC addresses. |
 | `qemu_guest_agent_enabled` | Whether the agent was enabled. |
 
+## Talos version bumps cannot upgrade or replace nodes
+
+`docs/architecture.md` §6 and §7 say an ordinary apply must never upgrade Talos as a side effect.
+This is the argument that it can't, for the homelab caller
+(`environments/homelab/proxmox/talos.tf`):
+
+1. **Only one thing depends on the version.** `local.talos_version` is parsed from
+   `versions.yaml`. It feeds exactly two attributes, `url` and `file_name` of
+   `proxmox_download_file.talos`. No Talos provider resources exist (no
+   `talos_machine_configuration_apply`, no `talos_machine_bootstrap`), so OpenTofu has no path
+   to a running node's OS. Machine config is applied by `scripts/talos/` (Talos tooling).
+2. **A bump replaces the image file, nothing else.** The new `url`/`file_name` force a new
+   `proxmox_download_file`, which downloads the new image into the datastore and deletes the
+   old one. Its `id` changes, and that id is this module's `os_image_file_id`.
+3. **The VM ignores that change.** The VM resource has
+   `lifecycle { ignore_changes = [disk[0].file_id, disk[0].import_from] }`. The image only
+   seeds the boot disk at creation: Proxmox copies it into `local-lvm`, so the VM no longer
+   reads the image file. The new id is never diffed against the VM. That means no in-place disk
+   rewrite and no replacement. (`import_from` is already documented by the provider as "only used
+   during initial creation"; `file_id` had no such guarantee, which is why it needs the
+   ignore.)
+4. **What the plan shows:** `proxmox_download_file.talos` *must be replaced*, and both
+   `module.talos[*]` VMs show no changes. Any VM diff in a version-bump plan is a stop sign.
+   The same applies to a `talos_image_schematic_id` change.
+
+Consequences:
+
+- New VMs (a new node, or a deliberate `-replace`) boot the *new* image. That is the only
+  way an apply puts a new Talos version on a disk, and it is always an explicit operator action.
+- Running nodes are upgraded with `talosctl upgrade`, one minor version at a time,
+  control plane first (`docs/runbooks/upgrades.md` §5). Bump `versions.yaml` in the same PR so
+  new nodes match.
+- `disk[0]` is the boot disk because the static `disk` block comes before the dynamic data
+  disk. Proven on the L1 Proxmox fixture (2026-10-21, `just lab-pve-plan --keep`, then
+  `versions.yaml` bumped v1.14.4 to v1.14.3 in the scratch copy): the plan was "1 to add, 0 to
+  change, 1 to destroy" (only `proxmox_download_file.talos`), the VMs showed no diff, and after
+  apply VM 110/111 had identical disks (same `local-lvm` volumes and sizes) and a second plan was
+  clean.
+
 ## The two things that need real verification (lab / cutover)
 
 1. **Cloud-init user-data.** With `machine_config_delivery = "talosctl"` the Proxmox
@@ -195,10 +234,10 @@ Exactly one of the two must be set (a `precondition` enforces it):
    `TODO(L1)`. If it is not harmless, use `"cloud-init-snippet"` (machine config as
    user-data, the documented manual flow) or the `metal` image with DHCP + `talosctl`.
 
-2. **The QEMU guest agent.** The vanilla Image Factory schematic
-   (`customization: {}`, id `376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba`)
-   does **not** include the `siderolabs/qemu-guest-agent` extension, so
-   `qemu_guest_agent_enabled` defaults to `false` — enabling it would make Proxmox wait
-   for an agent that never starts. To enable the agent, build a schematic with that
-   extension at <https://factory.talos.dev>, put its id in `talos_image_schematic_id`
-   (root) and set `talos_qemu_guest_agent_enabled = true`. `TODO(GATE 4)`.
+2. **The QEMU guest agent.** The repo schematic (`talos/schematic.yaml`, id
+   `2ed2e4794ba4c5fff3e18307516a15accd3c0d992408c0c9522d2d457a79429f`) includes
+   `siderolabs/qemu-guest-agent` (and `kata-containers`). The module still defaults
+   `qemu_guest_agent_enabled` to `false`, because with an image *without* the extension Proxmox would wait for an
+   agent that never starts. The Proxmox root sets it to `true` (`talos_qemu_guest_agent_enabled`), which the new
+   image needs: the extension's Talos service waits for the virtio agent channel, which only exists when the VM
+   has the agent enabled. `TODO(GATE 4)`.

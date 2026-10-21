@@ -62,6 +62,11 @@ is a gated live operation: follow `docs/runbooks/talos-bootstrap.md`. The guarde
 - `CLUSTER_ENDPOINT`: the control-plane address from the node range (decisions §2.1). The placeholder is an
   RFC 5737 documentation address.
 - `ADDITIONAL_SANS`: an API DNS name, if one is created.
-- `INSTALL_IMAGE`: stays the vanilla installer until a system extension (such as the QEMU guest agent) is
-  chosen, which needs an image-factory schematic.
+- `INSTALL_IMAGE`: derived from `TALOS_PLATFORM` and `TALOS_SCHEMATIC` as the Image Factory installer
+  (`factory.talos.dev/nocloud-installer/<schematic>:<talos>`). `ghcr.io/siderolabs/installer` is no longer
+  published. The schematic is `talos/schematic.yaml` (`siderolabs/kata-containers`, `siderolabs/qemu-guest-agent`),
+  shared by production and the lab (only the platform differs), and must match `talos_image_schematic_id`
+  in the Proxmox environment. To change it, edit the file, `curl -sX POST --data-binary @talos/schematic.yaml
+  https://factory.talos.dev/schematics`, and update the id in `talos/inputs.env`, `scripts/talos/gen-configs.sh`
+  and the Proxmox environment. Existing nodes pick it up with `talosctl upgrade --image`.
 - NTP: the Talos default until the internal time source is decided.

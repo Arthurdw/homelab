@@ -15,3 +15,14 @@ $patch: delete
 
 # kube-proxy is disabled in controlplane.yaml, not here: Talos rejects a KubeProxyConfig document
 # on workers.
+---
+# Container CIDRs (docs/decisions.md §2.3), pinned rather than left to the Talos defaults. Services
+# are 10.96.0.0/16, not the default 10.96.0.0/12: a /12 spans 10.96.0.0-10.111.255.255, which takes
+# in the lab network (10.99.100.0/24) and the storage link (10.99.0.0/30), so a ClusterIP could be
+# allocated onto a node address. The /16 keeps the API service at 10.96.0.1 and CoreDNS at 10.96.0.10.
+apiVersion: v1alpha1
+kind: KubeNetworkConfig
+podSubnets:
+  - 10.244.0.0/16
+serviceSubnets:
+  - 10.96.0.0/16

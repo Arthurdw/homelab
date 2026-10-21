@@ -58,6 +58,10 @@ CLUSTER_NAME="${CLUSTER_NAME:-homelab}"
 CLUSTER_ENDPOINT="${CLUSTER_ENDPOINT:-}"
 INSTALL_DISK="${INSTALL_DISK:-/dev/sda}"
 INSTALL_IMAGE="${INSTALL_IMAGE:-}"
+# Image Factory coordinates for the derived installer. ghcr.io/siderolabs/installer is no longer
+# published (no tags); the installer must also match the platform the node booted (nocloud on Proxmox).
+TALOS_PLATFORM="${TALOS_PLATFORM:-nocloud}"
+TALOS_SCHEMATIC="${TALOS_SCHEMATIC:-2ed2e4794ba4c5fff3e18307516a15accd3c0d992408c0c9522d2d457a79429f}"
 ADDITIONAL_SANS="${ADDITIONAL_SANS:-}"
 # Worker patch (the local-path user volume). An inputs file may point this at another file, or at
 # an empty string to skip it, for environments whose worker has no dedicated data disk (the lab).
@@ -76,7 +80,7 @@ if [ -z "$TALOS_VERSION" ] || [ -z "$KUBERNETES_VERSION" ]; then
 fi
 KUBERNETES_VERSION="${KUBERNETES_VERSION#v}"
 if [ -z "$INSTALL_IMAGE" ]; then
-  INSTALL_IMAGE="ghcr.io/siderolabs/installer:${TALOS_VERSION}"
+  INSTALL_IMAGE="factory.talos.dev/${TALOS_PLATFORM}-installer/${TALOS_SCHEMATIC}:${TALOS_VERSION}"
 fi
 
 if [ -z "$CLUSTER_ENDPOINT" ]; then

@@ -14,7 +14,7 @@ proxmox_ssh_username = "root"
 proxmox_node_name = "poseidon"
 
 # --- Networking (production values; lab overrides in comments) ---
-# Host bridge for the node NICs. TODO(GATE 4): confirm bridge + VLAN-awareness.
+# Host bridge for the node NICs: VLAN-aware, set up by docs/runbooks/host-network-bootstrap.md.
 vm_bridge = "vmbr0"
 
 # K8s VLAN 20 (docs/decisions.md §2.1). Lab: set to null on a flat bridge.
@@ -40,15 +40,20 @@ talos_disk_datastore_id  = "local-lvm"   # host SSD; never the NAS (docs/decisio
 talos_image_datastore_id = "local"       # needs 'iso' content enabled
 
 # --- Talos image (Image Factory) ---
-# Vanilla schematic (no extensions). Build one at https://factory.talos.dev to add
-# siderolabs/qemu-guest-agent, then paste its id here.
-talos_image_schematic_id = "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"
+# talos/schematic.yaml: siderolabs/kata-containers + siderolabs/qemu-guest-agent (same id as TALOS_SCHEMATIC in
+# talos/inputs.env).
+talos_image_schematic_id = "2ed2e4794ba4c5fff3e18307516a15accd3c0d992408c0c9522d2d457a79429f"
 talos_image_platform     = "nocloud"   # Proxmox uses the NoCloud datasource
 talos_image_compression  = "zst"
 
 # --- Talos node behaviour ---
-# Only enable the guest agent with an image built with siderolabs/qemu-guest-agent.
-talos_qemu_guest_agent_enabled = false
+# The default schematic includes siderolabs/qemu-guest-agent (its Talos service waits for the agent channel), so
+# keep this true. Set false only with an image that lacks the extension (Proxmox would wait for a missing agent).
+talos_qemu_guest_agent_enabled = true
+
+# Kata Containers runs each pod in a microVM and needs nested virtualization: CPU type `host` here AND nested KVM
+# enabled on the PVE host (kvm_intel/kvm_amd nested=1). Owner-gated, see docs/decisions.md §3.5.
+# talos_cpu_type = "host"
 
 # "talosctl" keeps the ownership boundary (docs/architecture.md §7).
 talos_machine_config_delivery = "talosctl"
@@ -56,3 +61,14 @@ talos_machine_config_delivery = "talosctl"
 # --- Host capacity check ---
 proxmox_host_memory_mb        = 47104   # 46 GiB usable (docs/hardware.md)
 proxmox_host_memory_reserve_mb = 8192
+
+# --- Sizing and power state (defaults are the production topology, docs/decisions.md §3.1) ---
+# Only the L1 fixture (scripts/lab/pve-fixture-plan.sh) overrides these, to fit a 4 GiB nested PVE:
+# talos_cp_memory_mb    = 4096
+# talos_cp_disk_gb      = 20
+# talos_wk_cpu_cores    = 3
+# talos_wk_memory_mb    = 16384
+# talos_wk_disk_gb      = 80
+# talos_wk_data_disk_gb = 100    # null = no data disk
+# talos_vm_started      = true
+# talos_vm_on_boot      = true

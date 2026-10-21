@@ -126,13 +126,13 @@ variable "talos_image_datastore_id" {
 
 variable "talos_image_schematic_id" {
   description = <<-EOT
-    Talos Image Factory schematic id. The default is the official vanilla schematic
-    (customization: {}), which does NOT include the qemu-guest-agent extension. Build a
-    new schematic at https://factory.talos.dev to add extensions, then pass its id here.
+    Talos Image Factory schematic id. The default is talos/schematic.yaml (siderolabs/kata-containers +
+    siderolabs/qemu-guest-agent). To change extensions edit that file, POST it to
+    https://factory.talos.dev/schematics and pass the new id here and as TALOS_SCHEMATIC.
     The URL built from this id was verified (curl -sI) for the pinned Talos version.
   EOT
   type        = string
-  default     = "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"
+  default     = "2ed2e4794ba4c5fff3e18307516a15accd3c0d992408c0c9522d2d457a79429f"
 }
 
 variable "talos_image_platform" {
@@ -163,9 +163,15 @@ variable "talos_vm_tags" {
 # ---------------------------------------------------------------------------
 
 variable "talos_qemu_guest_agent_enabled" {
-  description = "Enable the QEMU guest agent on the nodes. Only valid with an image that includes the siderolabs/qemu-guest-agent extension (see the module README). TODO(GATE 4)."
+  description = "Enable the QEMU guest agent on the nodes. The default schematic includes the extension, whose Talos service waits for the agent channel, so this defaults to true; set false only for an image without it. TODO(GATE 4)."
   type        = bool
-  default     = false
+  default     = true
+}
+
+variable "talos_cpu_type" {
+  description = "Proxmox CPU type of the Talos VMs. `host` is required for Kata Containers (nested virtualization; the PVE host needs nested KVM enabled) and blocks live migration, which this single-host setup does not use."
+  type        = string
+  default     = "host"
 }
 
 variable "talos_machine_config_delivery" {
@@ -183,4 +189,58 @@ variable "talos_machine_config_snippet_id" {
   description = "ID of a machine-config snippet (e.g. local:snippets/talos-cp-1.yaml). Required only when talos_machine_config_delivery = \"cloud-init-snippet\"."
   type        = string
   default     = null
+}
+
+# ---------------------------------------------------------------------------
+# Sizing and power state (defaults are the production topology, docs/decisions.md §3.1;
+# only the L1 fixture overrides them, so the guests fit a 4 GiB nested Proxmox)
+# ---------------------------------------------------------------------------
+
+variable "talos_cp_memory_mb" {
+  description = "Control-plane VM RAM in MiB."
+  type        = number
+  default     = 4096
+}
+
+variable "talos_cp_disk_gb" {
+  description = "Control-plane system disk in GiB."
+  type        = number
+  default     = 20
+}
+
+variable "talos_wk_cpu_cores" {
+  description = "Worker VM vCPU cores."
+  type        = number
+  default     = 3
+}
+
+variable "talos_wk_memory_mb" {
+  description = "Worker VM RAM in MiB."
+  type        = number
+  default     = 16384
+}
+
+variable "talos_wk_disk_gb" {
+  description = "Worker system disk in GiB."
+  type        = number
+  default     = 80
+}
+
+variable "talos_wk_data_disk_gb" {
+  description = "Worker data disk (Talos user volume for local-path) in GiB; null for none."
+  type        = number
+  default     = 100
+  nullable    = true
+}
+
+variable "talos_vm_started" {
+  description = "Whether the Talos VMs are started. Production: true. The L1 fixture creates them stopped (a 4 GiB nested Proxmox cannot run them)."
+  type        = bool
+  default     = true
+}
+
+variable "talos_vm_on_boot" {
+  description = "Whether the Talos VMs start with the Proxmox host."
+  type        = bool
+  default     = true
 }
