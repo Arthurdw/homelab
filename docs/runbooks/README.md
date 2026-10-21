@@ -6,6 +6,7 @@ the system was built.
 - `upgrades.md` — ordered, reversible upgrade procedures for every layer.
 - `host-network-bootstrap.md` — after a fresh install, put Proxmox and TrueNAS on their VLAN 4 management
   addresses and the storage link.
+- `launch.md` — the owner's ordered go-live checklist for the real hosts, from credentials to Flux.
 - `talos-bootstrap.md` — turn freshly booted Talos nodes into a Kubernetes cluster.
 - `secrets.md` — SOPS + age: key ceremony, add/rotate, recovery, CI.
 - `break-glass.md` — access by IP and local credentials when DNS, SSO, Traefik or MetalLB are down.

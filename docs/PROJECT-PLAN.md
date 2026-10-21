@@ -307,6 +307,8 @@ Hard rules:
 
 ## 8. Still open with the owner
 
+The ordered go-live checklist, with each open input and the step it blocks, is `docs/runbooks/launch.md`.
+
 - **UniFi:** the API key handover and a config export. The management VLAN is 4 (owner, 2026-10-21); the
   uplink port behind the unmanaged switch needs VLANs 4 and 20 tagged (`docs/runbooks/host-network-bootstrap.md`).
 - **Offsite:** hardware to purchase or build (decisions §5.5).
@@ -369,3 +371,4 @@ Hard rules:
       yes; PVE, UniFi and TrueNAS fixtures yes; the alert mail against local SMTP sinks and `systemd-analyze verify`
       of the units yes; a backup rule firing through Alertmanager to a sink yes; the units installed and run by their
       timers on `lab-nas`, failure mails included, yes. Open: a real send through the relay, once its password is set)*
+| 2026-10-21 | 4,5 | Docs: SLOG without PLP accepted and no HDD spin-down (decisions §4.4, §4.5); go-live checklist for the real hosts (`docs/runbooks/launch.md`). Nothing applied to the real hosts. |
