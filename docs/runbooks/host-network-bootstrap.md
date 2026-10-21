@@ -82,9 +82,13 @@ Install with the DHCP address the installer offers, then follow the steps below.
        address 10.10.1.1/16
        gateway 10.10.0.1
 
+   auto nic2
    iface nic2 inet manual
        mtu 9000
    ```
+
+   The installer already writes an empty `iface nic2 inet manual` stanza: edit that one rather than appending a
+   second, or the empty one wins and `nic2` stays at 1500. `auto` makes `ifreload -a` apply the MTU now.
 
    The fibre to hercules-nas is on `nic2` (found 2026-10-21 by bringing both ports up and checking for `LOWER_UP` /
    `/sys/class/net/<nic>/carrier`; `nic1` is unused). If the cable is ever moved, re-check the same way.
