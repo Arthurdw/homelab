@@ -195,6 +195,26 @@ lab-truenas *args='up':
 lab-truenas-plan *args:
   ./scripts/lab/truenas-fixture-plan.sh {{args}}
 
+# ---------------------------------------------------------------------------
+# Live roots (real UniFi / TrueNAS / Proxmox) — credentials from ~/.config/homelab/<root>.env
+# Apply order: unifi → truenas → proxmox. See scripts/live/tofu.sh.
+# ---------------------------------------------------------------------------
+
+# Read-only plan of a live root: `just plan unifi|truenas|proxmox|all`
+plan root *args:
+  ./scripts/live/tofu.sh plan {{root}} {{args}}
+
+# Apply a live root; tofu shows the plan and waits for "yes" (never -auto-approve)
+apply root *args:
+  ./scripts/live/tofu.sh apply {{root}} {{args}}
+
+plan-unifi *args: (plan "unifi" args)
+plan-truenas *args: (plan "truenas" args)
+plan-proxmox *args: (plan "proxmox" args)
+apply-unifi *args: (apply "unifi" args)
+apply-truenas *args: (apply "truenas" args)
+apply-proxmox *args: (apply "proxmox" args)
+
 # Show lab prerequisites / resource requirements (no changes)
 lab-doctor:
   #!/usr/bin/env bash
