@@ -6,7 +6,8 @@
 #   Seafile       anywhere-access -> NFS export of main/apps/seafile (decisions.md §5.8)
 #
 # Same additive-only rule as k8s.tf: new objects under the existing pool, nothing imported, no
-# destroy. Every dataset and share carries prevent_destroy; they hold other people's backups.
+# destroy. The accounts, including the one imported admin, are in users.tf. Every dataset and share
+# carries prevent_destroy; they hold other people's backups.
 
 # -----------------------------------------------------------------------------
 # Time Machine for jolien's Mac (SMB)
@@ -51,20 +52,14 @@ resource "truenas_dataset" "timemachine_jolien" {
   depends_on = [truenas_dataset.timemachine]
 }
 
-# The SMB account is created by the owner in the TrueNAS UI (docs/runbooks/household-backups.md), not
-# here: its password would otherwise pass through OpenTofu variables, and the account may already exist
-# with a UID the household has used on this NAS. This root only looks it up, so a plan fails early and
-# plainly if the account is missing.
-data "truenas_user" "timemachine_jolien" {
-  username = var.timemachine_jolien_user
-}
+# The SMB account is truenas_user.jolien in users.tf, created by this root with its own primary group.
 
 # The Mac writes as this user over SMB, so the dataset belongs to it. The SMB preset gives the dataset an
 # NFSv4 ACL, so this sets the ACL (a plain mode is refused while an ACL is present): the owner has full
 # control, inherited by new files, and no other entry exists, so nobody else on the NAS can read a bundle.
 resource "truenas_filesystem_acl" "timemachine_jolien" {
   path = "/mnt/${truenas_dataset.timemachine_jolien.name}"
-  uid  = data.truenas_user.timemachine_jolien.uid
+  uid  = truenas_user.jolien.uid
 
   entries = jsonencode([
     {
@@ -108,7 +103,7 @@ resource "truenas_smb_share_acl" "timemachine_jolien" {
   share_acl = [
     {
       # By UID: a name lookup needs the SMB service (winbind) running, an ID does not.
-      ae_who_id = { id_type = "USER", id = data.truenas_user.timemachine_jolien.uid }
+      ae_who_id = { id_type = "USER", id = truenas_user.jolien.uid }
       ae_perm   = "FULL"
       ae_type   = "ALLOWED"
     },

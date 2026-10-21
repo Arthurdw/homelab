@@ -6,7 +6,7 @@
 > (`versions.yaml`), which is the fixture version where the root was proven.
 > The vendor tested the provider on 26.0 and 25.10. 25.04 connects, but the vendor never tested it.
 
-Manages TrueNAS SCALE resources for the homelab: datasets, NFS shares and snapshot tasks.
+Manages TrueNAS SCALE resources for the homelab: datasets, NFS and SMB shares, snapshot tasks and the household accounts.
 
 **Status:** the resources up to and including `backups.tf` are **proven against a local fixture**, not against hercules-nas. A throwaway
 TrueNAS SCALE 25.10.7 VM (`just lab-truenas`, then `just lab-truenas-plan`) ran init, validate, plan (3 to
@@ -31,14 +31,17 @@ the provider can only import PHYSICAL interfaces, never configure them.
 | `truenas_nfs_share.k8s` | `/mnt/main/k8s`, storage link only, `maproot root:root` (no_root_squash), `sec=sys` | `kubernetes/infrastructure/storage/release.yaml` |
 | `truenas_periodic_snapshot_task.k8s` | daily, recursive, 14 days | decisions §4.1 ("main/k8s NFS export") |
 | `backups.tf`: `main/backups/{timemachine/jolien,kopia}` | datasets; the Time Machine one has a quota (`timemachine_jolien_quota_gib`, no default) | decisions §5.9 |
-| `truenas_smb_share.timemachine_jolien` + `_acl`, `truenas_filesystem_acl` | `TIMEMACHINE_SHARE` purpose, one user only (looked up, created by the owner) | decisions §5.9 |
+| `truenas_smb_share.timemachine_jolien` + `_acl`, `truenas_filesystem_acl` | `TIMEMACHINE_SHARE` purpose, one user only (`truenas_user.jolien`) | decisions §5.9 |
+| `users.tf`: `truenas_user.{jolien,dunia}` | created here: SMB on, own primary group, shell `nologin`, no sudo; passwords from the ephemeral `user_jolien_password` / `user_dunia_password` (no default, never in state); `prevent_destroy` | decisions §5.9 |
+| `users.tf`: `truenas_user.arthur` | the owner's existing admin login, **imported** by an `import` block (id looked up by name), never changed: groups, sudo, shell, password, home, lock state and UID are in `ignore_changes`; `prevent_destroy` | |
 | `truenas_nfs_share.{kopia,seafile}` | `main/backups/kopia`, `main/apps/seafile`; same networks and maproot as the k8s export | decisions §5.8, §5.9 |
 | snapshot tasks | `timemachine` daily / 7 d, `kopia` daily / 14 d, `main/apps` hourly / 14 d | decisions §4.1 |
 | `tiers.tf`: `main/tier1` + `{arthur,jolien,dunia}` (SMB), `main/media`, `main/scratch` | datasets, `prevent_destroy`; no shares, no quotas | decisions §4.1 |
 | `tiers.tf` snapshot tasks | `tier1` hourly (minute 10) / 30 d, recursive; `media` weekly (Sun 01:00) / 4 w; **none** for `scratch` | decisions §4.1 |
 
-`backups.tf` needs two manual prerequisites on the NAS: the SMB user (`timemachine_jolien_user`) and **Apple SMB2/3
-protocol extensions** on (NAS-wide, so not managed here). See `docs/runbooks/household-backups.md`.
+`backups.tf` needs one manual prerequisite on the NAS: **Apple SMB2/3 protocol extensions** on (NAS-wide, so
+not managed here). See `docs/runbooks/household-backups.md`. `users.tf` needs the user `arthur` to exist
+already (the plan fails at the lookup otherwise) and the two password variables exported.
 
 **Not created, and why:**
 
@@ -83,6 +86,12 @@ would break their different retention, so it has none (reasoning in `tiers.tf`).
   - `share_type = "NFS"` and the `maproot_*` names `root`/`root`;
   - `networks` comes back as `["10.99.100.0/24"]`;
   - the snapshot `schedule` and `naming_schema` round-trip, with a second plan of "No changes".
+  - `users.tf` (2026-10-21): with a stand-in `arthur` (in `builtin_administrators`, shell bash) created on the
+    fixture first, the plan showed `truenas_user.arthur will be imported` and no change to it; apply created
+    `jolien` and `dunia` (SMB, own group, `nologin`, no sudo); `arthur`'s groups, shell, home, lock and UID
+    were the same after apply; the re-plan was "No changes". Setting `groups = []`, `locked = true` and a new
+    shell on `arthur` in an override file still planned "No changes" (`ignore_changes` holds). An unset
+    `home` is sent as `""` and refused on create, hence `home = "/var/empty"`.
 - **Not verified:** anything on hercules-nas (blocked, see above), destroy (`prevent_destroy`), a Talos
   node mounting the export, and 25.04. Run a post-upgrade `plan` first.
 
@@ -94,6 +103,8 @@ cd infrastructure/environments/homelab/truenas
 # Keep the API key in the environment, not on disk:
 export TF_VAR_truenas_api_key='...'          # or TRUENAS_API_KEY
 export TF_VAR_truenas_endpoint='wss://<host>/api/current'
+read -rs TF_VAR_user_jolien_password && export TF_VAR_user_jolien_password   # new accounts only
+read -rs TF_VAR_user_dunia_password && export TF_VAR_user_dunia_password
 
 cp terraform.tfvars.example terraform.tfvars   # then edit; tfvars is gitignored
 tofu init -backend=false

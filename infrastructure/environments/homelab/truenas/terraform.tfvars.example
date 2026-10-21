@@ -19,9 +19,13 @@ truenas_insecure = true
 # k8s_nfs_allowed_networks and the maproot variables above.
 # TODO(owner): required, no default. 2x the Mac's disk is the usual rule (a 512 GB Mac -> 1024).
 timemachine_jolien_quota_gib = 1024
-# The TrueNAS user must already exist (created by hand, SMB enabled):
-# timemachine_jolien_user       = "jolien"
 # timemachine_jolien_share_name = "timemachine-jolien"
+
+# Household accounts (users.tf). jolien and dunia are created by OpenTofu; arthur already exists and is
+# imported, never changed. The two passwords have no default and do NOT go in this file: they are
+# ephemeral variables, read from the shell on the apply that creates the accounts:
+#   read -rs TF_VAR_user_jolien_password && export TF_VAR_user_jolien_password
+#   read -rs TF_VAR_user_dunia_password && export TF_VAR_user_dunia_password
 
 # 10 GbE storage link to poseidon (storage-link.tf). TODO(GATE 4): the NAS's 10 GbE port name, from the
 # TrueNAS UI under Network. Required, no default.

@@ -62,16 +62,38 @@ variable "timemachine_jolien_quota_gib" {
   }
 }
 
-variable "timemachine_jolien_user" {
-  description = "Existing TrueNAS local user (SMB enabled) that is the only account allowed on jolien's Time Machine share. The owner creates it in the UI; this root only looks it up."
-  type        = string
-  default     = "jolien"
-}
-
 variable "timemachine_jolien_share_name" {
   description = "SMB share name Time Machine connects to (smb://<nas>/<name>)."
   type        = string
   default     = "timemachine-jolien"
+}
+
+# -----------------------------------------------------------------------------
+# Household accounts (users.tf). Passwords only; arthur is imported and has none here.
+# -----------------------------------------------------------------------------
+
+variable "user_jolien_password" {
+  description = "Initial password for the jolien account (SMB, Time Machine). No default: export TF_VAR_user_jolien_password. Write-only and ephemeral, so it is never in state or a plan file; only read on the apply that creates the account."
+  type        = string
+  sensitive   = true
+  ephemeral   = true
+
+  validation {
+    condition     = length(var.user_jolien_password) >= 12
+    error_message = "Give a password of at least 12 characters."
+  }
+}
+
+variable "user_dunia_password" {
+  description = "Initial password for the dunia account (SMB). No default: export TF_VAR_user_dunia_password. Write-only and ephemeral, so it is never in state or a plan file; only read on the apply that creates the account."
+  type        = string
+  sensitive   = true
+  ephemeral   = true
+
+  validation {
+    condition     = length(var.user_dunia_password) >= 12
+    error_message = "Give a password of at least 12 characters."
+  }
 }
 
 # -----------------------------------------------------------------------------

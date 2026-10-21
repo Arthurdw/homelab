@@ -331,9 +331,10 @@ The ordered go-live checklist, with each open input and the step it blocks, is `
 - **Small calls:** the Traefik dashboard is reachable in-cluster on 8080 (`api.insecure`); Technitium forwards
   over plain UDP (DoT/DoH is an option); whether the `nas-nfs` export accepts the PostgreSQL dump jobs'
   uid 999.
-- **Household backups (decisions §5.9):** the Mac's disk size (sets `timemachine_jolien_quota_gib`); on the
-  real NAS, create the `jolien` SMB user and enable the Apple SMB2/3 extensions (SMB service settings) before
-  the TrueNAS apply (`infrastructure/environments/homelab/truenas/README.md`).
+- **Household backups (decisions §5.9):** the Mac's disk size (sets `timemachine_jolien_quota_gib`); the
+  `jolien` and `dunia` passwords (exported as `TF_VAR_user_*_password`; the root creates both accounts); on the
+  real NAS, enable the Apple SMB2/3 extensions (SMB service settings) before the TrueNAS apply
+  (`infrastructure/environments/homelab/truenas/README.md`).
 - **Tier 1:** the directory list, at cutover prep.
 - **Redaction policy:** `docs/SPEC.md` replaces private addresses with placeholders. `docs/network-plan.md`
   and `docs/decisions.md` show the planned RFC 1918 addresses. Pick one convention.

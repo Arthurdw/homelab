@@ -155,18 +155,26 @@ address. Take the DHCP lease address again if VLAN tagging breaks the path.
 
 Only after step 3 passes and the data check in step 0 is done: this root can create and change datasets.
 
+The root creates the `jolien` and `dunia` accounts, so export their initial passwords first (no echo; put
+both in the password manager):
+
 ```sh
+read -rs TF_VAR_user_jolien_password && export TF_VAR_user_jolien_password
+read -rs TF_VAR_user_dunia_password && export TF_VAR_user_dunia_password
 cd infrastructure/environments/homelab/truenas
 tofu init -backend=false
 tofu validate
 tofu plan
 ```
 
-Expected: additions only (datasets, the NFS and SMB shares, snapshot tasks, the user-facing pieces in its
-README), plus the storage-link bond (`bond1`, a one-port failover bond on `storage_link_interface`, which
-must be set first). The pool `main` itself is not managed here; it already exists. Any destroy or in-place change to an
-existing dataset is a stop. Needs the Time Machine quota and the `jolien` user (open inputs below), and
-`k8s_nfs_allowed_networks` settled (README and `docs/decisions.md` §2.2).
+Expected: additions only (datasets, the NFS and SMB shares, snapshot tasks, the `jolien` and `dunia`
+accounts, the user-facing pieces in its README), plus the storage-link bond (`bond1`, a one-port failover
+bond on `storage_link_interface`, which must be set first). Your own `arthur` account shows as
+`truenas_user.arthur will be imported` and nothing else: no `~` lines under it. Any change to `arthur` is a
+stop, because it is the admin login. The pool `main` itself is not managed here; it already exists. Any
+destroy or in-place change to an existing dataset is a stop. Needs the Time Machine quota and the two
+password variables (open inputs below), and `k8s_nfs_allowed_networks` settled (README and
+`docs/decisions.md` §2.2).
 
 Then `tofu apply`, then `tofu plan` again.
 
@@ -232,7 +240,8 @@ Rollback: `flux suspend kustomization --all` stops reconciling. Remove the clust
 | 10 GbE cable and link test | cable between poseidon and the NAS, then the ping and iperf3 test above | 3, 4 |
 | NAS 10 GbE port name | `storage_link_interface` in the TrueNAS root's `terraform.tfvars` (no default; read it in the TrueNAS UI under Network) | 4 |
 | /29 storage-subnet decision | whether the storage link stays a /30 or grows to a /29; undecided, see `docs/decisions.md` §2.2 and `k8s_nfs_allowed_networks` | 3, 4 |
-| Time Machine quota and the `jolien` user | `timemachine_jolien_quota_gib` (2x the Mac's disk is the rule of thumb); the user must exist on the NAS first | 4 |
+| Time Machine quota | `timemachine_jolien_quota_gib` (2x the Mac's disk is the rule of thumb) | 4 |
+| `jolien` and `dunia` passwords | export `TF_VAR_user_jolien_password` and `TF_VAR_user_dunia_password` before the plan (no default, never in a file); OpenTofu creates both accounts | 4 |
 | SMTP password | relay `mail.a-line.be`, user `homelab@lab.ardw.be` (`docs/decisions.md` §5.1); set at the key ceremony | 7 |
 | Cloudflare token | the DNS-01 certificate token ( `docs/secrets-and-state.md`) | 7 |
 | Offsite backup target | deferred, `docs/decisions.md` §5.5; offsite backups stay dormant until chosen | after 7 |

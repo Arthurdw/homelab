@@ -17,12 +17,12 @@ needs a NAS on TrueNAS >= 25.04 (see its README). Nothing here has run against t
 
 ## (a) Mac: Time Machine (needs the NAS only)
 
-Owner steps on the NAS, once, **before** the first `tofu plan` of `backups.tf` (the plan looks the account up
-and fails if it is missing):
+Owner steps on the NAS, once, **before** the first `tofu apply` of the TrueNAS root:
 
-1. TrueNAS UI, Credentials, Local Users, Add: username `jolien` (or whatever `timemachine_jolien_user` says),
-   a strong password, **SMB access on**, shell `nologin`, create a new primary group. Put the password in
-   the password manager.
+1. The `jolien` account (SMB on, shell `nologin`, its own primary group) is created by the root
+   (`users.tf`), not by hand. Pick a strong password, put it in the password manager, and export it
+   without echo: `read -rs TF_VAR_user_jolien_password && export TF_VAR_user_jolien_password`. The root
+   creates `dunia` the same way, from `TF_VAR_user_dunia_password`.
 2. Services, SMB, Edit: tick **Enable Apple SMB2/3 Protocol Extensions** and save. TrueNAS refuses the
    Time Machine share without it. It is NAS-wide, so the OpenTofu root does not manage it.
 3. Set `timemachine_jolien_quota_gib` in `terraform.tfvars` (2x the Mac's disk is the usual rule) and apply the
