@@ -6,3 +6,4 @@ resources:
   - ../../../apps
   - immich-db.sops.yaml
   - authentik-credentials.sops.yaml
+  - authentik-smtp.sops.yaml

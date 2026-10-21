@@ -58,6 +58,11 @@ spec:
             secretKeyRef:
               name: authentik-credentials
               key: postgres-password
+        - name: AUTHENTIK_EMAIL__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-smtp
+              key: smtp-password
 
     authentik:
       # Deliberately empty: supplied from the `authentik-credentials` Secret via global.env above.
@@ -67,8 +72,16 @@ spec:
       postgresql:
         # Defaults: host `authentik-postgresql`, database + user `authentik`.
         password: ""
-      # TODO(alerts): authentik.email.* (SMTP for recovery mails) once the SMTP relay of
-      #   docs/decisions.md §5.1 exists; its password would also come from a Secret, not values.
+      # Recovery and notification mails via the shared relay (docs/decisions.md §5.1). The password
+      # comes from the `authentik-smtp` Secret via global.env above.
+      email:
+        host: mail.a-line.be
+        port: 465
+        use_ssl: true   # implicit TLS on 465
+        use_tls: false
+        username: homelab@lab.ardw.be
+        password: ""
+        from: "authentik <auth@lab.ardw.be>"
 
     server:
       resources:

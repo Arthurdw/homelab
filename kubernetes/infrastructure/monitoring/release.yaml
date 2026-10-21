@@ -87,16 +87,17 @@ spec:
         secrets:
           - alertmanager-smtp
 
-      # Alerting (docs/decisions.md §5.1): email now, Telegram later. The relay host, sender,
-      # recipient and username are site-specific TODO placeholders.
+      # Alerting (docs/decisions.md §5.1): email now, Telegram later. One relay login, one From
+      # address per app.
       config:
         global:
           resolve_timeout: 5m
-          # TODO(owner): replace the TODO_* placeholders.
-          smtp_smarthost: 'TODO_SMTP_HOST:587'   # relay as host:port
-          smtp_from: 'TODO_SMTP_FROM'            # envelope/From address
-          smtp_auth_username: 'TODO_SMTP_USERNAME'
-          # smtp_require_tls: true               # uncomment if the relay requires STARTTLS
+          smtp_smarthost: 'mail.a-line.be:465'
+          smtp_from: 'alertmanager@lab.ardw.be'
+          smtp_auth_username: 'homelab@lab.ardw.be'
+          # Port 465 is implicit TLS: Alertmanager dials TLS itself, and require_tls would demand
+          # STARTTLS on top, which the relay doesn't offer there.
+          smtp_require_tls: false
         # The chart's severity + InfoInhibitor rules, plus one homelab rule (last): a NotReady
         # node suppresses its own warning/info alerts. Critical alerts are not suppressed.
         inhibit_rules:
@@ -151,7 +152,7 @@ spec:
           - name: 'null'
           - name: email
             email_configs:
-              - to: 'TODO_SMTP_TO'    # TODO(owner): destination address(es)
+              - to: 'dev@arthurdw.com'    # TODO(owner): confirm the recipient(s)
                 send_resolved: true
                 # Password comes from the mounted alertmanager-smtp Secret, never git.
                 auth_password_file: /etc/alertmanager/secrets/alertmanager-smtp/smtp-password

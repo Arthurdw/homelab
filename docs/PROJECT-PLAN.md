@@ -279,9 +279,11 @@ Hard rules:
   uplink port behind the unmanaged switch needs VLANs 4 and 20 tagged (`docs/runbooks/host-network-bootstrap.md`).
 - **Offsite:** hardware to purchase or build (decisions §5.5).
 - **Cloudflare:** a DNS-01 token scoped to `Zone → DNS → Edit` on `ardw.be` (the zone Cloudflare hosts,
-  confirmed 2026-10-21; decisions §5.7), kept by the owner until the key ceremony. Also a real ACME account
-  email (today `acme-placeholder@example.invalid`).
-- **Production key ceremony:** the age key, then the six production Secrets
+  confirmed 2026-10-21; decisions §5.7), kept by the owner until the key ceremony. No `*` record on the zone
+  (owner, 2026-10-21). The ACME account email is `dev@arthurdw.com`.
+- **SMTP:** the relay password (into the SMTP Secrets at the key ceremony), the relay allowing
+  `homelab@lab.ardw.be` to send as each per-app From address, and the alert recipients (decisions §5.1).
+- **Production key ceremony:** the age key, then the production Secrets
   (`kubernetes/overlays/homelab/README.md`). Until then production `infrastructure` can't become Ready.
 - **TrueNAS upgrade to SCALE ≥ 25.04:** the `truenas/truenas` provider needs it; without it `truenas/` stays
   unapplied. The root itself is proven on a 25.10 lab fixture.

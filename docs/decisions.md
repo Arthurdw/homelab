@@ -221,6 +221,21 @@ with measurements (spec §6 explicitly warns against DB-on-network-storage witho
 Alertmanager receivers. SMTP is the baseline path; Telegram is added once a bot token exists. Alert classes:
 backup failures/staleness, disk and pool health, node/pod down, certificate expiry, capacity.
 
+**Relay (owner, 2026-10-21):** `mail.a-line.be` on port 465 with implicit TLS (587 doesn't answer), one login
+`homelab@lab.ardw.be` for every sender. Each app has its own From address, so a mail says where it came from
+and can be filtered:
+
+| Sender | From | Password Secret |
+|---|---|---|
+| Alertmanager | `alertmanager@lab.ardw.be` | `monitoring/alertmanager-smtp` |
+| Authentik | `auth@lab.ardw.be` | `authentik/authentik-smtp` |
+| Seafile | `seafile@lab.ardw.be` | `seafile/seafile-smtp` |
+| Backup alerts on the NAS | `backups@lab.ardw.be` | `/etc/homelab/alert.netrc`, outside git |
+
+The relay must let `homelab@lab.ardw.be` send as each of these. The password is the same in every Secret and is
+set at the production key ceremony; the lab uses random dummies and never reaches the relay. Alerts go to
+`dev@arthurdw.com` until the owner names other recipients.
+
 ### 5.2 — No DMZ and no inbound ports — *decided*
 
 Remote administration stays on **Tailscale** (already running on the NAS). Publishing SSH to the internet is

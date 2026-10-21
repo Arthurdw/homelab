@@ -16,6 +16,7 @@ the values are real and are generated or chosen by the owner.
 | infrastructure | `technitium/technitium-admin` | `password` | Technitium, zone bootstrap CronJob | |
 | apps | `immich/immich-db` | `username`, `password` | Immich and its PostgreSQL, `immich-db-dump` | |
 | apps | `authentik/authentik-credentials` | `secret-key`, `postgres-password` | Authentik and its PostgreSQL, `authentik-db-dump` | `secret-key` must never change after the first install |
+| apps | `authentik/authentik-smtp` | `smtp-password` | Authentik recovery mails | Same relay login as `alertmanager-smtp` |
 
 ## What happens before they exist
 

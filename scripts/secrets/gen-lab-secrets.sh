@@ -88,7 +88,8 @@ secret() {
 log "lab secrets -> kubernetes/overlays/lab"
 
 # --- infrastructure ---------------------------------------------------------------------------
-# Alertmanager mounts this; the lab has no SMTP relay, so the password is a dummy.
+# SMTP passwords: one Secret per app namespace, all for the same relay login (docs/decisions.md §5.1). The
+# lab never reaches the relay, so the values are dummies.
 secret infrastructure monitoring alertmanager-smtp smtp-password=@rand
 secret infrastructure monitoring grafana-admin admin-user=admin admin-password=@rand
 secret infrastructure technitium technitium-admin password=@rand
@@ -97,5 +98,6 @@ secret infrastructure technitium technitium-admin password=@rand
 secret apps immich immich-db username=immich password=@rand
 # secret-key must never change after the first install (kubernetes/apps/authentik/release.yaml).
 secret apps authentik authentik-credentials secret-key=@rand:60 postgres-password=@rand
+secret apps authentik authentik-smtp smtp-password=@rand
 
 log "done. Check: scripts/secrets/check.sh --check && just k8s-validate"
