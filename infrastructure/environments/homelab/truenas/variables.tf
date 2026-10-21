@@ -73,3 +73,56 @@ variable "timemachine_jolien_share_name" {
   type        = string
   default     = "timemachine-jolien"
 }
+
+# -----------------------------------------------------------------------------
+# Storage link to poseidon (docs/decisions.md §2.2; docs/runbooks/host-network-bootstrap.md)
+# -----------------------------------------------------------------------------
+
+variable "storage_link_name" {
+  description = "Name of the single-port failover bond created over the 10 GbE port (TrueNAS names bonds bondN)."
+  type        = string
+  default     = "bond1"
+}
+
+variable "storage_link_interface" {
+  description = "Name of the NAS's 10 GbE physical port, as TrueNAS lists it (Network > Interfaces, or `interface.query`). TODO(GATE 4): not known until the NAS is looked at; it is NOT the management port. No default on purpose, so a wrong guess can never touch the management interface."
+  type        = string
+
+  validation {
+    condition     = length(var.storage_link_interface) > 0
+    error_message = "Name the 10 GbE port; there is no default."
+  }
+}
+
+variable "storage_link_address" {
+  description = "The NAS's address on the storage link (poseidon's vmbr1 is 10.99.0.1/30). Provisional with the rest of the storage subnet, decisions.md §2.2; keep it inside k8s_nfs_allowed_networks."
+  type        = string
+  default     = "10.99.0.2"
+
+  validation {
+    condition     = can(cidrhost("${var.storage_link_address}/32", 0))
+    error_message = "Give a plain IPv4 address, not a CIDR."
+  }
+}
+
+variable "storage_link_prefix_length" {
+  description = "Prefix length of the storage link subnet (a /30 point to point link)."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.storage_link_prefix_length >= 8 && var.storage_link_prefix_length <= 30
+    error_message = "Use a prefix length between 8 and 30."
+  }
+}
+
+variable "storage_link_mtu" {
+  description = "MTU of the storage port. Jumbo frames need both ends, the switch-less link and the Proxmox side (storage_link_mtu there) to match."
+  type        = number
+  default     = 9000
+
+  validation {
+    condition     = var.storage_link_mtu >= 1280 && var.storage_link_mtu <= 9216
+    error_message = "MTU must be between 1280 and 9216."
+  }
+}

@@ -244,3 +244,41 @@ variable "talos_vm_on_boot" {
   type        = bool
   default     = true
 }
+
+# ---------------------------------------------------------------------------
+# Storage link (10 GbE, point-to-point to hercules-nas) — docs/decisions.md §2.2
+# ---------------------------------------------------------------------------
+
+variable "storage_link_bridge" {
+  description = "Name of the Linux bridge that carries the 10 GbE storage link."
+  type        = string
+  default     = "vmbr1"
+}
+
+variable "storage_link_port" {
+  description = "Physical NIC on the bridge: the fibre port. nic2 on poseidon (docs/hardware.md); nic1 is unused. Confirm the name on the host (`ip -br link`)."
+  type        = string
+  default     = "nic2"
+}
+
+variable "storage_link_address" {
+  description = "Proxmox end of the storage link, in CIDR form. The /30 holds exactly two hosts: this one and the NAS (10.99.0.2, truenas root). Must stay inside k8s_nfs_allowed_networks of the truenas root."
+  type        = string
+  default     = "10.99.0.1/30"
+
+  validation {
+    condition     = can(cidrhost(var.storage_link_address, 0))
+    error_message = "storage_link_address must be an IPv4 address in CIDR form, e.g. 10.99.0.1/30."
+  }
+}
+
+variable "storage_link_mtu" {
+  description = "MTU of the bridge. 9000 (jumbo) on the 10 GbE link; the NIC must already be at least this (see storage-link.tf)."
+  type        = number
+  default     = 9000
+
+  validation {
+    condition     = var.storage_link_mtu >= 1280 && var.storage_link_mtu <= 9216
+    error_message = "storage_link_mtu must be between 1280 and 9216."
+  }
+}
