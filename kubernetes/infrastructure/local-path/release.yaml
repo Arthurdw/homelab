@@ -10,8 +10,9 @@
 # touch it. Keep the volume name and nodePathMap in sync. Talos guide:
 # https://docs.siderolabs.com/kubernetes-guides/csi/local-storage.md
 #
-# The lab worker has no such volume; there the path simply lives on the writable EPHEMERAL
-# partition (/var), which is fine for a throwaway cluster.
+# The lab worker has no such volume, and the kubelet can't create /var/mnt/..., so the lab overlay
+# (kubernetes/overlays/lab/infrastructure) patches the path to /var/local-path-provisioner on the
+# writable EPHEMERAL partition, which is fine for a throwaway cluster.
 #
 # Not HA: one worker, no replication. If the node or its data disk is lost, recovery is the
 # scheduled logical dumps on the NAS (kubernetes/apps/immich/backup.yaml).
@@ -31,8 +32,12 @@ spec:
     namespace: flux-system
   install:
     crds: CreateReplace
+    remediation:
+      retries: 3
   upgrade:
     crds: CreateReplace
+    remediation:
+      retries: 3
   values:
     storageClass:
       create: true

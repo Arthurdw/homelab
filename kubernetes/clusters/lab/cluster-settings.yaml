@@ -11,3 +11,8 @@ data:
   METALLB_POOL: 10.99.100.100-10.99.100.199
   # The lab NAS stand-in (docs/lab.md: lab-nas is 10.99.100.10, exporting NFS at the production path /mnt/main/k8s).
   NFS_SERVER: 10.99.100.10
+  # Same layout as homelab: the first two addresses of the lab pool.
+  TRAEFIK_LB_IP: 10.99.100.100
+  TECHNITIUM_LB_IP: 10.99.100.101
+  # The lab never holds the Cloudflare token, so its wildcard comes from the internal CA.
+  CLUSTER_ISSUER: internal-ca

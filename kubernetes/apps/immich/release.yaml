@@ -24,8 +24,12 @@ spec:
     namespace: flux-system
   install:
     crds: CreateReplace
+    remediation:
+      retries: 3
   upgrade:
     crds: CreateReplace
+    remediation:
+      retries: 3
   values:
     # --------------------------------------------------------------------------------------------
     # Shared by every Immich component (server + machine-learning).
@@ -79,22 +83,21 @@ spec:
         main:
           enabled: true
           className: traefik
-          annotations:
-            # The chart default also adds an nginx `proxy-body-size` annotation; Traefik ignores it
-            # (harmless). Left in place rather than fought with — see docs/apps/immich.md.
-            cert-manager.io/cluster-issuer: internal-ca
+          # The chart default also adds an nginx `proxy-body-size` annotation; Traefik ignores it
+          # (harmless). Left in place rather than fought with — see docs/apps/immich.md.
           hosts:
             # Internal zone <app>.lab.ardw.be (decisions.md §5.7), served by Technitium only.
-            # TODO: switch the issuer from internal-ca to Let's Encrypt DNS-01 once configured.
             - host: immich.lab.ardw.be
               paths:
                 - path: /
                   pathType: Prefix
                   service:
                     identifier: main
+          # TLS on websecure with NO secretName and no cert-manager annotation: Traefik serves its default
+          # TLSStore certificate, the *.lab.ardw.be wildcard (infrastructure/configs/
+          # wildcard-certificate.yaml, decisions.md §5.7). One cert for every app.
           tls:
-            - secretName: immich-tls
-              hosts:
+            - hosts:
                 - immich.lab.ardw.be
 
     # --------------------------------------------------------------------------------------------

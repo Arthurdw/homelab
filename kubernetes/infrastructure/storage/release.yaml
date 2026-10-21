@@ -30,8 +30,12 @@ spec:
         namespace: flux-system
   install:
     crds: CreateReplace
+    remediation:
+      retries: 3
   upgrade:
     crds: CreateReplace
+    remediation:
+      retries: 3
   values:
     # ${NFS_SERVER} comes from the per-cluster cluster-settings ConfigMap (Flux postBuild).
     storageClass:

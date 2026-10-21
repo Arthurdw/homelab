@@ -1,0 +1,11 @@
+---
+# Pod Security: Talos enforces `baseline` by default; this namespace states it explicitly and warns/audits
+# against `restricted` so hardening gaps in the chart's pods show up without blocking them.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: authentik
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

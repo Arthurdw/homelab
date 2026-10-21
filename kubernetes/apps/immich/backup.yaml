@@ -62,13 +62,36 @@ spec:
                   ts="$(date -u +%Y%m%dT%H%M%SZ)"
                   # `$${...}` escapes Flux postBuild substitution; brace-less `$VAR` is left alone.
                   out="/backups/immich-$${ts}.dump"
+                  # Dump to a name the retention glob and the restore test ignore, so a pg_dump that
+                  # dies half way never leaves a truncated `.dump` that looks like the newest backup.
+                  tmp="$out.partial"
+                  trap 'rm -f "$tmp"' EXIT
+                  prev="$(ls -1t /backups/immich-*.dump 2>/dev/null | head -n 1 || true)"
                   pg_dump --format=custom --no-owner --no-privileges \
                     --host="$PGHOST" --username="$PGUSER" --dbname="$PGDATABASE" \
-                    --file="$out"
+                    --file="$tmp"
+                  mv "$tmp" "$out"
                   echo "wrote $${out}"
+                  # Size anomaly: a dump far smaller than the previous one means data went missing
+                  # (or the dump is silently incomplete). Fail the Job, so DatabaseBackupJobFailed
+                  # alerts. The dump is kept as `.suspect` for inspection, not as a restore point,
+                  # and the next run still compares against the last good dump.
+                  if [ -n "$prev" ]; then
+                    size="$(stat -c %s "$out")"
+                    prev_size="$(stat -c %s "$prev")"
+                    if [ $((size * 100)) -lt $((prev_size * DUMP_MIN_PERCENT)) ]; then
+                      mv "$out" "$out.suspect"
+                      echo "SIZE ANOMALY: $${size} bytes is under $${DUMP_MIN_PERCENT}% of the previous dump ($${prev_size} bytes, $prev)" >&2
+                      ls -1t /backups/immich-*.suspect | tail -n +4 | xargs -r rm -f
+                      exit 1
+                    fi
+                  fi
                   # Keep the 14 most recent dumps.
                   ls -1t /backups/immich-*.dump 2>/dev/null | tail -n +15 | xargs -r rm -f
               env:
+                # Fail the Job when a dump is smaller than this percentage of the previous one.
+                - name: DUMP_MIN_PERCENT
+                  value: "50"
                 - name: PGHOST
                   value: immich-postgres
                 - name: PGDATABASE
@@ -83,6 +106,10 @@ spec:
                     secretKeyRef:
                       name: immich-db
                       key: password
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
               volumeMounts:
                 - name: backups
                   mountPath: /backups

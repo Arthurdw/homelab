@@ -1,0 +1,6 @@
+---
+# infrastructure overlay for `homelab`: the shared tree plus this cluster's SOPS secrets (kubernetes/overlays/README.md).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../infrastructure

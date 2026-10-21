@@ -2,17 +2,23 @@
 #
 # Only public `age1...` recipients belong here. The first matching rule wins, so the lab
 # rule stays above the production rule.
+#
+# `encrypted_regex` encrypts only Secret payloads: kustomize (and Flux, which decrypts after
+# `kustomize build`) must still read apiVersion/kind/metadata, so those stay plaintext. Never put
+# anything sensitive in a Secret's metadata.
 creation_rules:
   # LAB: disposable secrets (lab cluster, SOPS round-trip tests). Private key lives at
   # ~/.config/homelab/lab-age.key (scripts/secrets/init-age.sh); scripts/lab/lab-up.sh
   # installs it into the lab cluster as the `sops-age` Secret.
   # Paths: `*.lab.sops.<yaml|yml|json>`, or any SOPS file under a `lab/` segment.
   - path_regex: '(^|/)lab/.*\.sops\.(ya?ml|json)$|\.lab\.sops\.(ya?ml|json)$'
+    encrypted_regex: '^(data|stringData)$'
     age: >-
       age1x3eaxap6flcq64ujtc0lks04pa70n6ju43y0dv7x2a2tj262s90qlf82q5
 
   # PRODUCTION: placeholder until the offline key ceremony (docs/runbooks/secrets.md).
   # sops rejects the placeholder, so encrypting a production secret fails closed.
   - path_regex: '\.sops\.(ya?ml|json)$'
+    encrypted_regex: '^(data|stringData)$'
     age: >-
       REPLACE_WITH_PRODUCTION_AGE_RECIPIENT

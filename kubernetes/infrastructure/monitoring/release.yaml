@@ -8,7 +8,8 @@
 # applying it (see kubernetes/README.md).
 #
 # Secrets (grafana-admin, alertmanager-smtp) are created out-of-band and never committed.
-# Prometheus, Alertmanager and Grafana state is ephemeral for now (no PVCs).
+# Prometheus, Alertmanager and Grafana keep their state on `local-path` PVCs (docs/decisions.md
+# §4.3: state stays node-local), so a pod restart loses neither samples, silences nor dashboards.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -26,20 +27,60 @@ spec:
         namespace: flux-system
   install:
     crds: CreateReplace
+    remediation:
+      retries: 3
   upgrade:
     crds: CreateReplace
+    remediation:
+      retries: 3
   values:
     # Single host: extra replicas buy no availability.
     prometheus:
       prometheusSpec:
         replicas: 1
-        # Ephemeral emptyDir: samples are lost on pod restart.
-        # TODO: move to a PVC (local-path) if retention across restarts is wanted.
-        storageSpec: {}
+        # Whichever limit is hit first wins. retentionSize stays below the 20Gi claim (about 90%)
+        # so the WAL and compaction have headroom. local-path does not enforce the claim size,
+        # so this is the actual cap on the worker's data disk (§3.4).
+        retention: 15d
+        retentionSize: 18GB
+        # local-path hands out a root-owned hostPath, which ignores the pod's fsGroup, so the
+        # non-root Prometheus (uid 1000) can't write /prometheus. Hand it over before it starts.
+        initContainers:
+          - name: init-data-permissions
+            image: docker.io/library/busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+            command: ["chown", "-R", "1000:2000", "/prometheus"]
+            securityContext:
+              runAsUser: 0
+              runAsNonRoot: false
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: ["ALL"]
+                add: ["CHOWN"]
+            volumeMounts:
+              - name: prometheus-kube-prometheus-stack-prometheus-db
+                mountPath: /prometheus
+                subPath: prometheus-db
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: local-path
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 20Gi
     alertmanager:
       alertmanagerSpec:
         replicas: 1
-        storage: {}
+        # Silences and the notification log; tiny.
+        storage:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: local-path
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 1Gi
         # Mounted at /etc/alertmanager/secrets/<name>/ and read via `auth_password_file` below.
         # Required Secret `alertmanager-smtp` (namespace monitoring, key `smtp-password`),
         # SOPS-encrypted; without it the Alertmanager pod does not start (docs/runbooks/secrets.md).
@@ -130,9 +171,18 @@ spec:
       # SOPS-encrypted; Grafana is not Ready without it (docs/runbooks/secrets.md).
       admin:
         existingSecret: grafana-admin
-      # Grafana state is disposable.
+      # SQLite database (users, preferences, dashboards edited in the UI) on a local-path PVC.
       persistence:
-        enabled: false
+        enabled: true
+        type: pvc
+        storageClassName: local-path
+        accessModes:
+          - ReadWriteOnce
+        size: 2Gi
+      # A rolling update would run two pods against one RWO volume and one SQLite file; Recreate
+      # stops the old pod first.
+      deploymentStrategy:
+        type: Recreate
 
     # Not scrapable on Talos (etcd needs mTLS, controller-manager/scheduler bind to localhost,
     # kube-proxy is disabled): disable the targets and their alert groups, which would otherwise
@@ -183,14 +233,58 @@ spec:
                 annotations:
                   summary: "Node {{ $labels.node }} is NotReady."
                   description: "{{ $labels.node }} has reported NotReady for more than 10 minutes."
+          # Backup freshness (§5.1), from kube-state-metrics' CronJob metrics rather than a
+          # custom exporter. Covers every database dump CronJob by naming convention: one CronJob
+          # per namespace named `<app>-db-dump`, daily (immich/immich-db-dump at 03:17 UTC,
+          # authentik/authentik-db-dump at 03:47 UTC). 36h allows one missed or late run.
+          # The failure rule joins on namespace alone, so keep it to one dump CronJob per namespace.
           - name: homelab.backup
             rules:
-              - alert: BackupStale
-                # Inert placeholder: nothing exports backup_last_success_timestamp_seconds yet.
-                expr: (time() - backup_last_success_timestamp_seconds) > 60 * 60 * 36
+              - alert: DatabaseBackupStale
+                expr: |
+                  time() - kube_cronjob_status_last_successful_time{cronjob=~".+-db-dump"}
+                    > 60 * 60 * 36
                 for: 15m
                 labels:
                   severity: critical
                 annotations:
-                  summary: "Backup is stale."
-                  description: "No successful backup has been recorded for more than 36 hours."
+                  summary: "Database dump {{ $labels.namespace }}/{{ $labels.cronjob }} is stale."
+                  description: "The last successful run of {{ $labels.namespace }}/{{ $labels.cronjob }} finished {{ $value | humanizeDuration }} ago (threshold 36h)."
+              - alert: DatabaseBackupNeverSucceeded
+                # The metric only exists after a first success, so the rule above stays silent if
+                # the dump has never worked. This fires when the CronJob exists but has no
+                # success recorded; the 36h `for` lets the first scheduled run happen after install.
+                expr: |
+                  kube_cronjob_info{cronjob=~".+-db-dump"}
+                    unless on (namespace, cronjob)
+                  kube_cronjob_status_last_successful_time{cronjob=~".+-db-dump"}
+                for: 36h
+                labels:
+                  severity: critical
+                annotations:
+                  summary: "Database dump {{ $labels.namespace }}/{{ $labels.cronjob }} has never succeeded."
+                  description: "{{ $labels.namespace }}/{{ $labels.cronjob }} exists but has no successful run recorded."
+              - alert: DatabaseBackupJobFailed
+                # Also the size-anomaly alert: a dump under DUMP_MIN_PERCENT of the previous one fails
+                # its Job (see the dump CronJobs), so it lands here with "SIZE ANOMALY" in the logs.
+                # Faster than staleness: a failed dump alerts the same morning, at critical (the
+                # chart's KubeJobFailed is a warning for every namespace). A failed Job stays in
+                # the CronJob history for days (failedJobsHistoryLimit), so failures that started
+                # before the last successful run are dropped: a later success clears the alert.
+                # With no success ever recorded, the `unless` side is empty and every failure fires.
+                expr: |
+                  max by (namespace, job_name) (
+                    kube_job_failed{job_name=~".+-db-dump-.+", condition="true"}
+                  ) > 0
+                  unless on (namespace, job_name)
+                  (
+                    kube_job_status_start_time{job_name=~".+-db-dump-.+"}
+                      < on (namespace) group_left ()
+                    kube_cronjob_status_last_successful_time{cronjob=~".+-db-dump"}
+                  )
+                for: 5m
+                labels:
+                  severity: critical
+                annotations:
+                  summary: "Database dump Job {{ $labels.namespace }}/{{ $labels.job_name }} failed."
+                  description: "Job {{ $labels.namespace }}/{{ $labels.job_name }} failed (a dump error or a size anomaly); see `kubectl -n {{ $labels.namespace }} logs job/{{ $labels.job_name }}`."

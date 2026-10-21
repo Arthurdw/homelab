@@ -15,3 +15,9 @@ data:
   # NAS NFS server over the dedicated 10 GbE point-to-point storage link
   # (docs/decisions.md §2.2: Proxmox 10.99.0.1, NAS 10.99.0.2).
   NFS_SERVER: 10.99.0.2
+  # Fixed LoadBalancer addresses from the start of the MetalLB pool (a proposal, not yet in decisions.md):
+  # Traefik is where every *.lab.ardw.be split-horizon record points; Technitium is the internal resolver.
+  TRAEFIK_LB_IP: 10.20.0.100
+  TECHNITIUM_LB_IP: 10.20.0.101
+  # ClusterIssuer for the *.lab.ardw.be wildcard (docs/decisions.md §5.7): Let's Encrypt DNS-01 via Cloudflare.
+  CLUSTER_ISSUER: letsencrypt-production

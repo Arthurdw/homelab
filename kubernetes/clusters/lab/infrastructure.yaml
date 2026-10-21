@@ -8,7 +8,7 @@ spec:
   interval: 30m
   retryInterval: 1m
   timeout: 10m
-  path: ./kubernetes/infrastructure
+  path: ./kubernetes/overlays/lab/infrastructure
   prune: true
   wait: true
   sourceRef:

@@ -1,6 +1,12 @@
 ---
 # Internal DNS resolver (Technitium, docs/decisions.md §5.7 and §6.1); serves the split-horizon
 # A records for *.lab.ardw.be (§5.7). See docs/network-plan.md.
+#
+# The zone and its records are not set here: the chart has no hook for them, so
+# bootstrap-zone.yaml writes them through the Technitium HTTP API.
+#
+# Required Secret `technitium-admin` (namespace technitium, key `password`), SOPS-encrypted
+# (docs/runbooks/secrets.md). The pod does not start without it.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -11,23 +17,113 @@ spec:
   chart:
     spec:
       chart: technitium-dnsserver
-      version: 1.13.4
+      # >= 1.13.5 (Technitium 15.6.2) is required: 15.6.1 did not save auth.config after a login or
+      # zone creation, and crashed at start (NullReferenceException in InspectAndFixZonePermissions)
+      # if the pod was killed before a clean shutdown. TechnitiumSoftware/DnsServer#2233.
+      version: 1.13.5
       sourceRef:
         kind: HelmRepository
         name: technitium
         namespace: flux-system
   install:
     crds: CreateReplace
+    remediation:
+      retries: 3
   upgrade:
     crds: CreateReplace
+    remediation:
+      retries: 3
   values:
-    # The chart (bjw-s "common" library) treats every key under `service` as a service NAME.
-    # So this must be nested as service.main.type — a top-level `service.type` becomes a bogus
-    # service named "type" whose value is a string, which breaks template rendering.
+    # Gives fixed object names (Service `technitium` for the console, `technitium-dns` for DNS),
+    # which bootstrap-zone.yaml uses.
+    global:
+      fullnameOverride: technitium
+
+    # Technitium reads these DNS_SERVER_* variables only on first start, when /etc/dns has no
+    # config yet. After that the persisted config wins, so changing them here does not change a
+    # running server.
+    env:
+      TZ: UTC
+      # The server's own name (SOA/NS of the zones it hosts). It lives under the internal zone (§5.7).
+      DNS_SERVER_DOMAIN: dns.lab.ardw.be
+      # No upstream is chosen in decisions.md yet; plain UDP to Cloudflare and Quad9 is the starting
+      # point. Moving to DoT/DoH upstream needs a decision first.
+      DNS_SERVER_FORWARDERS: 1.1.1.1,9.9.9.9
+      DNS_SERVER_FORWARDER_PROTOCOL: Udp
+      # Applied only on first start; after that, change the password in the console or via the API,
+      # and update the Secret to match (bootstrap-zone.yaml logs in with it).
+      DNS_SERVER_ADMIN_PASSWORD:
+        valueFrom:
+          secretKeyRef:
+            name: technitium-admin
+            key: password
+
+    # The bjw-s/k8s-at-home "common" library treats every key under `service` as a service NAME.
+    # So the type must be nested as service.<name>.type. A top-level `service.type` becomes a bogus
+    # service named "type" with a string value, which breaks template rendering.
     # (Found by the lab: "can't evaluate field enabled in type interface {}".)
+    #
+    # Two Services, because the common library sets one type per Service:
+    #   - main: ClusterIP, web console only (port-forward to reach it). It stays the primary
+    #     service because the chart's probes target the primary port.
+    #   - dns: LoadBalancer on a fixed MetalLB IP, DNS 53/UDP+TCP only.
+    # The chart enables web 80/443, DHCP 67, DoT 853 and DoH 8053 by default; every port is
+    # disabled explicitly because Helm merges these values into the chart defaults.
     service:
       main:
+        type: ClusterIP
+        # The chart default (Local) is only valid on externally reachable Services; the API server
+        # rejects it on a ClusterIP Service. null deletes the key during the Helm values merge.
+        externalTrafficPolicy: null
+        ports:
+          http:
+            enabled: true
+            port: 5380
+            targetPort: 5380
+            protocol: TCP
+          https:
+            enabled: false
+          dns-udp:
+            enabled: false
+          dns-tcp:
+            enabled: false
+          dhcp:
+            enabled: false
+          dot:
+            enabled: false
+          doh-reverse:
+            enabled: false
+      dns:
+        enabled: true
         type: LoadBalancer
-    # TODO: persistence (PVC/storage class), upstream forwarders, a stable LoadBalancer IP
-    # from the MetalLB pool so clients can use it as their resolver, and trim the exposed ports
-    # (the chart defaults to web 80/443, DNS 53 tcp+udp, DHCP 67, DoT 853, DoH 8053).
+        # Local keeps client source IPs, so query logs and the recursion ACL (private networks only)
+        # see the real client instead of a node address.
+        externalTrafficPolicy: Local
+        # Fixed VIP so clients and the UDM can use it as their resolver (docs/network-plan.md).
+        annotations:
+          metallb.io/loadBalancerIPs: ${TECHNITIUM_LB_IP}
+        ports:
+          dns-udp:
+            enabled: true
+            port: 53
+            targetPort: 53
+            protocol: UDP
+          dns-tcp:
+            enabled: true
+            port: 53
+            targetPort: 53
+            protocol: TCP
+
+    # Config, zones and logs live in /etc/dns, kept on a local-path PVC (decisions.md §4.3: state
+    # stays node-local). The PVC is RWO, so the common library's default Recreate strategy is
+    # needed: a rolling update would deadlock on the volume.
+    persistence:
+      config:
+        enabled: true
+        type: pvc
+        mountPath: /etc/dns
+        storageClass: local-path
+        accessMode: ReadWriteOnce
+        size: 1Gi
+        # Survives `helm uninstall`, so removing the release by mistake does not lose the zones.
+        retain: true

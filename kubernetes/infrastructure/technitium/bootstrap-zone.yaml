@@ -1,0 +1,131 @@
+---
+# Declarative split-horizon records (docs/decisions.md §5.7). The Technitium chart cannot declare
+# zones, so this CronJob keeps them converged through the Technitium HTTP API:
+#   - primary zone lab.ardw.be (created only if missing)
+#   - lab.ardw.be and *.lab.ardw.be A -> Traefik's MetalLB VIP (TRAEFIK_LB_IP from cluster-settings)
+# Records are written with overwrite=true, so each run replaces the A RRset with the desired value
+# and running it again changes nothing.
+#
+# Why a CronJob, not a one-shot Job: Job specs are immutable, so Flux could not apply a changed
+# Job; a Job would also not retry once the server came up late. Every 15 minutes is often
+# enough to converge soon after install and to put back records edited by hand in the console.
+# A failing run shows up as the chart's KubeJobFailed alert (§5.1).
+#
+# Reads the same Secret as the server, `technitium-admin` (key `password`), mounted as a file.
+# The password and the session token never go in argv or the log: curl reads both on stdin, and
+# the login response (which holds the token) is never printed.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: technitium-zone-bootstrap
+  namespace: technitium
+  labels:
+    app.kubernetes.io/name: technitium-zone-bootstrap
+    app.kubernetes.io/part-of: technitium
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: technitium-zone-bootstrap
+            app.kubernetes.io/part-of: technitium
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          # curlimages/curl runs as curl_user (uid 100, gid 101). Restricted-profile compliant.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 100
+            runAsGroup: 101
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: bootstrap
+              image: curlimages/curl:8.23.0@sha256:a134550be58ab783810e613ae96fd253c38f7bdd16d9bf9be350700c7a29ac06
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                # Console Service from release.yaml (global.fullnameOverride: technitium).
+                - name: API
+                  value: http://technitium.technitium.svc.cluster.local:5380/api
+                - name: ZONE
+                  value: lab.ardw.be
+                - name: TARGET_IP
+                  value: ${TRAEFIK_LB_IP}
+              command:
+                - /bin/sh
+                - -c
+              # Only brace-less `$VAR` in this script: Flux postBuild substitutes every dollar-brace reference
+              # (those would need a doubled dollar to escape it). No `set -x`: it would print the token.
+              args:
+                - |
+                  set -eu
+                  CURL="curl -fsS --max-time 20 --retry 5 --retry-delay 5 --retry-connrefused"
+
+                  ok() { case "$1" in *'"status":"ok"'*) return 0 ;; *) return 1 ;; esac; }
+
+                  # call PATH [curl args]: POST to the API with the token on stdin, print the reply.
+                  call() {
+                    path=$1; shift
+                    printf 'data-urlencode = "token=%s"\n' "$token" | $CURL -K - "$@" "$API/$path"
+                  }
+
+                  # must DESCRIPTION PATH [curl args]: call, and fail loudly on a non-ok reply.
+                  # These replies hold no secrets, so they are safe to print.
+                  must() {
+                    what=$1; shift
+                    resp=$(call "$@")
+                    if ok "$resp"; then echo "ok: $what"; else echo "FAILED: $what: $resp" >&2; exit 1; fi
+                  }
+
+                  pass=$(cat /secrets/technitium-admin/password)
+                  login=$(printf '%s' "$pass" | $CURL --data-urlencode "pass@-" \
+                    -d user=admin -d includeInfo=false "$API/user/login")
+                  unset pass
+                  ok "$login" || { echo "FAILED: login (reply withheld)" >&2; exit 1; }
+                  token=$(printf '%s' "$login" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+                  unset login
+                  [ -n "$token" ] || { echo "FAILED: no token in login reply" >&2; exit 1; }
+                  trap 'call user/logout >/dev/null 2>&1 || true' EXIT
+
+                  zones=$(call zones/list)
+                  ok "$zones" || { echo "FAILED: zones/list: $zones" >&2; exit 1; }
+                  case "$zones" in
+                    *"\"name\":\"$ZONE\""*) echo "ok: zone $ZONE exists" ;;
+                    *) must "create zone $ZONE" zones/create -d "zone=$ZONE" -d type=Primary ;;
+                  esac
+
+                  for name in "$ZONE" "*.$ZONE"; do
+                    must "A $name -> $TARGET_IP" zones/records/add \
+                      -d "zone=$ZONE" --data-urlencode "domain=$name" -d type=A \
+                      -d "ipAddress=$TARGET_IP" -d ttl=300 -d overwrite=true
+                  done
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  memory: 64Mi
+              volumeMounts:
+                - name: admin
+                  mountPath: /secrets/technitium-admin
+                  readOnly: true
+          volumes:
+            - name: admin
+              secret:
+                secretName: technitium-admin
+                items:
+                  - key: password
+                    path: password

@@ -12,7 +12,11 @@ spec:
   timeout: 10m
   path: ./kubernetes/infrastructure/configs
   prune: true
-  wait: true
+  # No wait: the ACME ClusterIssuers stay not-Ready until the Cloudflare token (and a real ACME email)
+  # exist, and on the lab they never will. Waiting would stall this Kustomization and, through
+  # dependsOn, `apps` with it. Apps don't need an issued cert: Traefik serves its default cert until
+  # the wildcard Certificate is Ready.
+  wait: false
   sourceRef:
     kind: GitRepository
     name: flux-system

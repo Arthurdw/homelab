@@ -34,6 +34,15 @@ Kustomization as the HelmRelease that installs its CRD, and Flux dry-runs the wh
 exists. The lab caught exactly that (`no matches for kind "ClusterIssuer"`) — see
 `docs/runbooks/phase-reports/`.
 
+Only `infrastructure` waits for health (`wait: true`). `infrastructure-configs` and `apps` don't: the ACME
+ClusterIssuers stay not-Ready until the Cloudflare token exists (on the lab, never), and waiting on them would
+stall `apps` through `dependsOn`. Apps don't need an issued certificate, because Traefik serves its default one
+until the wildcard Certificate is Ready.
+
+Every HelmRelease retries a failed install or upgrade three times (`remediation.retries: 3`). Flux's default is
+zero: one transient error (the lab hit an etcd timeout while kube-prometheus-stack applied its CRDs) leaves the
+release failed until someone forces a reconcile.
+
 ## Versions
 
 `versions.yaml` at the repo root is the single source of truth; this table is a convenience view.
@@ -45,12 +54,13 @@ Every chart version below was verified against its upstream index or registry on
 | MetalLB | `metallb` | 0.16.1 | `https://metallb.github.io/metallb` |
 | Traefik | `traefik` | 42.0.0 | `https://traefik.github.io/charts` |
 | cert-manager | `cert-manager` | 1.21.2 | `https://charts.jetstack.io` |
-| Technitium DNS | `technitium-dnsserver` | 1.13.4 | `https://charts.obeone.cloud` |
+| Technitium DNS | `technitium-dnsserver` | 1.13.5 | `https://charts.obeone.cloud` |
 | Monitoring | `kube-prometheus-stack` | 92.10.0 | `https://prometheus-community.github.io/helm-charts` |
 | NFS CSI driver | `csi-driver-nfs` | 4.13.5 | `https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts` |
 | Node-local storage | `local-path-provisioner` (OCI) | 0.0.37 | `oci://ghcr.io/rancher/local-path-provisioner/charts/local-path-provisioner` |
 | Immich | `immich` (OCI) | 0.13.4 | `oci://ghcr.io/immich-app/immich-charts/immich` |
 | Audiobookshelf | `audiobookshelf` | 2.5.1 | `https://charts.christianhuth.de` |
+| Authentik | `authentik` | 2026.8.4 | `https://charts.goauthentik.io` |
 
 Renovate/Dependabot should keep these current (see `.github/dependabot.yml` and `docs/PROJECT-PLAN.md`).
 

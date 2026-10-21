@@ -1,0 +1,43 @@
+# Production Secrets (`homelab`)
+
+**Blocked on the age key ceremony** (`docs/runbooks/secrets.md` §2). Until the production recipient replaces
+the placeholder in `.sops.yaml`, encrypting any file under this directory fails, so no Secret can land here by
+accident.
+
+The cluster needs these Secrets. Each one becomes `<layer>/<name>.sops.yaml` and is added to that layer's
+`kustomization.yaml`, the same way `scripts/secrets/gen-lab-secrets.sh` builds the lab overlay. Unlike the lab,
+the values are real and are generated or chosen by the owner.
+
+| Layer | Namespace / name | Keys | Used by | Notes |
+|---|---|---|---|---|
+| infrastructure | `cert-manager/cloudflare-api-token` | `api-token` | DNS-01 ClusterIssuers | Cloudflare token, `Zone:DNS:Edit` on the zone only |
+| infrastructure | `monitoring/grafana-admin` | `admin-user`, `admin-password` | Grafana | |
+| infrastructure | `monitoring/alertmanager-smtp` | `smtp-password` | Alertmanager | SMTP relay login (`docs/decisions.md` §5.1) |
+| infrastructure | `technitium/technitium-admin` | `password` | Technitium, zone bootstrap CronJob | |
+| apps | `immich/immich-db` | `username`, `password` | Immich and its PostgreSQL, `immich-db-dump` | |
+| apps | `authentik/authentik-credentials` | `secret-key`, `postgres-password` | Authentik and its PostgreSQL, `authentik-db-dump` | `secret-key` must never change after the first install |
+
+## What happens before they exist
+
+`infrastructure` waits for health (`wait: true`). Without the Secrets, Grafana, Alertmanager and Technitium
+don't become Ready, so `infrastructure` stalls and `infrastructure-configs` and `apps`, which depend on it,
+never start. That is acceptable: without the `sops-age` Secret in `flux-system` the cluster can't decrypt
+anything anyway. Create the Secrets and the age key together, before the first Flux bootstrap of production.
+
+`infrastructure-configs` doesn't wait (`wait: false`), so a missing Cloudflare token leaves the ACME
+ClusterIssuers not-Ready without blocking `apps`. Traefik serves its default certificate until the wildcard
+Certificate is issued.
+
+## Adding one
+
+```sh
+# Plaintext only in a private temp dir; never in the repo.
+tmp="$(mktemp -d)" && chmod 700 "$tmp"
+$EDITOR "$tmp/grafana-admin.yaml"          # a plain v1 Secret with stringData
+sops --config .sops.yaml encrypt \
+  --filename-override kubernetes/overlays/homelab/infrastructure/grafana-admin.sops.yaml \
+  "$tmp/grafana-admin.yaml" > kubernetes/overlays/homelab/infrastructure/grafana-admin.sops.yaml
+rm -rf "$tmp"
+# then list grafana-admin.sops.yaml under resources in infrastructure/kustomization.yaml
+scripts/secrets/check.sh --check && just k8s-validate
+```

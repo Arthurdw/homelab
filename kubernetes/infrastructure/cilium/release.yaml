@@ -1,7 +1,7 @@
 ---
 # Cilium CNI with kube-proxy replacement (docs/decisions.md §3.3; docs/architecture.md §6).
 #
-# - Pod/service CIDRs (10.244.0.0/16, 10.96.0.0/12) come from the Talos machine config, so
+# - Pod/service CIDRs (10.244.0.0/16, 10.96.0.0/16) come from the Talos machine config, so
 #   ipam.mode is `kubernetes`: Cilium reads each node's podCIDR instead of allocating its own.
 # - Talos guide "Without kube-proxy" (https://docs.siderolabs.com/kubernetes-guides/cni/deploying-cilium):
 #   Talos mounts cgroup2 itself (autoMount off, hostRoot /sys/fs/cgroup) and forbids kernel modules,
@@ -29,8 +29,12 @@ spec:
         namespace: flux-system
   install:
     crds: CreateReplace
+    remediation:
+      retries: 3
   upgrade:
     crds: CreateReplace
+    remediation:
+      retries: 3
   values:
     ipam:
       mode: kubernetes

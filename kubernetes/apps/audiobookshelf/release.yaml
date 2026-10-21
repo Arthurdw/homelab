@@ -29,8 +29,12 @@ spec:
         namespace: flux-system
   install:
     crds: CreateReplace
+    remediation:
+      retries: 3
   upgrade:
     crds: CreateReplace
+    remediation:
+      retries: 3
   values:
     image:
       # Pin the app image explicitly (defaults to the chart's appVersion, but be explicit).
@@ -49,18 +53,17 @@ spec:
     ingress:
       enabled: true
       className: traefik
-      annotations:
-        cert-manager.io/cluster-issuer: internal-ca
       hosts:
         # Internal zone <app>.lab.ardw.be (decisions.md §5.7), served by Technitium only.
-        # TODO: switch the issuer from internal-ca to Let's Encrypt DNS-01 once configured.
         - host: audiobookshelf.lab.ardw.be
           paths:
             - path: /
               pathType: Prefix
+      # TLS on websecure with NO secretName and no cert-manager annotation: Traefik serves its default
+      # TLSStore certificate, the *.lab.ardw.be wildcard (infrastructure/configs/
+      # wildcard-certificate.yaml, decisions.md §5.7). One cert for every app.
       tls:
-        - secretName: audiobookshelf-tls
-          hosts:
+        - hosts:
             - audiobookshelf.lab.ardw.be
 
     audiobookshelf:

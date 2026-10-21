@@ -11,3 +11,4 @@ resources:
   - monitoring
   - storage
   - local-path
+  - runtime-classes

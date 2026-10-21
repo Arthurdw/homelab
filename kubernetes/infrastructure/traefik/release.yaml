@@ -16,13 +16,58 @@ spec:
         namespace: flux-system
   install:
     crds: CreateReplace
+    remediation:
+      retries: 3
   upgrade:
     crds: CreateReplace
+    remediation:
+      retries: 3
   values:
-    # LoadBalancer Service, address from the MetalLB pool (configs/metallb-pool.yaml).
+    # LoadBalancer Service with a FIXED address from the MetalLB pool (configs/metallb-pool.yaml), so
+    # Technitium's *.lab.ardw.be records can point at it. `${TRAEFIK_LB_IP}` is per-cluster
+    # (cluster-settings). `metallb.io/loadBalancerIPs` is the current MetalLB annotation; the old
+    # `metallb.universe.tf/*` prefix is deprecated.
     service:
       type: LoadBalancer
-    # TODO: HTTP→HTTPS redirect, the default wildcard certificate (decisions §5.7), dashboard exposure.
+      annotations:
+        metallb.io/loadBalancerIPs: ${TRAEFIK_LB_IP}
+    ports:
+      # Plain HTTP only ever answers with a permanent redirect to HTTPS (websecure, :443).
+      web:
+        http:
+          redirections:
+            entryPoint:
+              to: websecure
+              scheme: https
+              permanent: true
+      # Dashboard entrypoint (8080): kept OFF the LoadBalancer Service (chart default, restated so it
+      # cannot drift). See `api` below.
+      traefik:
+        expose:
+          default: false
+    # Default certificate for every TLS router without its own secretName — i.e. all app Ingresses.
+    # The Certificate that fills this Secret is infrastructure/configs/wildcard-certificate.yaml
+    # (decisions.md §5.7). Until it is issued Traefik serves its self-generated default cert, then picks
+    # the Secret up without a restart. The TLSStore CRD ships in this chart's crds/, so it exists before
+    # the chart's own TLSStore object is applied.
+    tlsStore:
+      default:
+        defaultCertificate:
+          secretName: wildcard-lab-ardw-be-tls
+    # Dashboard: enabled but internal only. Without a router, Traefik v3 serves api@internal only when
+    # `api.insecure` is set — and then ONLY on the `traefik` entrypoint (8080), which is not on the
+    # LoadBalancer Service (ports.traefik.expose above). So no IngressRoute, nothing on web/websecure;
+    # reach it through the API server:
+    #   kubectl -n traefik port-forward deploy/traefik 8080:8080
+    #   open http://localhost:8080/dashboard/
+    # Caveat: pods inside the cluster can still reach <traefik-pod-ip>:8080 (read-only API, no
+    # NetworkPolicy yet) — acceptable for a homelab, never published outside the cluster.
+    api:
+      dashboard: true
+      insecure: true
+    ingressRoute:
+      dashboard:
+        enabled: false
     ingressClass:
       enabled: true
       isDefaultClass: true

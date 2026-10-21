@@ -1,0 +1,31 @@
+---
+# The single wildcard certificate for the internal application zone (docs/decisions.md §5.7):
+# adding an app never means issuing another certificate or widening the Cloudflare token.
+#
+# It lives in the `traefik` namespace because Traefik's default TLSStore (set in
+# infrastructure/traefik/release.yaml) can only reference a Secret in its own namespace. App Ingresses
+# carry `tls.hosts` but no `secretName`, so Traefik serves this certificate for them.
+#
+# The issuer is per-cluster: `${CLUSTER_ISSUER}` is letsencrypt-production on homelab and internal-ca
+# on the lab (which has no Cloudflare token). See kubernetes/README.md for substitution.
+#
+# Lives under infrastructure/configs: the Certificate CRD comes from the cert-manager HelmRelease and
+# the namespace from the traefik one, both reconciled before this Kustomization.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-lab-ardw-be
+  namespace: traefik
+spec:
+  secretName: wildcard-lab-ardw-be-tls
+  dnsNames:
+    - lab.ardw.be
+    - "*.lab.ardw.be"
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    name: ${CLUSTER_ISSUER}
+    kind: ClusterIssuer
+    group: cert-manager.io

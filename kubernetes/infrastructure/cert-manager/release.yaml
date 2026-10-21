@@ -16,8 +16,18 @@ spec:
         namespace: flux-system
   install:
     crds: CreateReplace
+    remediation:
+      retries: 3
   upgrade:
     crds: CreateReplace
+    remediation:
+      retries: 3
   values:
     crds:
       enabled: true
+    # DNS-01 self-check (decisions.md §5.7 split horizon): before telling Let's Encrypt to validate,
+    # cert-manager checks the _acme-challenge TXT record itself. By default it asks the cluster resolver,
+    # which forwards lab.ardw.be to Technitium — the internal side of the split horizon, which never has
+    # the challenge records — so the check would spin forever. Ask public resolvers only.
+    dns01RecursiveNameservers: "1.1.1.1:53,9.9.9.9:53"
+    dns01RecursiveNameserversOnly: true

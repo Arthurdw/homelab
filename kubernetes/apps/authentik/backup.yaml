@@ -1,0 +1,117 @@
+---
+# Authentik database backups: a scheduled pg_dump written to the NAS, like kubernetes/apps/immich/backup.yaml.
+# The database holds users, flows and provider config; the `authentik-credentials` Secret's secret-key must be
+# restored alongside it (it signs sessions and IDs). Alerts: monitoring's homelab.backup group picks this
+# CronJob up by its `<app>-db-dump` name.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: authentik-db-backups
+  namespace: authentik
+  labels:
+    app.kubernetes.io/name: authentik
+    app.kubernetes.io/part-of: authentik
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nas-nfs
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: authentik-db-dump
+  namespace: authentik
+  labels:
+    app.kubernetes.io/name: authentik
+    app.kubernetes.io/part-of: authentik
+spec:
+  # Daily at 03:47 (cluster time is UTC), clear of the Immich dump at 03:17.
+  schedule: "47 3 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+          # postgres uid/gid. TODO(storage): confirm the `nas-nfs` export accepts uid/gid 999.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+            fsGroupChangePolicy: OnRootMismatch
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: pg-dump
+              # Same major version as the chart's bundled PostgreSQL (postgres:17.11-trixie).
+              image: docker.io/library/postgres:17.11-trixie@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/bash
+                - -c
+              args:
+                - |
+                  set -euo pipefail
+                  ts="$(date -u +%Y%m%dT%H%M%SZ)"
+                  # `$${...}` escapes Flux postBuild substitution; brace-less `$VAR` is left alone.
+                  out="/backups/authentik-$${ts}.dump"
+                  # Dump to a name the retention glob and the restore test ignore, so a pg_dump that
+                  # dies half way never leaves a truncated `.dump` that looks like the newest backup.
+                  tmp="$out.partial"
+                  trap 'rm -f "$tmp"' EXIT
+                  prev="$(ls -1t /backups/authentik-*.dump 2>/dev/null | head -n 1 || true)"
+                  pg_dump --format=custom --no-owner --no-privileges \
+                    --host="$PGHOST" --username="$PGUSER" --dbname="$PGDATABASE" \
+                    --file="$tmp"
+                  mv "$tmp" "$out"
+                  echo "wrote $${out}"
+                  # Size anomaly: a dump far smaller than the previous one means data went missing
+                  # (or the dump is silently incomplete). Fail the Job, so DatabaseBackupJobFailed
+                  # alerts. The dump is kept as `.suspect` for inspection, not as a restore point,
+                  # and the next run still compares against the last good dump.
+                  if [ -n "$prev" ]; then
+                    size="$(stat -c %s "$out")"
+                    prev_size="$(stat -c %s "$prev")"
+                    if [ $((size * 100)) -lt $((prev_size * DUMP_MIN_PERCENT)) ]; then
+                      mv "$out" "$out.suspect"
+                      echo "SIZE ANOMALY: $${size} bytes is under $${DUMP_MIN_PERCENT}% of the previous dump ($${prev_size} bytes, $prev)" >&2
+                      ls -1t /backups/authentik-*.suspect | tail -n +4 | xargs -r rm -f
+                      exit 1
+                    fi
+                  fi
+                  # Keep the 14 most recent dumps.
+                  ls -1t /backups/authentik-*.dump 2>/dev/null | tail -n +15 | xargs -r rm -f
+              env:
+                # Fail the Job when a dump is smaller than this percentage of the previous one.
+                - name: DUMP_MIN_PERCENT
+                  value: "50"
+                - name: PGHOST
+                  value: authentik-postgresql
+                - name: PGDATABASE
+                  value: authentik
+                - name: PGUSER
+                  value: authentik
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: authentik-credentials
+                      key: postgres-password
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: authentik-db-backups

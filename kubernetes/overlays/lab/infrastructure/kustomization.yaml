@@ -1,0 +1,19 @@
+---
+# infrastructure overlay for `lab`: the shared tree plus this cluster's SOPS secrets (kubernetes/overlays/README.md).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../infrastructure
+  - alertmanager-smtp.sops.yaml
+  - grafana-admin.sops.yaml
+  - technitium-admin.sops.yaml
+patches:
+  # The lab worker has no Talos user volume, so /var/mnt/local-path-provisioner doesn't exist and the
+  # kubelet can't create it (/var/mnt is read-only to it). /var/local-path-provisioner is on EPHEMERAL.
+  - target:
+      kind: HelmRelease
+      name: local-path-provisioner
+    patch: |-
+      - op: replace
+        path: /spec/values/nodePathMap/0/paths/0
+        value: /var/local-path-provisioner

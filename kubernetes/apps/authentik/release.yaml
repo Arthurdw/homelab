@@ -1,0 +1,127 @@
+---
+# Authentik — web single sign-on (docs/architecture.md, docs/SPEC.md).
+#   Chart:  authentik 2026.8.4 from https://charts.goauthentik.io (appVersion 2026.8.4, so the
+#           server/worker image is ghcr.io/goauthentik/server:2026.8.4 — the chart pins it)
+#
+# Authentik is NEVER required to recover infrastructure: break-glass access is independent of it
+# (docs/runbooks/break-glass.md, docs/secrets-and-state.md §6). No other app is wired to it yet; SSO
+# for Grafana, Immich, etc. is a later, per-app step.
+#
+# No Redis: authentik 2025.10+ moved its cache, tasks and websockets into PostgreSQL, and this chart no
+# longer has a Redis dependency at all.
+#
+# SECRETS — the Secret `authentik-credentials` (namespace authentik) is created out-of-band (SOPS) and never
+# committed in cleartext:
+#   secret-key         cookie signing + unique IDs; long random string; NEVER change after first install
+#   postgres-password  password of the `authentik` database user (bundled PostgreSQL + the app)
+# The chart's own generated config Secret then carries only non-secret settings: `secret_key` and
+# `postgresql.password` stay empty here (the chart drops empty values), and the real values are
+# injected into the server and worker as env vars from `authentik-credentials`, which take precedence.
+# (Not named `authentik`: the chart renders its own Secret of that name, which would collide.)
+#
+# EXPOSURE: only the server's HTTP Service is published, through Traefik, LAN/Tailscale only
+# (docs/decisions.md §5.2). PostgreSQL is ClusterIP-only.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: authentik
+  namespace: authentik
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: authentik
+      version: 2026.8.4
+      sourceRef:
+        kind: HelmRepository
+        name: authentik
+        namespace: flux-system
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  values:
+    global:
+      # Applied to both the server and the worker Deployments.
+      env:
+        - name: AUTHENTIK_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: authentik-credentials
+              key: secret-key
+        - name: AUTHENTIK_POSTGRESQL__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-credentials
+              key: postgres-password
+
+    authentik:
+      # Deliberately empty: supplied from the `authentik-credentials` Secret via global.env above.
+      secret_key: ""
+      error_reporting:
+        enabled: false
+      postgresql:
+        # Defaults: host `authentik-postgresql`, database + user `authentik`.
+        password: ""
+      # TODO(alerts): authentik.email.* (SMTP for recovery mails) once the SMTP relay of
+      #   docs/decisions.md §5.1 exists; its password would also come from a Secret, not values.
+
+    server:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+      ingress:
+        enabled: true
+        ingressClassName: traefik
+        hosts:
+          # Internal zone <app>.lab.ardw.be (docs/decisions.md §5.7), served by Technitium only.
+          - auth.lab.ardw.be
+        tls:
+          # No secretName: Traefik's default TLSStore serves the *.lab.ardw.be wildcard.
+          - hosts:
+              - auth.lab.ardw.be
+
+    worker:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+
+    # Bundled PostgreSQL (Bitnami chart driving the official postgres image, as the authentik chart
+    # ships it). Node-local on `local-path` (docs/decisions.md §4.3).
+    # Backed up by the daily pg_dump in backup.yaml (docs/backup-matrix.md).
+    postgresql:
+      enabled: true
+      auth:
+        username: authentik
+        database: authentik
+        # Only the app user is needed; no separate `postgres` superuser password to manage.
+        enablePostgresUser: false
+        existingSecret: authentik-credentials
+        secretKeys:
+          userPasswordKey: postgres-password
+      primary:
+        persistence:
+          enabled: true
+          storageClass: local-path
+          accessModes:
+            - ReadWriteOnce
+          size: 8Gi
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
