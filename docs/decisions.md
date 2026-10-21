@@ -34,6 +34,20 @@ Supersedes any earlier text implying a wipe. Consequently the fate of the `main`
 (preserve/import vs rebuild) is **deferred to cutover**, once the owner's backups are verified — it is not a
 decision we can make in advance, and we will not make it for them.
 
+**Outcome, 2026-10-21:** the owner chose to rebuild, and wiped and recreated the pool by hand. `main` is now one
+**RAIDZ2** vdev of all 8× 4 TB disks (two-disk redundancy, about 21.8 TiB of data space before ZFS overhead), with
+the 1 TB NVMe as a single-device **log (SLOG)** instead of L2ARC. Ashift and compression are the TrueNAS defaults.
+The name `main` is kept, so the `/mnt/main/k8s` contract (`infrastructure/environments/homelab/truenas/README.md`)
+still holds. Why:
+
+- RAIDZ2 over RAIDZ3: two-disk redundancy is enough for 8× 4 TB with backups, and it gives one more disk of space.
+- RAIDZ2 over dRAID2: dRAID pays off with many disks and distributed spares. With 8 disks and no spare, it only
+  adds fixed-width stripes that waste space on small blocks.
+- SLOG over L2ARC: the NAS serves sync writes (NFS for Kubernetes, SMB Time Machine), which a log speeds up. With
+  32 GiB of RAM, an L2ARC mostly took RAM away from the ARC. The P3 Plus has no power-loss protection, so it
+  speeds up sync writes but doesn't make them safer than the pool alone. A second NVMe can be added later as a
+  mirror (Extend in the UI).
+
 ## 2. Addressing
 
 ### 2.1 — A new K8s VLAN, not a slice of the server VLAN — *decided*
@@ -377,3 +391,6 @@ So there is no working internal resolver today: Technitium fills a gap rather th
 
 ~12 T on a single RaidZ3 with no second copy, and child datasets unsnapshotted. This is a
 **recorded risk**, and it is the owner's cutover prerequisite (1.3) rather than something we change now.
+
+Update 2026-10-21: that pool is gone; the owner rebuilt it as RAIDZ2 (1.4). There is still no offsite copy (§5.5),
+so the risk stands for whatever lands on the new pool.

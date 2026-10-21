@@ -40,9 +40,9 @@ protocol extensions** on (NAS-wide, so not managed here). See `docs/runbooks/hou
 
 - **A Proxmox backups/ISO export.** decisions §4.2 says they go to a NAS NFS export
   (prune 7d/4w/6m), but it names no dataset or path. Add one once that is decided (`main/backups` now exists).
-- **The other tier datasets** (tier1, apps, media, scratch in §4.1) and their snapshot tasks. They
-  depend on the pool preserve-vs-rebuild decision at cutover (§1.4) and on the owner's data
-  screening (`docs/storage.md`).
+- **The other tier datasets** (tier1, apps, media, scratch in §4.1) and their snapshot tasks. The pool
+  was rebuilt empty on 2026-10-21 (§1.4), so they no longer wait on a preserve-vs-rebuild decision;
+  they still wait on sizing per tier.
 - **NFS service settings.** The export needs NFSv4 enabled (csi-driver-nfs pins
   `nfsvers=4.1`) and the NFS service running and bound to the storage-link address. The provider has
   `truenas_nfs_config` and `truenas_service`, but both are NAS-wide singletons that already exist.

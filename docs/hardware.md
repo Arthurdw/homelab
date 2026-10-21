@@ -23,18 +23,18 @@
 
 | Item | Value | Notes |
 |---|---|---|
-| OS | TrueNAS SCALE **24.10.2.4**, kernel 6.6.44 | uptime 141 d at capture |
+| OS | TrueNAS SCALE, reinstalled by the owner (version to record) | was 24.10.2.4 at capture; the TrueNAS root needs ≥ 25.04 |
 | CPU | Intel Core i5-7400 — 4 cores | same class as host 1 |
 | RAM | 32 GiB, **non-ECC** | affects reliability posture |
 | Board | MSI MS-7A74 | |
 | Boot disks | **3× PNY CS900 250 GB SSD in a 3-way mirror** | over-provisioned for boot |
-| Data disks | **8× Seagate ST4000VN006 4 TB** (RaidZ3) | 3-disk redundancy |
-| Cache | **1× Crucial P3 Plus 1 TB NVMe** as L2ARC (~76 % full) | read cache |
+| Data disks | **8× Seagate ST4000VN006 4 TB** (RAIDZ2, width 8) | 2-disk redundancy; RaidZ3 before the 2026-10-21 rebuild |
+| Log | **1× Crucial P3 Plus 1 TB NVMe** as SLOG | sync-write log; was L2ARC before the rebuild (`docs/decisions.md` §1.4) |
 | NIC 1 | 10 GbE (`enp1s0f0`) | storage link to Proxmox, link-local addressing |
 | NIC 2 | 1 GbE (`enp4s0`) | management VLAN |
-| Boot environments | 5 (`24.04.2.5` → `24.10.2.4`) | cleanup candidate |
+| Boot environments | 5 at capture (`24.04.2.5` → `24.10.2.4`) | reset by the reinstall |
 | Boot pool | 3-way mirror, 216 G raw, ~14 G used | |
-| Data pool | `main`, 29.1 T raw / 17.8 T alloc / 11.3 T free, 61 %, frag 17 % | healthy, 0 errors |
+| Data pool | `main`, rebuilt empty 2026-10-21 | before: 29.1 T raw / 17.8 T alloc, 61 %, frag 17 % |
 
 ## Dev workstation (lab host candidate)
 

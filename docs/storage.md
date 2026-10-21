@@ -1,9 +1,19 @@
 # Storage
 
-> Current state **discovered** 2026-10-16 (read-only). Sizes are as reported; verify units before sizing
-> decisions. Exact serials in `docs/private/`.
+> The pool was **rebuilt by the owner on 2026-10-21** (`docs/decisions.md` §1.4). The sections marked
+> "before the rebuild" record the state discovered read-only on 2026-10-16; that pool and its data no longer
+> exist. Exact serials in `docs/private/`.
 
-## TrueNAS `main` pool
+## TrueNAS `main` pool (since 2026-10-21)
+
+- **Topology:** single **RAIDZ2** vdev, 8× Seagate 4 TB HDD, width 8 → 2-disk redundancy, about 21.8 TiB of
+  data space before ZFS overhead.
+- **Log:** 1 TB Crucial P3 Plus NVMe as a single-device SLOG (no power-loss protection; can be extended to a
+  mirror later). No L2ARC.
+- **Ashift, compression:** TrueNAS defaults.
+- **Datasets:** created by the TrueNAS root (`infrastructure/environments/homelab/truenas/`), not by hand.
+
+## TrueNAS `main` pool (before the rebuild)
 
 - **Topology:** single **RaidZ3** vdev, 8× Seagate 4 TB HDD → 3-disk redundancy.
 - **Reported:** 29.1 T raw · 17.8 T allocated · 11.3 T free · 61 % full · frag 17 % · health ONLINE · 0 errors.
@@ -13,7 +23,7 @@
   explain the gap — **verify units/accounting** (`zfs list -o space main`, `zfs get compressratio`) before
   planning capacity or backup sizes.
 
-## Datasets (current)
+## Datasets (before the rebuild)
 
 | Dataset | Used | Notes |
 |---|---|---|
@@ -22,7 +32,7 @@
 | `main/.system/*` | ~1.8 G | system (samba4, nfs, netdata, configs) |
 | `boot-pool` + 5 boot environments | ~14 G | OS; 5 BEs is more than needed |
 
-## Shares (current)
+## Shares (before the rebuild)
 
 | Share | Path | Protocol | Access |
 |---|---|---|---|
@@ -59,7 +69,8 @@ VM disk image. Exact per-directory sizes and which are irreplaceable are **open 
   current single non-recursive task is insufficient).
 - NFS for Proxmox backup/ISO storage and Kubernetes: *decided*, `docs/decisions.md` §4.2. Databases use
   node-local `local-path`, not network storage (see below).
-- Evaluate whether the 3-way boot mirror and 1 TB L2ARC are justified for the role, or right-sized.
+- The 1 TB NVMe moved from L2ARC to SLOG at the rebuild (`docs/decisions.md` §1.4). The 3-way boot mirror
+  is still over-provisioned for boot; it stays as is.
 - No Ceph/Longhorn unless justified for a single-host setup.
 
 ## Kubernetes local storage (decided — `local-path`)
