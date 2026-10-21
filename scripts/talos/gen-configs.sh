@@ -6,13 +6,19 @@
 #
 #   ./scripts/talos/gen-configs.sh            # generate into TALOS_OUT_DIR
 #   ./scripts/talos/gen-configs.sh --dry-run  # print the command, write nothing
-#   ./scripts/talos/gen-configs.sh --force    # regenerate even if output already exists
+#   ./scripts/talos/gen-configs.sh --regen    # rebuild controlplane.yaml/worker.yaml, SAME PKI
+#   ./scripts/talos/gen-configs.sh --force    # NEW PKI: only for a cluster that does not exist yet
 #
 # Values come from talos/inputs.env (the single place for undecided values) and from versions.yaml
 # (the authoritative version pin). See talos/README.md.
 #
 # Idempotent: if the output directory already holds generated configs, the script exits without
-# touching them unless --force is given, because regenerating REPLACES the cluster PKI/secrets.
+# touching them unless --force is given, because --force REPLACES the cluster PKI/secrets.
+#
+# --regen is the safe path for a running cluster after a patch or input change. It needs the secrets
+# bundle (TALOS_SECRETS, default <out>/secrets.yaml) and refuses without it; it reads the bundle but
+# never writes it. It copies the old controlplane.yaml/worker.yaml to <out>/backup-<UTC time>/, then
+# runs `talosctl gen config --with-secrets` for those two files only (talosconfig is left alone).
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -20,14 +26,20 @@ INPUTS="${TALOS_INPUTS:-$REPO_ROOT/talos/inputs.env}"
 
 DRY=0
 FORCE=0
+REGEN=0
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY=1 ;;
     --force)   FORCE=1 ;;
-    -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
+    --regen)   REGEN=1 ;;
+    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
 done
+if [ "$FORCE" = 1 ] && [ "$REGEN" = 1 ]; then
+  echo "--force and --regen are exclusive: --regen keeps the PKI, --force replaces it" >&2
+  exit 2
+fi
 
 log() { printf '%s\n' "$*"; }
 
@@ -66,6 +78,10 @@ ADDITIONAL_SANS="${ADDITIONAL_SANS:-}"
 # Worker patch (the local-path user volume). An inputs file may point this at another file, or at
 # an empty string to skip it, for environments whose worker has no dedicated data disk (the lab).
 WORKER_PATCH="${WORKER_PATCH-$REPO_ROOT/talos/patches/worker.yaml}"
+# Storage-link NIC + node IP pinning (docs/decisions.md §2.2). Production only: the lab inputs set
+# both to an empty string, the same way as WORKER_PATCH.
+CONTROLPLANE_NETWORK_PATCH="${CONTROLPLANE_NETWORK_PATCH-$REPO_ROOT/talos/patches/network-controlplane.yaml}"
+WORKER_NETWORK_PATCH="${WORKER_NETWORK_PATCH-$REPO_ROOT/talos/patches/network-worker.yaml}"
 
 # --- authoritative versions (single source: versions.yaml) -----------------
 yaml_get() {
@@ -94,10 +110,21 @@ case "$OUT_DIR" in
   *) OUT_DIR="$REPO_ROOT/$OUT_DIR" ;;
 esac
 
+SECRETS="${TALOS_SECRETS:-$OUT_DIR/secrets.yaml}"
+
 # --- idempotency -----------------------------------------------------------
-if [ -f "$OUT_DIR/talosconfig" ] && [ "$FORCE" = 0 ]; then
+if [ "$REGEN" = 1 ]; then
+  if [ ! -f "$SECRETS" ]; then
+    echo "--regen: no secrets bundle at $SECRETS; refusing (without it the PKI would change)." >&2
+    echo "derive it once from the existing control-plane config, which carries the same PKI:" >&2
+    echo "  talosctl gen secrets --from-controlplane-config $OUT_DIR/controlplane.yaml -o $SECRETS" >&2
+    echo "or point TALOS_SECRETS at the bundle. Never use --force on a running cluster." >&2
+    exit 1
+  fi
+elif [ -f "$OUT_DIR/talosconfig" ] && [ "$FORCE" = 0 ]; then
   log "configs already present in $OUT_DIR — leaving them untouched."
-  log "re-run with --force to regenerate (this REPLACES the cluster PKI/secrets in those files)."
+  log "after a patch or input change on a running cluster: --regen (keeps the PKI)."
+  log "--force REPLACES the cluster PKI/secrets; only for a cluster that does not exist yet."
   exit 0
 fi
 
@@ -110,8 +137,14 @@ args=(
   --install-image "$INSTALL_IMAGE"
   --with-docs=false
   --with-examples=false
-  --output "$OUT_DIR"
 )
+if [ "$REGEN" = 1 ]; then
+  # Into a fresh temp dir first, so a failed run leaves the current files as they were.
+  REGEN_TMP="$OUT_DIR/.regen-tmp"
+  args+=(--with-secrets "$SECRETS" --output-types "controlplane,worker" --output "$REGEN_TMP")
+else
+  args+=(--output "$OUT_DIR")
+fi
 [ "$FORCE" = 1 ] && args+=(--force)
 
 # patch_args <flag> <file> — add <file> as a patch only if it has non-comment content.
@@ -128,6 +161,8 @@ patch_args() {
 patch_args --config-patch               "$REPO_ROOT/talos/patches/common.yaml"
 patch_args --config-patch-control-plane "$REPO_ROOT/talos/patches/controlplane.yaml"
 patch_args --config-patch-worker        "$WORKER_PATCH"
+patch_args --config-patch-control-plane "$CONTROLPLANE_NETWORK_PATCH"
+patch_args --config-patch-worker        "$WORKER_NETWORK_PATCH"
 
 if [ -n "$ADDITIONAL_SANS" ]; then
   IFS=',' read -ra sans <<<"$ADDITIONAL_SANS"
@@ -140,6 +175,27 @@ log "== Talos $TALOS_VERSION / Kubernetes $KUBERNETES_VERSION =="
 log "== cluster: $CLUSTER_NAME  endpoint: $CLUSTER_ENDPOINT =="
 log "== output (gitignored): $OUT_DIR =="
 run mkdir -p "$OUT_DIR"
+
+if [ "$REGEN" = 1 ]; then
+  log "== regen from the existing secrets bundle: $SECRETS (read only) =="
+  run rm -rf "$REGEN_TMP"
+  run talosctl "${args[@]}"
+  backup="$OUT_DIR/backup-$(date -u +%Y%m%dT%H%M%SZ)"
+  run mkdir -m 700 "$backup"
+  for f in controlplane.yaml worker.yaml; do
+    if [ -f "$OUT_DIR/$f" ]; then run cp -p "$OUT_DIR/$f" "$backup/$f"; fi
+    run mv -f "$REGEN_TMP/$f" "$OUT_DIR/$f"
+  done
+  run rmdir "$REGEN_TMP"
+  if [ "$DRY" = 0 ]; then
+    log
+    log "rebuilt controlplane.yaml and worker.yaml with the same PKI; old copies in $backup"
+    log "these files embed cluster secrets — gitignored, never commit them."
+    log "next: ./scripts/talos/validate.sh, then just talos-upgrade-config <node> (dry run first)"
+  fi
+  exit 0
+fi
+
 run talosctl "${args[@]}"
 
 if [ "$DRY" = 0 ]; then

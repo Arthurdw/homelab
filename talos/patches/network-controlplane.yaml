@@ -1,0 +1,38 @@
+# Production only (talos/inputs.env CONTROLPLANE_NETWORK_PATCH; the libvirt lab sets it empty).
+# talos-cp-1's second NIC on the 10 GbE storage link, and the node pinned to its primary network.
+# Decision: docs/decisions.md §2.2 (10.99.0.0/29: poseidon .1, NAS .2, cp .3, worker .4).
+#
+# The primary NIC (net0, 10.20.0.11/24 + gateway) is NOT configured here: Proxmox's cloud-init
+# ipconfig0 delivers it through the nocloud platform. net1 has no ipconfig, so only this patch
+# addresses it.
+
+# Which link is the storage NIC, without a MAC (MACs are never committed). Proxmox puts netN on
+# pci.0 slot 0x12+N on q35, so net1 is always bus path 0000:00:13.0 whatever MAC it was given. The
+# alias must match exactly one link or Talos does not apply it (and the address below stays unset).
+apiVersion: v1alpha1
+kind: LinkAliasConfig
+name: storage0
+selector:
+  match: link.driver == "virtio_net" && link.bus_path.endsWith(":13.0")
+---
+# Static address on the link: no gateway, no routes, jumbo frames to match vmbr1 and the NAS.
+apiVersion: v1alpha1
+kind: LinkConfig
+name: storage0
+up: true
+mtu: 9000
+addresses:
+  - address: 10.99.0.3/29
+---
+# Two NICs: keep the kubelet's node IP on the K8s VLAN, never the storage link.
+apiVersion: v1alpha1
+kind: KubeNodeConfig
+nodeIP:
+  validSubnets:
+    - 10.20.0.0/24
+---
+# Same for etcd's advertised address. etcd has no multi-doc kind in 1.14, so this is the legacy path.
+cluster:
+  etcd:
+    advertisedSubnets:
+      - 10.20.0.0/24

@@ -23,19 +23,30 @@ Upgrade the client to the pin before touching a live node.
 | Path | Committed? | Purpose |
 |---|---|---|
 | `inputs.env` | yes | Production inputs. Values only known at cutover are marked `TODO(GATE 4)`. |
-| `inputs.lab.env` | yes | Libvirt lab inputs (`scripts/lab/virt/`): lab endpoint, `/dev/vda`, node-IP SANs, no worker patch. |
+| `inputs.lab.env` | yes | Libvirt lab inputs (`scripts/lab/virt/`): lab endpoint, `/dev/vda`, node-IP SANs, no worker or network patch. |
 | `patches/common.yaml` | yes | Every node: removes the bundled Flannel so Cilium is the CNI (decisions §3.3). |
 | `patches/controlplane.yaml` | yes | Control plane: disables kube-proxy (Cilium replaces it; Talos rejects this document on workers). |
 | `patches/worker.yaml` | yes | Workers: the `local-path-provisioner` user volume on the data disk (decisions §3.4). |
-| `out/` | **no** (gitignored) | Generated `controlplane.yaml`, `worker.yaml`, `talosconfig`. Contains secrets. |
+| `patches/network-controlplane.yaml` | yes | Production control plane: storage-link NIC `10.99.0.3/29`, MTU 9000; kubelet node IP and etcd pinned to `10.20.0.0/24` (decisions §2.2). |
+| `patches/network-worker.yaml` | yes | Production worker: storage-link NIC `10.99.0.4/29`, MTU 9000; kubelet node IP pinned to `10.20.0.0/24`. |
+| `out/` | **no** (gitignored) | Generated `controlplane.yaml`, `worker.yaml`, `talosconfig`, the `secrets.yaml` bundle, `--regen` backups. Contains secrets. |
 
 Patches are Talos 1.14 **multi-document** patches (matched by `apiVersion`/`kind`), not legacy
 `machine:`/`cluster:` paths, which collide with the generated documents and fail `talosctl validate`.
-A patch file containing only comments is skipped.
+The one exception is `cluster.etcd.advertisedSubnets` in `network-controlplane.yaml`: etcd has no multi-doc
+kind in 1.14, and that path validates. A patch file containing only comments is skipped.
 
 `WORKER_PATCH` selects the worker patch (default `talos/patches/worker.yaml`; empty skips it). The lab sets
 it empty because the lab worker has a single 40 GiB disk with no room for the 90 GiB user volume, so the lab
 has no `/var/mnt/local-path-provisioner`.
+
+`CONTROLPLANE_NETWORK_PATCH` and `WORKER_NETWORK_PATCH` work the same way (defaults `talos/patches/network-*.yaml`).
+The lab sets both empty: its guests have one NIC and no storage link.
+
+**Storage NIC selection.** The patches never name a MAC. A `LinkAliasConfig` called `storage0` matches
+`link.driver == "virtio_net" && link.bus_path.endsWith(":13.0")`: Proxmox puts `netN` on PCI slot `0x12+N`
+on q35, so `net1` is always `0000:00:13.0`. If the alias matches no link or more than one, Talos does not apply
+it and the address stays unset. Check with `talosctl get linkaliasspecs` and `talosctl get addresses`.
 
 ## Generating and validating
 
@@ -44,7 +55,8 @@ Both scripts are offline: they read and write local files only.
 ```sh
 ./scripts/talos/gen-configs.sh            # generate into talos/out/ (no-op if it already exists)
 ./scripts/talos/gen-configs.sh --dry-run  # print the command, write nothing
-./scripts/talos/gen-configs.sh --force    # regenerate (REPLACES the cluster PKI/secrets)
+./scripts/talos/gen-configs.sh --regen    # rebuild controlplane/worker.yaml from secrets.yaml (same PKI)
+./scripts/talos/gen-configs.sh --force    # NEW PKI: never on a running cluster
 TALOS_INPUTS=talos/inputs.lab.env ./scripts/talos/gen-configs.sh   # lab configs into talos/out/lab
 just talos-validate                       # talosctl validate --mode metal on every config
 ```
