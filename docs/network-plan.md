@@ -91,3 +91,8 @@ Host names come from `HOST_RECORDS` in each cluster's `cluster-settings.yaml` (t
 `lab-nas.lab.ardw.be` -> `10.99.100.10`). A specific record wins over the wildcard. The names are the machines'
 own hostnames, unique across sites, so other sites' hosts can be added later without renaming. Proxmox, TrueNAS
 and UniFi keep their self-signed certificates, so the browser warns on these names.
+
+**Cluster nodes' DNS:** the Talos nodes resolve via the UDM gateway `10.20.0.1` only (a `ResolverConfig` in
+`talos/patches/network-*.yaml`; cloud-init sets no nameserver, so Talos would default to `1.1.1.1`). The UDM's
+Forward Domain sends `lab.ardw.be` to Technitium, and CoreDNS forwards to the host resolver, so pods can resolve
+`lab.ardw.be` names (e.g. Grafana reaching `auth.lab.ardw.be`). No public fallback, which would answer NXDOMAIN.

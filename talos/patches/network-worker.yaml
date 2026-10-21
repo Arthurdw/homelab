@@ -21,3 +21,9 @@ kind: KubeNodeConfig
 nodeIP:
   validSubnets:
     - 10.20.0.0/24
+---
+# Host DNS via the UDM gateway only, so pods can resolve lab.ardw.be. Reasoning: network-controlplane.yaml.
+apiVersion: v1alpha1
+kind: ResolverConfig
+nameservers:
+  - address: 10.20.0.1

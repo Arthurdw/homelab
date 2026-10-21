@@ -36,3 +36,13 @@ cluster:
   etcd:
     advertisedSubnets:
       - 10.20.0.0/24
+---
+# Host DNS: the UDM gateway (10.20.0.1) is the only upstream. cloud-init ipconfig0 sets no nameserver,
+# so Talos would fall back to 1.1.1.1, which cannot see the private lab.ardw.be zone (the UDM forwards it
+# to Technitium). CoreDNS forwards to the host resolver (hostDNS.forwardKubeDNSToHost, on by default), so
+# pods resolve auth.lab.ardw.be through this. No public fallback: host DNS may pick any upstream, and a
+# NXDOMAIN from 1.1.1.1 would make lab lookups flaky. The UDM is the gateway already: no new SPOF.
+apiVersion: v1alpha1
+kind: ResolverConfig
+nameservers:
+  - address: 10.20.0.1
