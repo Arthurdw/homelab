@@ -198,7 +198,9 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
 - [x] Guarded bootstrap/kubeconfig helpers and runbook (`docs/runbooks/talos-bootstrap.md`)
 - [x] Bootstrap the control plane, join the worker, bring up Cilium *(lab, 2026-10-20; both nodes Ready)*
 - [x] Check storage reachability from the cluster *(lab: a `nas-nfs` PVC bound and a pod wrote and read a file)*
-- [ ] No HA claims on a single host
+- [x] No HA claims on a single host *(audited 2026-10-21 with `git grep` for HA, failover, redundancy and
+      high availability: every hit disclaims HA (architecture, decisions §3.1, risk R11, Talos bootstrap,
+      local-path, storage) or is about disk redundancy, never node redundancy)*
 
 ### Phase 6: Flux and platform services, ⛔ GATE 6
 
