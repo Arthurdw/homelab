@@ -1,0 +1,22 @@
+# Lab only: lets Seahub reach and trust Authentik for its server-side OIDC calls (token, userinfo).
+#
+# Why it exists: the lab's auth.lab.ardw.be is answered only by Technitium on the LAN, which cluster DNS does not
+# forward to, and its certificate is signed by the lab's internal CA. Production has neither problem when
+# auth.ardw.be resolves publicly and carries a publicly trusted certificate (see docs/runbooks/household-backups.md).
+#
+# The CA comes from a throwaway Certificate: cert-manager puts the issuing CA in `ca.crt` of every issued Secret,
+# so no CA material is copied or committed. The Certificate itself is never presented to anyone.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: seafile-lab-ca-trust
+  namespace: seafile
+spec:
+  secretName: seafile-lab-ca-trust
+  commonName: seafile-lab-ca-trust.seafile.svc.cluster.local
+  dnsNames:
+    - seafile-lab-ca-trust.seafile.svc.cluster.local
+  issuerRef:
+    name: internal-ca
+    kind: ClusterIssuer
+    group: cert-manager.io

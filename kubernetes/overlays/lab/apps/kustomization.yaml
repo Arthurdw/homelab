@@ -16,3 +16,36 @@ resources:
   - kopia-users.sops.yaml
   - authentik-seafile-oidc.sops.yaml
   - seafile-oidc.sops.yaml
+  - seafile-lab-trust.yaml
+patches:
+  # Lab only: resolve auth.lab.ardw.be to Traefik and trust the internal CA for Seahub's OIDC calls.
+  - target:
+      kind: Deployment
+      name: seafile
+      namespace: seafile
+    patch: |-
+      - op: add
+        path: /spec/template/spec/hostAliases
+        value:
+          - ip: "10.99.100.100"
+            hostnames: ["auth.lab.ardw.be"]
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: REQUESTS_CA_BUNDLE
+          value: /etc/lab-ca/ca.crt
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value:
+          name: lab-ca
+          mountPath: /etc/lab-ca
+          readOnly: true
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: lab-ca
+          secret:
+            secretName: seafile-lab-ca-trust
+            items:
+              - key: ca.crt
+                path: ca.crt
