@@ -98,6 +98,19 @@ resource "proxmox_virtual_environment_vm" "this" {
     mac_address = var.mac_address
   }
 
+  # Optional second NIC (Proxmox net1) on an untagged bridge, e.g. the storage link. No ip_config
+  # block for it, so the NoCloud network-config never mentions it and Talos machine config owns
+  # its address. No MAC: Proxmox generates one.
+  dynamic "network_device" {
+    for_each = var.storage_network_device == null ? [] : [var.storage_network_device]
+    content {
+      bridge   = network_device.value.bridge
+      model    = var.network_model
+      firewall = network_device.value.firewall
+      mtu      = network_device.value.mtu
+    }
+  }
+
   # Always present: the NoCloud cloud-init drive is how the nocloud image is seeded
   # (network-config, and optionally user-data = machine config).
   initialization {

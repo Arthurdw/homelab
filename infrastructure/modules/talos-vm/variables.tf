@@ -283,6 +283,21 @@ variable "network_model" {
   default     = "virtio"
 }
 
+variable "storage_network_device" {
+  description = "Optional second NIC (Proxmox net1) on an untagged bridge such as the storage link: no VLAN, no MAC, no cloud-init ip_config. `mtu` should match the bridge. Null leaves the VM with one NIC."
+  type = object({
+    bridge   = string
+    mtu      = optional(number, 1500)
+    firewall = optional(bool, false)
+  })
+  default = null
+
+  validation {
+    condition     = var.storage_network_device == null || try(var.storage_network_device.mtu >= 576 && var.storage_network_device.mtu <= 65520, false)
+    error_message = "storage_network_device.mtu must be between 576 and 65520."
+  }
+}
+
 variable "network_firewall" {
   description = "Enable the Proxmox firewall on this NIC. Off by default; the management segment stays private (docs/decisions.md §5.2)."
   type        = bool

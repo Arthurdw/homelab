@@ -18,6 +18,7 @@ addresses), which keeps a whole cluster readable in one file.
 | K8s traffic on its own VLAN | `vlan_id` (null on a flat/lab bridge) | `docs/decisions.md` §2.1 |
 | Talos (not OpenTofu) owns machine config and bootstrap | `machine_config_delivery` default `talosctl` | `docs/architecture.md` §7 |
 | Disable the Proxmox firewall on the K8s NIC; management stays private | `network_firewall` default `false` | `docs/decisions.md` §5.2 |
+| Talos VMs reach the NAS directly over the storage link, not routed | optional `storage_network_device` (net1, no `ip_config`) | `docs/decisions.md` §2.2 |
 | No RAM ballooning | `memory_floating_mb` default `0` | Talos docs, Proxmox guide |
 
 It also follows the Talos Proxmox recommendations: UEFI (`ovmf`) + `q35` + a 4 MiB EFI
@@ -143,6 +144,7 @@ Exactly one of the two must be set (a `precondition` enforces it):
 | `mac_address` | `string` | `null` | Optional fixed MAC for deterministic addressing/DHCP reservation. |
 | `network_model` | `string` | `"virtio"` | NIC model (Talos recommends `virtio`). |
 | `network_firewall` | `bool` | `false` | Enable the Proxmox firewall on this NIC. |
+| `storage_network_device` | `object({bridge, mtu, firewall})` | `null` | Optional second NIC (net1) on an untagged bridge, e.g. the storage link. No VLAN, no MAC, no cloud-init `ip_config`: Talos machine config addresses it. `mtu` defaults to 1500, `firewall` to `false`. |
 | `ip_address` | `string` | `null` | Static IPv4 in CIDR form, delivered via cloud-init `network-config`; `null` = DHCP. |
 | `ip_gateway` | `string` | `null` | Default gateway for `ip_address`. |
 
