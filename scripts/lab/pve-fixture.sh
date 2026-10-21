@@ -321,7 +321,7 @@ configure_pve() {
   # Privileges mirror what the bpg/proxmox provider documents for VM + file management.
   # PVE 9 removed VM.Monitor (it is rejected as an invalid privilege); It is simply dropped from the list.
   ssh_pve "set -e
-    pveum role list --output-format json | grep -q '\"$PVE_ROLE\"' || pveum role add $PVE_ROLE -privs 'Datastore.Allocate Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Pool.Allocate Sys.Audit Sys.Console Sys.Modify SDN.Use VM.Allocate VM.Audit VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Cloudinit VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options VM.Migrate VM.PowerMgmt'
+    pveum role list --output-format json | grep -q '\"$PVE_ROLE\"' || pveum role add $PVE_ROLE -privs 'Datastore.Allocate Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Pool.Allocate Sys.Audit Sys.Console Sys.Modify SDN.Use VM.Allocate VM.Audit VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Cloudinit VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options VM.GuestAgent.Audit VM.Migrate VM.PowerMgmt'
     pveum user list --output-format json | grep -q '\"$PVE_USER\"' || pveum user add $PVE_USER
     pveum acl modify / --users $PVE_USER --roles $PVE_ROLE" || die "could not create the automation user"
   if grep -q '^LAB_PVE_API_TOKEN=' "$ENV_FILE"; then

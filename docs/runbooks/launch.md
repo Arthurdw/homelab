@@ -53,10 +53,12 @@ secrets.
 
 **Proxmox (user, role, token).** In a root shell on poseidon (console or `ssh root@10.10.1.1`). The
 privileges are the ones proven on the fixture (`scripts/lab/pve-fixture.sh`); PVE 9 has no `VM.Monitor`, so
-don't add it.
+don't add it. `VM.GuestAgent.Audit` (its PVE 9 replacement) lets the provider read the nodes' addresses from
+the guest agent; without it the apply warns with a 403 and the address outputs stay empty. On a host
+whose role already exists: `pveum role modify TofuTalos -privs VM.GuestAgent.Audit -append 1`.
 
 ```sh
-pveum role add TofuTalos -privs 'Datastore.Allocate Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Pool.Allocate Sys.Audit Sys.Console Sys.Modify SDN.Use VM.Allocate VM.Audit VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Cloudinit VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options VM.Migrate VM.PowerMgmt'
+pveum role add TofuTalos -privs 'Datastore.Allocate Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Pool.Allocate Sys.Audit Sys.Console Sys.Modify SDN.Use VM.Allocate VM.Audit VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Cloudinit VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options VM.GuestAgent.Audit VM.Migrate VM.PowerMgmt'
 pveum user add terraform@pve
 pveum acl modify / --users terraform@pve --roles TofuTalos
 pveum user token add terraform@pve tofu --privsep 0
