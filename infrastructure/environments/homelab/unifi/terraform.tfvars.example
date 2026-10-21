@@ -9,3 +9,6 @@ unifi_api_key = "REPLACE-ME"
 
 unifi_site           = "default"
 unifi_allow_insecure = true
+
+# K8s VLAN DHCP pool (host offsets; TODO(GATE 4) proposal, see variables.tf)
+# k8s_dhcp = { enabled = true, first = 200, last = 249 }

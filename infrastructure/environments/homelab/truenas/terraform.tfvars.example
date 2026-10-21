@@ -1,10 +1,16 @@
 # Copy to `terraform.tfvars` (gitignored) and fill in, or export TF_VAR_* instead.
 # NEVER commit real values.
 
-# https://<truenas-host>
-truenas_endpoint = "https://CHANGE-ME"
+# wss://<truenas-host>/api/current   (JSON-RPC; TrueNAS >= 25.04 only)
+truenas_endpoint = "wss://CHANGE-ME/api/current"
 
 # Prefer: export TF_VAR_truenas_api_key='...'   (keep the key out of files entirely)
 truenas_api_key = "REPLACE-ME"
 
 truenas_insecure = true
+
+# Kubernetes NFS export (defaults shown; see variables.tf for the TODO(GATE 4) notes)
+# k8s_dataset_name         = "main/k8s"
+# k8s_nfs_allowed_networks = ["10.99.0.0/30"]
+# k8s_nfs_maproot_user     = "root"
+# k8s_nfs_maproot_group    = "root"
