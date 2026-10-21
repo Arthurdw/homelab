@@ -223,7 +223,10 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
 - [x] Authentik SSO *(Authentik is deployed at `auth.lab.ardw.be` with a daily database dump and mails through
       the relay as `auth@lab.ardw.be`; Seafile signs in through it, declared by a blueprint. Proven in the lab
       2026-10-21: the OIDC discovery document is served for `seafile`, and Seafile's `/oauth/login/` answers 302
-      to Authentik's authorize endpoint with `client_id=seafile`; a full browser login is not run yet. Other
+      to Authentik's authorize endpoint with `client_id=seafile`; the full login, driven with curl and a throwaway
+      user, worked end to end (Seahub user created, uid = hashed `sub`, contact email set), after fixing the
+      provider's grant types and, lab only, in-cluster DNS and CA trust for Seahub. Production still needs a
+      check that the Seafile pod can reach `auth.ardw.be`, runbook household-backups (c). Other
       apps are still to be wired)*
 - [x] Seafile (decisions §5.8) at `seafile.lab.ardw.be`, MariaDB with a daily dump *(proven in the lab
       2026-10-21: login page, admin API token. Authentik OIDC sign-in added the same day)*

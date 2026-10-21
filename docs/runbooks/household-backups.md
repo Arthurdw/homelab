@@ -99,8 +99,24 @@ the PVC's subdirectory of `main/k8s` instead.) Mount the dataset (or copy it) on
 
 Install the Seafile client (desktop or mobile) from seafile.com, server `https://seafile.lab.ardw.be`, and
 sign in. On the web login page, "Single Sign-On" signs in through Authentik (the `seafile` application, declared
-in `kubernetes/apps/authentik/blueprints.yaml`); an Authentik user is created in Seafile on first login, by
-email address. Local login stays on, so the admin account always works, and the admin can still create accounts
+in `kubernetes/apps/authentik/blueprints.yaml`); an Authentik user is created in Seafile on first login. Seafile keys the
+account on Authentik's stable `sub` (the Authentik provider uses `hashed_user_id`) and keeps the email as the contact
+address, so a changed email does not orphan the account; Seahub shows the internal id as `<hash>@auth.local`. Local login stays on, so the admin account always works, and the admin can still create accounts
 in the Seafile admin panel.
+
+Seahub itself calls Authentik's token and userinfo endpoints from inside the cluster, so `auth.<domain>` must
+resolve and be trusted from the Seafile pod. In production it resolves through public DNS and carries a publicly
+trusted certificate, so nothing extra is needed there, provided the pod can reach that address (hairpin through
+the router or the split-horizon record to Traefik). Verify that from the pod before relying on it. The lab has
+neither (its zone lives only on Technitium and its certificates come from the internal CA), so the lab overlay
+(`kubernetes/overlays/lab/apps/seafile-lab-trust.yaml` and the patch in its `kustomization.yaml`) adds a
+`hostAliases` entry to Traefik and mounts the internal CA as `REQUESTS_CA_BUNDLE`.
+
+Proven in the lab 2026-10-21 with a throwaway Authentik user, driven with curl: `/oauth/login/` 302 to the
+authorize endpoint, the flow executor (identification, password) completed, authorize 302 to
+`/oauth/callback/`, callback 302 to `/`, and `/api2/account/info/` returned 200 with the user's name and
+`contact_email`. The user row carried the hashed `sub` as the social-auth uid. The test user was deleted from both
+sides.
+
 The clients keep their own tokens either way (decisions §5.8). Seafile is for files you want everywhere. It is
 not a device backup: keep the Kopia or Time Machine job running as well.
