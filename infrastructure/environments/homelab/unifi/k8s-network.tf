@@ -2,7 +2,7 @@
 # Never import, adopt, rename or edit an existing UniFi object here. A plan that shows an update or
 # destroy of anything not in this file is a stop-and-ask event.
 #
-# The storage link (10.99.0.0/30, Proxmox <-> NAS) is a direct 10 GbE cable, not a UniFi object.
+# The storage link (10.99.0.0/29, Proxmox <-> NAS) is a direct 10 GbE cable, not a UniFi object.
 # There is nothing to manage on the controller for it (see README.md).
 
 # -----------------------------------------------------------------------------

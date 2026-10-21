@@ -140,8 +140,9 @@ UniFi switch-port tagging (HOME native; VLAN 4 and 20 tagged), a UI step.
 - **Interfaces.** `nic0` (1 GbE) is `vmbr0` carrying VLAN 4. `nic1` and `nic2` are the 10 GbE X520. The direct
   fibre is on `nic2` (carrier seen 2026-10-21); `nic1` is unused. Only `nic2`'s `mtu 9000` stanza is set by
   hand; `vmbr1` itself is created by the Proxmox root (step 5).
-- **Direct 10 GbE link.** poseidon `10.99.0.1/30` (on `vmbr1`) to hercules-nas `10.99.0.2/30`, MTU 9000 on
-  both. The subnet is provisional (`docs/decisions.md` §2.2). poseidon sees carrier on `nic2`; the NAS side
+- **Direct 10 GbE link.** `10.99.0.0/29`: poseidon `.1` (on `vmbr1`), hercules-nas `.2`, talos-cp-1 `.3` and
+  talos-wk-1 `.4` (each VM's second NIC on `vmbr1`), MTU 9000, no gateway (`docs/decisions.md` §2.2, decided
+  2026-10-21; MTU provisional). poseidon sees carrier on `nic2`; the NAS side
   is not configured yet and nothing has been pinged or measured on the real link. Both ends are OpenTofu
   resources (`storage-link.tf` in the Proxmox and TrueNAS roots, proven on the lab fixtures only), so this
   ping and iperf3 test runs after those applies; `host-network-bootstrap.md` has the order.
@@ -157,7 +158,7 @@ iperf3 -c 10.99.0.2 -P 4 -R           # NAS to poseidon
 ```
 
 Expected: no loss on the pings; both iperf3 directions near line rate for 10 GbE (about 9 Gbit/s). Record the
-numbers; they settle how the nodes will reach the NAS (`docs/runbooks/host-network-bootstrap.md` §4).
+numbers; they settle the MTU. How the nodes reach the NAS is settled: their own NIC on the link (§2.2).
 
 Rollback: the console is the way back; each host's section in that runbook says how to restore the old
 address. Take the DHCP lease address again if VLAN tagging breaks the path.
@@ -184,8 +185,8 @@ bond on `storage_link_interface`, which must be set first). Your own `arthur` ac
 `truenas_user.arthur will be imported` and nothing else: no `~` lines under it. Any change to `arthur` is a
 stop, because it is the admin login. The pool `main` itself is not managed here; it already exists. Any
 destroy or in-place change to an existing dataset is a stop. Needs the Time Machine quota and the two
-password variables (open inputs below), and `k8s_nfs_allowed_networks` settled (README and
-`docs/decisions.md` §2.2).
+password variables (open inputs below). `k8s_nfs_allowed_networks` defaults to the `/29` storage link
+(`docs/decisions.md` §2.2); the bond's alias is `10.99.0.2/29`.
 
 Then `tofu apply`, then `tofu plan` again.
 
@@ -204,8 +205,8 @@ tofu validate
 tofu plan
 ```
 
-Expected: the Talos control-plane and worker VMs, the Talos image download, the storage-link bridge `vmbr1`
-(`nic2` must already carry `mtu 9000`), and nothing else. If the node
+Expected: the Talos control-plane and worker VMs (each with a second NIC, `net1`, on `vmbr1` at MTU 9000), the
+Talos image download, the storage-link bridge `vmbr1` (`nic2` must already carry `mtu 9000`), and nothing else. If the node
 is still `pve`, `proxmox_node_name = "pve"` must be set. Read `infrastructure/environments/homelab/proxmox/README.md`.
 
 Then `tofu apply`, then `tofu plan` again.
@@ -225,7 +226,8 @@ Follow `docs/runbooks/talos-bootstrap.md` end to end, owner present: fill `talos
 Expected: `kubectl get nodes` shows both nodes Ready (the runbook's §8).
 
 Rollback: the runbook's §9 and §10. Wiping and re-applying the machine config is allowed until the cluster
-holds data you care about. Regenerating configs changes the cluster identity, so don't use `--force` lightly.
+holds data you care about. `--force` changes the cluster identity: never use it once a node runs the config.
+A patch change on a running cluster is `just talos-regen` plus `just talos-upgrade-config` (runbook §11).
 
 ## 7. Flux bootstrap
 
@@ -250,7 +252,6 @@ Rollback: `flux suspend kustomization --all` stops reconciling. Remove the clust
 | VLAN 4 network name | `server_network_name`, to be confirmed from the controller (default `server`) | 2 |
 | 10 GbE cable and link test | cable between poseidon and the NAS, then the ping and iperf3 test above | 3, 4 |
 | NAS 10 GbE port name | `storage_link_interface` in the TrueNAS root's `terraform.tfvars` (no default; read it in the TrueNAS UI under Network) | 4 |
-| /29 storage-subnet decision | whether the storage link stays a /30 or grows to a /29; undecided, see `docs/decisions.md` §2.2 and `k8s_nfs_allowed_networks` | 3, 4 |
 | Time Machine quota | `timemachine_jolien_quota_gib` (2x the Mac's disk is the rule of thumb) | 4 |
 | `jolien` and `dunia` passwords | export `TF_VAR_user_jolien_password` and `TF_VAR_user_dunia_password` before the plan (no default, never in a file); OpenTofu creates both accounts | 4 |
 | SMTP password | relay `mail.a-line.be`, user `homelab@lab.ardw.be` (`docs/decisions.md` §5.1); set at the key ceremony | 7 |

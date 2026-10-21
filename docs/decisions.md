@@ -57,13 +57,25 @@ still holds. Why:
 **Why:** keeps cluster traffic off the management segment, and adding a VLAN is purely additive to the
 existing UDM configuration (the UniFi policy is additive-only).
 
-### 2.2 — The storage point-to-point link moves off link-local — *provisional*
+### 2.2 — The storage link moves off link-local, to a /29 the Talos nodes join — *decided 2026-10-21* (MTU provisional)
 
-Today: `169.254.10.20` ↔ `169.254.10.10` (link-local) over the 10 GbE direct link. Target: `10.99.0.0/30`
-(Proxmox `.1`, NAS `.2`, no gateway, MTU 9000).
+Today: `169.254.10.20` ↔ `169.254.10.10` (link-local) over the 10 GbE direct link. Target: `10.99.0.0/29`, no
+gateway, MTU 9000:
 
-**Provisional** until throughput and MTU are actually measured at cutover. Link-local *works*; the reason to
-change is that it is unconventional and easy to misdiagnose.
+| Address | Host | Where it is set |
+|---|---|---|
+| `10.99.0.1` | poseidon (`vmbr1`) | proxmox root `storage-link.tf` |
+| `10.99.0.2` | hercules-nas (`bond1`) | truenas root `storage-link.tf`; `NFS_SERVER` |
+| `10.99.0.3` | talos-cp-1, second NIC (`net1` on `vmbr1`) | `talos/patches/network-controlplane.yaml` |
+| `10.99.0.4` | talos-wk-1, second NIC | `talos/patches/network-worker.yaml` |
+
+**Why a /29 (2026-10-21):** the cluster mounts NFS from the NAS (§4.2), and the Talos nodes live on
+`10.20.0.0/24`, off the old `/30`. A NIC on the link gives them a direct path: no routing or NAT on poseidon, the
+NAS sees each node's own address, and the exports allow `10.99.0.0/29` only. The node's kubelet and etcd
+addresses stay pinned to `10.20.0.0/24`.
+
+Link-local *works*; the reason to leave it is that it is unconventional and easy to misdiagnose. MTU 9000 stays
+**provisional** until throughput is measured at cutover.
 
 ### 2.3 — Container CIDRs are identical in every environment — *decided*
 
@@ -383,8 +395,9 @@ Why:
 Consequences:
 
 - The Kubernetes side is `kubernetes/apps/kopia`; the TrueNAS side is
-  `infrastructure/environments/homelab/truenas/backups.tf`. Both depend on the NFS-from-Talos routing
-  question already open for `main/k8s` (`k8s_nfs_allowed_networks`).
+  `infrastructure/environments/homelab/truenas/backups.tf`. Both mount over the storage link like
+  `main/k8s` (`k8s_nfs_allowed_networks`). The NFS-from-Talos routing question is resolved (2026-10-21): the
+  nodes have their own NIC on the `/29` (§2.2).
 - The Kopia repository password is the only key to those backups. It lives in the secrets store, with an
   offline copy (`docs/secrets-and-state.md`); losing it loses the repository.
 - Time Machine needs one TrueNAS SMB account per Mac, created by hand (its password stays out of

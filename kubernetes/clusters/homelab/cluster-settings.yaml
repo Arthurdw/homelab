@@ -12,8 +12,8 @@ data:
   # MetalLB L2 address pool on the K8s VLAN (docs/decisions.md §2.1, §2.6:
   # nodes 10.20.0.11-29, pool 10.20.0.100-199).
   METALLB_POOL: 10.20.0.100-10.20.0.199
-  # NAS NFS server over the dedicated 10 GbE point-to-point storage link
-  # (docs/decisions.md §2.2: Proxmox 10.99.0.1, NAS 10.99.0.2).
+  # NAS NFS server over the dedicated 10 GbE storage link, which each node joins with a second NIC
+  # (docs/decisions.md §2.2: 10.99.0.0/29, Proxmox .1, NAS .2, talos-cp-1 .3, talos-wk-1 .4).
   NFS_SERVER: 10.99.0.2
   # Fixed LoadBalancer addresses from the start of the MetalLB pool (a proposal, not yet in decisions.md):
   # Traefik is where every *.lab.ardw.be split-horizon record points; Technitium is the internal resolver.

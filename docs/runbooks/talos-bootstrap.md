@@ -52,8 +52,9 @@ The worker config carries the `local-path-provisioner` user volume (`talos/patch
 worker VM needs its data disk (decisions §3.4). The libvirt lab uses `TALOS_INPUTS=talos/inputs.lab.env`,
 which skips that patch (`WORKER_PATCH=""`) and writes to `talos/out/lab`.
 
-`gen-configs.sh` is idempotent: a second run is a no-op. Only `--force` regenerates, and that **replaces
-the cluster PKI/secrets**, invalidating any node already configured from the previous files.
+`gen-configs.sh` is idempotent: a second run is a no-op. `--force` regenerates, and that **replaces
+the cluster PKI/secrets**, invalidating any node already configured from the previous files. Once a node runs
+the config, use `--regen` instead (section 11).
 
 ## 3. Boot the node VMs
 
@@ -149,9 +150,10 @@ These are real and are the reason the gate exists. Read them before starting.
 - **`talosctl bootstrap` cannot be undone in place.** It creates etcd; there is no "un-bootstrap". To
   start over you must reset or recreate the node (`talosctl reset` wipes the node's disks) and bootstrap
   again — a new etcd, and any previously created Kubernetes objects are gone.
-- **Regenerating machine configs changes the cluster identity.** `gen-configs.sh --force` produces a new
-  PKI/secrets. Nodes already configured from the old files become inconsistent with any node configured
-  from the new ones; a clean re-provision is required. Back up `talos/out/` before any regeneration.
+- **`--force` changes the cluster identity.** `gen-configs.sh --force` produces a new PKI/secrets. Nodes
+  already configured from the old files become inconsistent with any node configured from the new ones; a
+  clean re-provision is required. A patch change on a running cluster is `--regen` (section 11), which keeps
+  the PKI. Back up `talos/out/` before any regeneration.
 - **There is no in-place Talos OS downgrade.** `talosctl upgrade` moves forward one minor at a time; a
   failed upgrade is recovered by redeploying the node, not by rolling the version back.
 - **No high availability.** Every node is a VM on the single host `poseidon`. Losing that host loses the
@@ -170,3 +172,38 @@ These are real and are the reason the gate exists. Read them before starting.
   bootstrap a second node.
 - If the cluster is unrecoverable: reset the affected nodes and return to step 2. Record what happened in
   `docs/runbooks/phase-reports/`.
+
+## 11. Change machine config on a running cluster
+
+After a change under `talos/patches/` or `talos/inputs.env`. Never `--force` here: it replaces the PKI.
+
+1. Secrets bundle, once. `--regen` refuses without `talos/out/secrets.yaml`. Derive it from the running
+   config, which carries the same PKI:
+
+   ```sh
+   talosctl gen secrets --from-controlplane-config talos/out/controlplane.yaml -o talos/out/secrets.yaml
+   ```
+
+2. Regenerate and validate (offline). The old files go to `talos/out/backup-<UTC time>/`; `talosconfig` and
+   `secrets.yaml` are not touched:
+
+   ```sh
+   just talos-regen
+   ```
+
+3. Dry run per node, control plane first. Read the diff: only the intended documents should change.
+
+   ```sh
+   just talos-upgrade-config 10.20.0.11      # talosctl apply-config ... --dry-run
+   just talos-upgrade-config 10.20.0.12
+   ```
+
+4. Apply, control plane first. `--mode=auto` reboots only if the change needs it; the dry run says which.
+
+   ```sh
+   just talos-upgrade-config 10.20.0.11 --mode=auto
+   just talos-upgrade-config 10.20.0.12 --mode=auto
+   ```
+
+5. Check `just talos-health` and `kubectl get nodes -o wide`. To go back, copy the backup files over the
+   new ones and apply them the same way.

@@ -12,8 +12,8 @@ Addresses come from `docs/network-plan.md`:
 |---|---|---|---|---|
 | `poseidon` | VLAN 4 on `vmbr0` | `10.10.1.1/16` | `10.10.0.1` | `10.10.0.1` |
 | `hercules-nas` | VLAN 4 on the 1 GbE NIC | `10.10.1.10/16` | `10.10.0.1` | `10.10.0.1` |
-| `poseidon` | 10 GbE storage port (`nic2`) | `10.99.0.1/30`, MTU 9000 | none | — |
-| `hercules-nas` | 10 GbE storage port | `10.99.0.2/30`, MTU 9000 | none | — |
+| `poseidon` | 10 GbE storage port (`nic2`) | `10.99.0.1/29`, MTU 9000 | none | — |
+| `hercules-nas` | 10 GbE storage port | `10.99.0.2/29`, MTU 9000 | none | — |
 
 The two storage-link rows are managed by the IaC, not by this runbook: `vmbr1` by the Proxmox root
 (`storage-link.tf`) and the NAS port by the TrueNAS root (`storage-link.tf`). Only what OpenTofu cannot
@@ -92,7 +92,7 @@ Install with the DHCP address the installer offers, then follow the steps below.
 
    The fibre to hercules-nas is on `nic2` (found 2026-10-21 by bringing both ports up and checking for `LOWER_UP` /
    `/sys/class/net/<nic>/carrier`; `nic1` is unused). If the cable is ever moved, re-check the same way.
-   `vmbr1` (`10.99.0.1/30`, MTU 9000, port `nic2`) comes from `tofu apply` in the Proxmox root. If you
+   `vmbr1` (`10.99.0.1/29`, MTU 9000, port `nic2`) comes from `tofu apply` in the Proxmox root. If you
    already made one by hand, adopt it instead of recreating it:
    `tofu import proxmox_network_linux_bridge.storage_link poseidon:vmbr1`, after which `tofu plan` shows no
    changes (the lab proved this). Proxmox only accepts the bridge if `nic2` is at MTU 9000 first, so keep the
@@ -134,7 +134,7 @@ From the web UI, at the install's DHCP address:
    `hercules-nas`.
 3. Remove DHCP from the parent interface, so the host doesn't keep a second address on HOME.
 4. The 10 GbE port is not configured here. The TrueNAS root does it (`storage-link.tf`): a one-port
-   failover bond over the port with alias `10.99.0.2/30` and MTU 9000. Set `storage_link_interface` in
+   failover bond over the port with alias `10.99.0.2/29` and MTU 9000. Set `storage_link_interface` in
    `terraform.tfvars` to the port's name (Network → Interfaces; it is not the management NIC), then apply.
    A bond, because the provider cannot configure a physical interface (PHYSICAL is import-only) and a
    bridge does not carry its MTU to the port, whereas a bond does (proven on the fixture).
@@ -156,7 +156,7 @@ The console menu's "Configure network interfaces" option does the same if the we
 ## 4. After the bootstrap
 
 - The TrueNAS root needs SCALE 25.04 or later (`infrastructure/environments/homelab/truenas/README.md`).
-- How the Talos nodes reach `10.99.0.2` for NFS is still open (`truenas/variables.tf`,
-  `k8s_nfs_allowed_networks`), and so is the provisional storage subnet (`docs/decisions.md` §2.2). Measure
-  throughput over the link before settling either.
+- Resolved 2026-10-21: the Talos nodes reach `10.99.0.2` for NFS over their own NIC on the `/29` (talos-cp-1
+  `.3`, talos-wk-1 `.4`), with no routing or NAT on poseidon (`docs/decisions.md` §2.2). The MTU stays
+  provisional: measure throughput over the link first.
 - Continue with the Proxmox root, then `docs/runbooks/talos-bootstrap.md`.

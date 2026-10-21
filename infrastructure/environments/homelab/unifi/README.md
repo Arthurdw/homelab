@@ -47,8 +47,8 @@ tofu plan                                      # review carefully
 A precondition rejects a DHCP pool that overlaps the nodes (`.11-.29`) or MetalLB (`.100-.199`).
 The firewall zone is left to the controller default. Any inter-zone policy is a later, additive change.
 
-**The storage link is not a UniFi object.** `10.99.0.0/30` (Proxmox `.1`, NAS `.2`, MTU 9000) is a
-direct 10 GbE point-to-point cable between the Proxmox dual-port NIC and the NAS. It never touches a
+**The storage link is not a UniFi object.** `10.99.0.0/29` (Proxmox `.1`, NAS `.2`, Talos VMs `.3`/`.4` via
+`vmbr1`, MTU 9000) is a direct 10 GbE cable between the Proxmox dual-port NIC and the NAS. It never touches a
 UniFi switch or the UDM, so this root creates nothing for it.
 
 ### Host fixed IPs: the additive-only exception

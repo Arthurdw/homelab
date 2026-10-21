@@ -33,7 +33,8 @@
    `1.1.1.1`. The UDM answers on the server VLAN. (`docs/decisions.md` §6.1)
 2. **Pod/service CIDRs and reserved ranges** — pods `10.244.0.0/16`, services `10.96.0.0/16`; never-use ranges
    are listed in `docs/decisions.md` §2.4.
-3. **Storage subnet** — moves to `10.99.0.0/30` over the 10 GbE link (provisional; §2.2).
+3. **Storage subnet** — `10.99.0.0/29` over the 10 GbE link, with the Talos nodes on it for NFS (2026-10-21;
+   MTU provisional; §2.2).
 4. **IPv6** — disabled on the new K8s and storage segments; the house LAN is untouched (§2.5).
 5. **Management VLAN tag** — VLAN 4, `10.10.0.0/16`, gateway `10.10.0.1` (the owner read it from the UniFi
    controller, 2026-10-21). Both hosts are being reinstalled, so the old Proxmox/NAS naming mismatch goes away;
@@ -63,7 +64,7 @@
 | SERVERS | 30 | `10.30.30.0/24` | workload VMs, separated from management — new |
 | IOT | 40 | `10.30.40.0/24` | smart-home and consumer devices — new |
 | GUEST | 60 | `10.30.60.0/24` | visitors, internet only — new |
-| Storage p2p (10 GbE) | — | `10.99.0.0/30` | Proxmox `10.99.0.1`, NAS `10.99.0.2`; no gateway; MTU 9000 |
+| Storage link (10 GbE) | — | `10.99.0.0/29` | Proxmox `10.99.0.1`, NAS `10.99.0.2`, talos-cp-1 `10.99.0.3`, talos-wk-1 `10.99.0.4`; no gateway; MTU 9000 |
 | Pods | — | `10.244.0.0/16` | identical in every environment |
 | Services | — | `10.96.0.0/16` | identical in every environment |
 | Lab nodes/VIPs | — | `10.99.100.0/24` | MetalLB `10.99.100.100–199`; local lab only |
