@@ -167,7 +167,8 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
 - [x] Proxmox: the `talos-vm` module and the decided topology (1 CP + 1 worker with a data disk)
 - [ ] TrueNAS resources *(the `main/k8s` dataset, its NFS share and snapshot task (`truenas/k8s.tf`), and the
       household backup datasets, Time Machine share, Kopia and Seafile exports (`truenas/backups.tf`) are
-      authored and proven on the L1 fixture. **Blocked** on the real NAS: ≥ 25.04, see Phase 2)*
+      authored and proven on the L1 fixture. Not yet on the real NAS: it runs 25.10.7 since the 2026-10-21
+      reinstall, so only the owner-gated live apply remains)*
 - [ ] UniFi resources: K8s VLAN 20 and storage link, additive only *(the `hl-k8s` network, VLAN 20, is
       authored on provider 0.59.0 with `prevent_destroy` and validates. The host fixed IPs (poseidon
       `10.10.1.1`, hercules-nas `10.10.1.10`) are a narrow, owner-approved take-over of those two client
@@ -186,7 +187,8 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
 
 - [ ] Pre-flight (owner): all data verified as backed up; config exports captured; written step-by-step plan
 - [x] Owner reinstalls Proxmox and TrueNAS from ISO *(confirmed by the owner on 2026-10-21; both answer on VLAN 4:
-      `poseidon` web UI on 10.10.1.1:8006, `hercules-nas` web UI on 10.10.1.10. Versions still to record)*
+      `poseidon` web UI on 10.10.1.1:8006, `hercules-nas` web UI on 10.10.1.10. PVE 9.2.2 and TrueNAS 25.10.7,
+      recorded in `versions.yaml`)*
 - [ ] Everything after the ISO install is applied by IaC. Hand-made config is a defect
 - [x] Pool: rebuilt empty by the owner on 2026-10-21 as RAIDZ2 (8× 4 TB) with an NVMe SLOG, name `main` kept (decisions §1.4)
 - [ ] Fill every `TODO(GATE 4)` value (`grep -rn "TODO(GATE 4)"`); verify the storage link (interface, MTU,
@@ -319,8 +321,6 @@ The ordered go-live checklist, with each open input and the step it blocks, is `
   `homelab@lab.ardw.be` to send as each per-app From address, and the alert recipients (decisions §5.1).
 - **Production key ceremony:** the age key, then the production Secrets
   (`kubernetes/overlays/homelab/README.md`). Until then production `infrastructure` can't become Ready.
-- **TrueNAS upgrade to SCALE ≥ 25.04:** the `truenas/truenas` provider needs it; without it `truenas/` stays
-  unapplied. The root itself is proven on a 25.10 lab fixture.
 - **Production LoadBalancer IPs:** `cluster-settings` proposes `10.20.0.100` (Traefik) and `10.20.0.101`
   (Technitium); not yet in `docs/decisions.md`.
 - **Flux on K8s 1.37.1:** the whole tree is Ready on the lab at 1.37.1; keep it.

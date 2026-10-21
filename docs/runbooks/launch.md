@@ -62,10 +62,11 @@ pveum acl modify / --users terraform@pve --roles TofuTalos
 pveum user token add terraform@pve tofu --privsep 0
 ```
 
-The last command prints the token secret once. Copy it straight into your shell:
+The last command prints the token secret once. Read it into your shell without echoing it or leaving it in
+the shell history, and paste `terraform@pve!tofu=<secret>` at the prompt:
 
 ```sh
-export PROXMOX_VE_API_TOKEN='terraform@pve!tofu=<secret>'
+read -rs PROXMOX_VE_API_TOKEN && export PROXMOX_VE_API_TOKEN
 ```
 
 The provider also uses SSH for a few operations (uploading images and snippets). Load root's key into an
@@ -76,7 +77,7 @@ agent so no key file is referenced: `eval "$(ssh-agent)"; ssh-add ~/.ssh/<your k
 `opentofu`, create it, copy the key shown once. Then:
 
 ```sh
-export TF_VAR_truenas_api_key='<key>'
+read -rs TF_VAR_truenas_api_key && export TF_VAR_truenas_api_key
 ```
 
 **UniFi API key.** In the UniFi Network UI on the UDM: **Settings**, **Control Plane**, **Integrations**,
@@ -84,7 +85,7 @@ create an API key. Upstream offers no read-only key, so this one has full admin 
 (`docs/decisions.md` §5.3). Then:
 
 ```sh
-export TF_VAR_unifi_api_key='<key>'
+read -rs TF_VAR_unifi_api_key && export TF_VAR_unifi_api_key
 ```
 
 Expected: `env | grep -c 'PROXMOX_VE_API_TOKEN\|TF_VAR_truenas_api_key\|TF_VAR_unifi_api_key'` prints 3, and
