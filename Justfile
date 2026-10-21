@@ -270,6 +270,10 @@ apply-unifi *args: (apply "unifi" args)
 apply-truenas *args: (apply "truenas" args)
 apply-proxmox *args: (apply "proxmox" args)
 
+# Turn on Immich's Authentik login through its API (IMMICH_API_KEY or prompt); `--dry-run` shows the diff only
+immich-oauth *ARGS:
+  ./scripts/immich/oauth.sh {{ARGS}}
+
 # Show lab prerequisites / resource requirements (no changes)
 lab-doctor:
   #!/usr/bin/env bash
