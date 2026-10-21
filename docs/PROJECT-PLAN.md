@@ -182,7 +182,7 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
 - [ ] Pre-flight (owner): all data verified as backed up; config exports captured; written step-by-step plan
 - [ ] Owner reinstalls Proxmox and TrueNAS from ISO
 - [ ] Everything after the ISO install is applied by IaC. Hand-made config is a defect
-- [ ] Pool: preserve/import vs rebuild is decided at cutover, after backups are verified (decisions §1.4)
+- [x] Pool: rebuilt empty by the owner on 2026-10-21 as RAIDZ2 (8× 4 TB) with an NVMe SLOG, name `main` kept (decisions §1.4)
 - [ ] Fill every `TODO(GATE 4)` value (`grep -rn "TODO(GATE 4)"`); verify the storage link (interface, MTU,
       throughput)
 
