@@ -21,4 +21,4 @@ creation_rules:
   - path_regex: '\.sops\.(ya?ml|json)$'
     encrypted_regex: '^(data|stringData)$'
     age: >-
-      REPLACE_WITH_PRODUCTION_AGE_RECIPIENT
+      age1p0pyppgapzv8xj3hk294hp2m7wnjt6956dz8dccn6scslcqqmursq0zsux
