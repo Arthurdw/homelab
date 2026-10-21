@@ -1,6 +1,17 @@
 ---
 # Authentik blueprints, mounted into the server and worker by the chart (`blueprints.configMaps` in
-# release.yaml) and applied by the worker. One file per app that signs in through Authentik.
+# release.yaml) and applied by the worker. One file per app that signs in through Authentik, plus portal.yaml:
+# together they make the Authentik user dashboard (https://auth.lab.ardw.be/if/user/) the homelab portal.
+# Applications are grouped by `group`: "Apps" for household apps, "Infrastructure" for admin UIs.
+#
+# Every OIDC client secret follows the same pattern: the `client-secret` key of the Secret
+# `authentik-<app>-oidc` (namespace authentik), exposed to the worker as AUTHENTIK_<APP>_OIDC_SECRET (global.env
+# in release.yaml) and read below with !Env. The same value sits in the app's own Secret where the app reads it
+# from Kubernetes (seafile/seafile-oidc, monitoring/grafana-oidc); Immich and Audiobookshelf keep it in their
+# own database, pasted in their admin UI (docs/runbooks/sso.md). scripts/secrets/gen-*-secrets.sh write both.
+#
+# Authentik 2026.x refuses every grant a provider doesn't list ("Invalid grant_type for provider"), so every
+# provider lists grant_types.
 #
 # seafile.yaml: the OAuth2/OpenID provider and the application for Seafile (decisions.md §5.8). Seahub's side
 # is the OAUTH_* block in kubernetes/apps/seafile/seafile.yaml. The client secret is the `client-secret` key of
@@ -53,4 +64,196 @@ data:
         attrs:
           name: Seafile
           provider: !KeyOf seafile-provider
+          group: Apps
           meta_launch_url: https://seafile.lab.ardw.be/
+          meta_description: Files and sync
+  grafana.yaml: |
+    # Grafana (kube-prometheus-stack, kubernetes/infrastructure/monitoring/release.yaml, grafana.ini
+    # auth.generic_oauth). The profile scope carries `groups`: members of `authentik Admins` become Grafana Admins.
+    version: 1
+    metadata:
+      name: Grafana
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        id: grafana-provider
+        identifiers:
+          name: Grafana
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_type: confidential
+          client_id: grafana
+          grant_types:
+            - authorization_code
+            - refresh_token
+          client_secret: !Env AUTHENTIK_GRAFANA_OIDC_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              url: https://grafana.lab.ardw.be/login/generic_oauth
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+          sub_mode: hashed_user_id
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+      - model: authentik_core.application
+        id: grafana-app
+        identifiers:
+          slug: grafana
+        attrs:
+          name: Grafana
+          provider: !KeyOf grafana-provider
+          group: Infrastructure
+          meta_launch_url: https://grafana.lab.ardw.be/
+          meta_description: Dashboards and metrics
+  immich.yaml: |
+    # Immich: its OAuth settings live in its own database (Administration -> Settings -> OAuth,
+    # docs/runbooks/sso.md). app.immich:///oauth-callback is the mobile app's callback; strict matching is a
+    # plain string comparison, so the custom scheme needs no regex.
+    version: 1
+    metadata:
+      name: Immich
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        id: immich-provider
+        identifiers:
+          name: Immich
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_type: confidential
+          client_id: immich
+          grant_types:
+            - authorization_code
+            - refresh_token
+          client_secret: !Env AUTHENTIK_IMMICH_OIDC_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              url: https://immich.lab.ardw.be/auth/login
+            - matching_mode: strict
+              url: https://immich.lab.ardw.be/user-settings
+            - matching_mode: strict
+              url: app.immich:///oauth-callback
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+          sub_mode: hashed_user_id
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+      - model: authentik_core.application
+        id: immich-app
+        identifiers:
+          slug: immich
+        attrs:
+          name: Immich
+          provider: !KeyOf immich-provider
+          group: Apps
+          meta_launch_url: https://immich.lab.ardw.be/
+          meta_description: Photos and videos
+  audiobookshelf.yaml: |
+    # Audiobookshelf: its OpenID settings live in its own database (Settings -> Authentication,
+    # docs/runbooks/sso.md). mobile-redirect is where the mobile apps' login lands before ABS hands it back.
+    version: 1
+    metadata:
+      name: Audiobookshelf
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        id: audiobookshelf-provider
+        identifiers:
+          name: Audiobookshelf
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_type: confidential
+          client_id: audiobookshelf
+          grant_types:
+            - authorization_code
+            - refresh_token
+          client_secret: !Env AUTHENTIK_AUDIOBOOKSHELF_OIDC_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              url: https://audiobookshelf.lab.ardw.be/auth/openid/callback
+            - matching_mode: strict
+              url: https://audiobookshelf.lab.ardw.be/auth/openid/mobile-redirect
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+          sub_mode: hashed_user_id
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+      - model: authentik_core.application
+        id: audiobookshelf-app
+        identifiers:
+          slug: audiobookshelf
+        attrs:
+          name: Audiobookshelf
+          provider: !KeyOf audiobookshelf-provider
+          group: Apps
+          meta_launch_url: https://audiobookshelf.lab.ardw.be/
+          meta_description: Audiobooks and podcasts
+  portal.yaml: |
+    # Link-only applications: no provider, just a dashboard tile that opens the UI, which keeps its own login.
+    # Kopia and Technitium have no OIDC support; Proxmox, TrueNAS and UniFi aren't wired to Authentik (yet).
+    # No policy bindings, so every Authentik user sees them; the targets still ask for their own credentials.
+    version: 1
+    metadata:
+      name: Homelab portal links
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_core.application
+        id: kopia-app
+        identifiers:
+          slug: kopia
+        attrs:
+          name: Kopia
+          group: Infrastructure
+          meta_launch_url: https://kopia.lab.ardw.be/
+          meta_description: Backup repository server (own login, no OIDC)
+          open_in_new_tab: true
+      - model: authentik_core.application
+        id: technitium-app
+        identifiers:
+          slug: technitium
+        attrs:
+          name: Technitium
+          group: Infrastructure
+          meta_launch_url: https://dns.lab.ardw.be/
+          meta_description: DNS (own login, no OIDC)
+          open_in_new_tab: true
+      - model: authentik_core.application
+        id: proxmox-app
+        identifiers:
+          slug: proxmox
+        attrs:
+          name: Proxmox
+          group: Infrastructure
+          meta_launch_url: https://poseidon.lab.ardw.be:8006/
+          meta_description: Hypervisor (own login)
+          open_in_new_tab: true
+      - model: authentik_core.application
+        id: truenas-app
+        identifiers:
+          slug: truenas
+        attrs:
+          name: TrueNAS
+          group: Infrastructure
+          meta_launch_url: https://hercules-nas.lab.ardw.be/
+          meta_description: NAS (own login)
+          open_in_new_tab: true
+      - model: authentik_core.application
+        id: unifi-app
+        identifiers:
+          slug: unifi
+        attrs:
+          name: UniFi
+          group: Infrastructure
+          meta_launch_url: https://unifi.lab.ardw.be/
+          meta_description: Network (own login)
+          open_in_new_tab: true

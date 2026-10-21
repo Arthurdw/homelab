@@ -4,8 +4,8 @@
 #           server/worker image is ghcr.io/goauthentik/server:2026.8.4 — the chart pins it)
 #
 # Authentik is NEVER required to recover infrastructure: break-glass access is independent of it
-# (docs/runbooks/break-glass.md, docs/secrets-and-state.md §6). Seafile signs in through it (blueprints.yaml);
-# SSO for Grafana, Immich, etc. is a later, per-app step.
+# (docs/runbooks/break-glass.md, docs/secrets-and-state.md §6). Seafile, Grafana, Immich and Audiobookshelf sign
+# in through it, and its user dashboard links the other homelab UIs (blueprints.yaml, docs/runbooks/sso.md).
 #
 # No Redis: authentik 2025.10+ moved its cache, tasks and websockets into PostgreSQL, and this chart no
 # longer has a Redis dependency at all.
@@ -14,7 +14,8 @@
 # committed in cleartext:
 #   secret-key         cookie signing + unique IDs; long random string; NEVER change after first install
 #   postgres-password  password of the `authentik` database user (bundled PostgreSQL + the app)
-# Also `authentik-smtp` (relay login) and `authentik-seafile-oidc` (client-secret of the Seafile provider).
+# Also `authentik-smtp` (relay login) and `authentik-<app>-oidc` (client-secret of each app's OIDC provider:
+# seafile, grafana, immich, audiobookshelf).
 # The chart's own generated config Secret then carries only non-secret settings: `secret_key` and
 # `postgresql.password` stay empty here (the chart drops empty values), and the real values are
 # injected into the server and worker as env vars from `authentik-credentials`, which take precedence.
@@ -72,11 +73,26 @@ spec:
             secretKeyRef:
               name: authentik-smtp
               key: smtp-password
-        # Client secret of the Seafile OIDC provider, read by blueprints.yaml (!Env).
+        # Client secrets of the OIDC providers, read by blueprints.yaml (!Env).
         - name: AUTHENTIK_SEAFILE_OIDC_SECRET
           valueFrom:
             secretKeyRef:
               name: authentik-seafile-oidc
+              key: client-secret
+        - name: AUTHENTIK_GRAFANA_OIDC_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: authentik-grafana-oidc
+              key: client-secret
+        - name: AUTHENTIK_IMMICH_OIDC_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: authentik-immich-oidc
+              key: client-secret
+        - name: AUTHENTIK_AUDIOBOOKSHELF_OIDC_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: authentik-audiobookshelf-oidc
               key: client-secret
 
     # Blueprints (blueprints.yaml): the chart mounts each ConfigMap under /blueprints/mounted.

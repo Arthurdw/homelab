@@ -142,13 +142,17 @@ secret() {
   fi
 }
 
-# The two OIDC Secrets share one value, so both are written together or both kept. One without the other
-# can't be repaired without the private key: stop before writing anything.
-oidc_a=0 oidc_s=0
-will_write apps authentik-seafile-oidc && oidc_a=1
-will_write apps seafile-oidc && oidc_s=1
-[ "$oidc_a" -eq "$oidc_s" ] \
-  || die "only one of authentik-seafile-oidc / seafile-oidc exists; rerun with --force to regenerate both"
+# Each OIDC client secret is one value in two Secrets (Authentik's and the app's), so both are written together
+# or both kept. One without the other can't be repaired without the private key: stop before writing anything.
+# Pairs: <layer>/<authentik Secret> <layer>/<app Secret>.
+oidc_pair() {
+  local a=0 b=0
+  will_write "${1%%/*}" "${1#*/}" && a=1
+  will_write "${2%%/*}" "${2#*/}" && b=1
+  [ "$a" -eq "$b" ] || die "only one of ${1#*/} / ${2#*/} exists; rerun with --force to regenerate both"
+}
+oidc_pair apps/authentik-seafile-oidc apps/seafile-oidc
+oidc_pair apps/authentik-grafana-oidc infrastructure/grafana-oidc
 
 log "homelab secrets -> kubernetes/overlays/homelab"
 
@@ -164,6 +168,10 @@ if will_write infrastructure alertmanager-smtp || will_write apps authentik-smtp
 fi
 secret infrastructure monitoring alertmanager-smtp smtp-password="${HOMELAB_SMTP_PASSWORD:-}"
 secret infrastructure technitium technitium-admin password=@rand
+# OIDC client secret of Grafana's Authentik login: the SAME value as apps/authentik-grafana-oidc (checked above).
+# grafana-oidc sits in the infrastructure layer with Grafana; the authentik namespace only exists in apps.
+grafana_oidc="$(rand 48)"
+secret infrastructure monitoring grafana-oidc client-secret="$grafana_oidc"
 
 # --- apps -------------------------------------------------------------------------------------
 secret apps immich immich-db username=immich password=@rand
@@ -183,6 +191,11 @@ secret apps seafile seafile-jwt jwt-private-key=@rand:40
 seafile_oidc="$(rand 48)"
 secret apps authentik authentik-seafile-oidc client-secret="$seafile_oidc"
 secret apps seafile seafile-oidc client-secret="$seafile_oidc"
+secret apps authentik authentik-grafana-oidc client-secret="$grafana_oidc"
+# Immich and Audiobookshelf keep their client secret in their own database (docs/runbooks/sso.md): only
+# Authentik's side is a Secret.
+secret apps authentik authentik-immich-oidc client-secret=@rand:48
+secret apps authentik authentik-audiobookshelf-oidc client-secret=@rand:48
 # Kopia repository server (kubernetes/apps/kopia). The repository password is the only key to the
 # backups; the server login is the UI/API, the control login is for the server's own control API,
 # and kopia-users holds one password per client device, key `<user>_<host>` for user@host.

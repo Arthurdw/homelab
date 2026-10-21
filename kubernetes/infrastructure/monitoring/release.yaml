@@ -7,7 +7,8 @@
 # release installs the monitoring.coreos.com CRDs, and Flux dry-runs a whole Kustomization before
 # applying it (see kubernetes/README.md).
 #
-# Secrets (grafana-admin, alertmanager-smtp) are created out-of-band and never committed.
+# Secrets (grafana-admin, grafana-oidc, alertmanager-smtp) are created out-of-band (SOPS overlays) and never
+# committed in cleartext.
 # Prometheus, Alertmanager and Grafana keep their state on `local-path` PVCs (docs/decisions.md
 # §4.3: state stays node-local), so a pod restart loses neither samples, silences nor dashboards.
 apiVersion: helm.toolkit.fluxcd.io/v2
@@ -184,6 +185,69 @@ spec:
       # stops the old pod first.
       deploymentStrategy:
         type: Recreate
+
+      ingress:
+        enabled: true
+        ingressClassName: traefik
+        # Internal zone <app>.lab.ardw.be (decisions.md §5.7), served by Technitium only.
+        hosts:
+          - grafana.lab.ardw.be
+        path: /
+        pathType: Prefix
+        # TLS on websecure with NO secretName and no cert-manager annotation: Traefik serves its default
+        # TLSStore certificate, the *.lab.ardw.be wildcard (infrastructure/configs/
+        # wildcard-certificate.yaml, decisions.md §5.7). One cert for every app.
+        tls:
+          - hosts:
+              - grafana.lab.ardw.be
+
+      # Secrets as env vars, never in grafana.ini: the OIDC client secret (`grafana-oidc`, same value as
+      # authentik/authentik-grafana-oidc, scripts/secrets/gen-*-secrets.sh) and the shared relay password
+      # (`alertmanager-smtp`, docs/decisions.md §5.1).
+      envValueFrom:
+        GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+          secretKeyRef:
+            name: grafana-oidc
+            key: client-secret
+        GF_SMTP_PASSWORD:
+          secretKeyRef:
+            name: alertmanager-smtp
+            key: smtp-password
+
+      grafana.ini:
+        server:
+          root_url: https://grafana.lab.ardw.be/
+        # Sign-in through Authentik (kubernetes/apps/authentik/blueprints.yaml, grafana.yaml; docs/runbooks/sso.md).
+        # The local admin from `grafana-admin` keeps working: the login form stays enabled as the fallback
+        # when Authentik is down (docs/runbooks/break-glass.md).
+        auth.generic_oauth:
+          enabled: true
+          name: Authentik
+          client_id: grafana
+          scopes: openid email profile
+          auth_url: https://auth.lab.ardw.be/application/o/authorize/
+          token_url: https://auth.lab.ardw.be/application/o/token/
+          api_url: https://auth.lab.ardw.be/application/o/userinfo/
+          signout_redirect_url: https://auth.lab.ardw.be/application/o/grafana/end-session/
+          login_attribute_path: preferred_username
+          name_attribute_path: name
+          email_attribute_path: email
+          # `groups` comes from Authentik's profile scope: members of `authentik Admins` are org Admins, everyone
+          # else a Viewer. Server-admin stays with the local admin (returning 'GrafanaAdmin' here together with
+          # allow_assign_grafana_admin: true would grant it too).
+          role_attribute_path: "contains(groups, 'authentik Admins') && 'Admin' || 'Viewer'"
+          use_pkce: true
+          allow_sign_up: true
+          auto_login: false
+        # Mail (invites, password resets, alert notifications) via the shared relay (docs/decisions.md §5.1).
+        # Port 465 is implicit TLS: Grafana dials TLS itself on 465, so no STARTTLS on top.
+        smtp:
+          enabled: true
+          host: mail.a-line.be:465
+          user: homelab@lab.ardw.be
+          from_address: grafana@lab.ardw.be
+          from_name: Grafana
+          startTLS_policy: NoStartTLS
 
     # Not scrapable on Talos (etcd needs mTLS, controller-manager/scheduler bind to localhost,
     # kube-proxy is disabled): disable the targets and their alert groups, which would otherwise

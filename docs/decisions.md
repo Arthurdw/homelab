@@ -280,6 +280,8 @@ and can be filtered:
 | Alertmanager | `alertmanager@lab.ardw.be` | `monitoring/alertmanager-smtp` |
 | Authentik | `auth@lab.ardw.be` | `authentik/authentik-smtp` |
 | Seafile | `seafile@lab.ardw.be` | `seafile/seafile-smtp` |
+| Grafana | `grafana@lab.ardw.be` | `monitoring/alertmanager-smtp` (env `GF_SMTP_PASSWORD`) |
+| Immich | `immich@lab.ardw.be` | none: Immich, set in its admin UI (`docs/runbooks/sso.md`) |
 | Backup alerts on the NAS | `backups@lab.ardw.be` | `/etc/homelab/alert.netrc`, outside git |
 
 The relay must let `homelab@lab.ardw.be` send as each of these. The password is the same in every Secret and is

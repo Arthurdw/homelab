@@ -6,5 +6,6 @@ resources:
   - ../../../infrastructure
   - cloudflare-api-token.sops.yaml
   - grafana-admin.sops.yaml
+  - grafana-oidc.sops.yaml
   - alertmanager-smtp.sops.yaml
   - technitium-admin.sops.yaml

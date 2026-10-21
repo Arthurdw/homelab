@@ -6,6 +6,7 @@ resources:
   - ../../../infrastructure
   - alertmanager-smtp.sops.yaml
   - grafana-admin.sops.yaml
+  - grafana-oidc.sops.yaml
   - technitium-admin.sops.yaml
 patches:
   # The lab worker has no Talos user volume, so /var/mnt/local-path-provisioner doesn't exist and the

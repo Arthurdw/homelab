@@ -13,6 +13,9 @@ resources:
   - seafile-jwt.sops.yaml
   - authentik-seafile-oidc.sops.yaml
   - seafile-oidc.sops.yaml
+  - authentik-grafana-oidc.sops.yaml
+  - authentik-immich-oidc.sops.yaml
+  - authentik-audiobookshelf-oidc.sops.yaml
   - kopia-repository.sops.yaml
   - kopia-server.sops.yaml
   - kopia-users.sops.yaml

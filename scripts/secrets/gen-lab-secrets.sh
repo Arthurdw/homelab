@@ -93,6 +93,10 @@ log "lab secrets -> kubernetes/overlays/lab"
 secret infrastructure monitoring alertmanager-smtp smtp-password=@rand
 secret infrastructure monitoring grafana-admin admin-user=admin admin-password=@rand
 secret infrastructure technitium technitium-admin password=@rand
+# OIDC client secret of Grafana's Authentik login: the SAME value as apps/authentik-grafana-oidc below.
+# grafana-oidc sits in the infrastructure layer with Grafana; the authentik namespace only exists in apps.
+grafana_oidc="$(rand 48)"
+secret infrastructure monitoring grafana-oidc client-secret="$grafana_oidc"
 
 # --- apps -------------------------------------------------------------------------------------
 secret apps immich immich-db username=immich password=@rand
@@ -110,6 +114,11 @@ secret apps seafile seafile-jwt jwt-private-key=@rand:40
 seafile_oidc="$(rand 48)"
 secret apps authentik authentik-seafile-oidc client-secret="$seafile_oidc"
 secret apps seafile seafile-oidc client-secret="$seafile_oidc"
+secret apps authentik authentik-grafana-oidc client-secret="$grafana_oidc"
+# Immich and Audiobookshelf keep their client secret in their own database (docs/runbooks/sso.md): only
+# Authentik's side is a Secret.
+secret apps authentik authentik-immich-oidc client-secret=@rand:48
+secret apps authentik authentik-audiobookshelf-oidc client-secret=@rand:48
 # Kopia repository server (kubernetes/apps/kopia). The repository password is the only key to the
 # backups; the server login is the UI/API, the control login is for the server's own control API,
 # and kopia-users holds one password per client user, key `<user>_<host>` for user@host (test_lab here).
