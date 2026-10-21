@@ -1,7 +1,7 @@
-# BLOCKED: requires TrueNAS >= 25.04 (25.10 preferred). Upgrading hercules-nas is an owner
-# action, done before cutover. The pinned provider (truenas/truenas 1.5.14) speaks only the
-# JSON-RPC API at /api/current. The live NAS runs 24.10.2.4 (versions.yaml), so the provider
-# cannot connect until it is upgraded. Proven against a 25.10 lab fixture only; see README.md.
+# Requires TrueNAS >= 25.04 (25.10 preferred). The pinned provider (truenas/truenas 1.5.14) speaks
+# only the JSON-RPC API at /api/current. The owner reinstalled hercules-nas on SCALE 25.10.7 on
+# 2026-10-21 (versions.yaml), which matches the lab fixture where this root was proven; the live
+# apply is still owner-gated. See README.md.
 #
 # Additive-only. This root creates new objects under an existing pool. It never manages the pool
 # itself or existing datasets/shares (`main`, `main/arthur`, `main/proxmox`, ...): docs/storage.md,

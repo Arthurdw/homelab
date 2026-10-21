@@ -48,8 +48,8 @@ Install with the DHCP address the installer offers, then follow the steps below.
 
 ## 2. Proxmox (`poseidon`)
 
-1. Find the 1 GbE management NIC: `ip -br link`. It was `enp0s31f6` before the reinstall
-   (`docs/hardware.md`); the commands below use that name.
+1. Find the 1 GbE management NIC: `ip -br link`. On PVE 9 it is `nic0`
+   (`enp0s31f6` on PVE 8, see `docs/hardware.md`); the commands below use that name.
 2. Back up the current config: `cp /etc/network/interfaces /etc/network/interfaces.install`.
 3. Write `/etc/network/interfaces`. `vmbr0` becomes VLAN-aware with no address of its own; the host address
    moves to `vmbr0.4`; `vmbr1` is the storage link:
@@ -58,11 +58,11 @@ Install with the DHCP address the installer offers, then follow the steps below.
    auto lo
    iface lo inet loopback
 
-   iface enp0s31f6 inet manual
+   iface nic0 inet manual
 
    auto vmbr0
    iface vmbr0 inet manual
-       bridge-ports enp0s31f6
+       bridge-ports nic0
        bridge-stp off
        bridge-fd 0
        bridge-vlan-aware yes
@@ -73,19 +73,20 @@ Install with the DHCP address the installer offers, then follow the steps below.
        address 10.10.1.1/16
        gateway 10.10.0.1
 
-   iface enp2s0f1 inet manual
+   iface nic1 inet manual
        mtu 9000
 
    auto vmbr1
    iface vmbr1 inet static
        address 10.99.0.1/30
-       bridge-ports enp2s0f1
+       bridge-ports nic1
        bridge-stp off
        bridge-fd 0
        mtu 9000
    ```
 
-   Use whichever 10 GbE port has link (`enp2s0f1` before the reinstall). Leave `vmbr1` out until the NAS end
+   Use whichever 10 GbE port has link (`nic1` or `nic2`; both were down and unconfigured after the 2026-10-21 reinstall).
+   Leave `vmbr1` out until the NAS end
    exists if you prefer; it doesn't affect management.
 4. Hostname and `/etc/hosts`: if the installer left the default `pve`, run `hostnamectl set-hostname poseidon`.
    Then replace the installer's line in `/etc/hosts` with `10.10.1.1 poseidon.<your-domain> poseidon`.

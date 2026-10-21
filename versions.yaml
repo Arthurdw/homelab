@@ -6,11 +6,11 @@ meta:
   policy: "pin exact versions; never floating tags; verify compat before adopting"
 
 hypervisor:
-  proxmox_ve: "8.4.11"          # live on poseidon
-  proxmox_kernel: "6.8.12-13-pve"
+  proxmox_ve: "9.x"             # owner reinstalled poseidon on 2026-10-21 (was 8.4.11); pve-manager 9.2.2 reported by the owner
+  proxmox_kernel: "7.0.2-6-pve"  # running kernel after the 2026-10-21 reinstall (was 6.8.12-13-pve)
 
 storage:
-  truenas_scale: "24.10.2.4"    # live on hercules-nas
+  truenas_scale: "25.10.7"      # owner reinstalled hercules-nas on 2026-10-21 (was 24.10.2.4); /etc/version reads 25.10.7, same as the L1 fixture ISO
 
 kubernetes:
   talos: "v1.14.4"              # supports K8s 1.33-1.37 (Talos v1.14 support matrix, checked 2026-10-20)
@@ -24,10 +24,11 @@ iac:
     bpg/proxmox:
       version: "0.116.1"
       opentofu_compat: "verified 2026-10-16 (tofu 1.13.1 validate)"
+      pve_compat: "PVE 9: the provider changelog has PVE 9 features since 0.99.0 (2026-03-21, harule, 'PVE 9+') and 0.105.0 (2026-05-02, host_managed gated on PVE 9.1+); no release up to 0.117.0 lists a PVE 9 break. Proven on the PVE 9.2 L1 fixture, see verification_tasks (checked 2026-10-21)."
     truenas/truenas:
       version: "1.5.14"
       opentofu_compat: "verified 2026-10-16 (tofu 1.13.1 validate)"
-      api_note: "BLOCKED: 1.5.14 talks to /api/current (JSON-RPC) and needs TrueNAS SCALE >= 25.04 (25.10 fully tested). hercules-nas runs 24.10.2.4, so the truenas root cannot plan until the owner upgrades the NAS (checked 2026-10-20)."
+      api_note: "No longer blocked on the version (checked 2026-10-21): 1.5.14 talks to /api/current (JSON-RPC) and needs SCALE >= 25.04; hercules-nas was reinstalled on 25.10.7, which matches the L1 fixture where the root was proven (scripts/lab/truenas-fixture-plan.sh). The live apply is still owner-gated."
     ubiquiti-community/unifi:
       version: "0.59.0"
       stable: true
@@ -90,11 +91,11 @@ ci_tools:
 lab_fixture_images:             # scripts/lab/unifi-fixture.sh, scripts/lab/pve-fixture.sh, scripts/lab/truenas-fixture.sh (L1 fixtures; never production)
   unifi_network_application: "linuxserver/unifi-network-application:10.6.106-ls150@sha256:4d5fc889c2f2c2cecc6b35d4d641780cbedbe90d3a51b8f03283261b137af468"
   mongo: "mongo:8.0.34@sha256:4a4ab5d4834207389e0d7270fac988e21ffedccecba77991a552f755df229907"
-  # Same 8.4 line as hypervisor.proxmox_ve (8.4.11); the ISO is the last 8.4 installer, 8.4-1. sha256 from
+  # Newest PVE 9.x installer (9.2-1, Debian 13 trixie); hypervisor.proxmox_ve is 9.x. sha256 from
   # https://enterprise.proxmox.com/iso/SHA256SUMS (download.proxmox.com fails its TLS hostname check here).
-  proxmox_ve_iso: "proxmox-ve_8.4-1.iso"
-  proxmox_ve_iso_url: "https://enterprise.proxmox.com/iso/proxmox-ve_8.4-1.iso"
-  proxmox_ve_iso_sha256: "d237d70ca48a9f6eb47f95fd4fd337722c3f69f8106393844d027d28c26523d8"
+  proxmox_ve_iso: "proxmox-ve_9.2-1.iso"
+  proxmox_ve_iso_url: "https://enterprise.proxmox.com/iso/proxmox-ve_9.2-1.iso"
+  proxmox_ve_iso_sha256: "4e88fe416df9b527624a175f24c9aa07c714d3332afb1ee3dbf3879573ef2c6c"
   # TrueNAS SCALE 25.10.7 (Goldeye): the provider needs >= 25.04. sha256 equals the published
   # TrueNAS-SCALE-25.10.7.iso.sha256 next to the ISO, and was recomputed after download.
   truenas_scale_iso: "TrueNAS-SCALE-25.10.7.iso"
@@ -104,7 +105,8 @@ lab_fixture_images:             # scripts/lab/unifi-fixture.sh, scripts/lab/pve-
 verification_tasks:
   - "DONE 2026-10-20: Talos v1.14 lists Kubernetes 1.37 as supported (docs.siderolabs.com/talos/v1.14/getting-started/support-matrix); talosctl gen config accepts v1.14.4 + 1.37.1"
   - "OPEN 2026-10-20: Flux v2.9.6 documents K8s 1.34-1.36 only. Prove it on 1.37.1 in the lab, or pin kubernetes to v1.36.x"
-  - "BLOCKED 2026-10-20: truenas/truenas 1.5.14 needs TrueNAS SCALE >= 25.04; hercules-nas is 24.10.2.4 (owner upgrade). Proven on a 25.10.7 L1 fixture 2026-10-21 (just lab-truenas-plan)"
+  - "DONE 2026-10-21: bpg/proxmox 0.116.1 on PVE 9.2.2 (L1 fixture, just lab-pve-plan): plan, apply, clean re-plan, destroy. PVE 9 removed the VM.Monitor privilege; the token role must not list it"
+  - "DONE 2026-10-21: truenas/truenas 1.5.14 needs TrueNAS SCALE >= 25.04; the owner reinstalled hercules-nas on 25.10.7. Proven on a 25.10.7 L1 fixture (just lab-truenas-plan); the live apply is owner-gated"
   - "DONE 2026-10-20: UniFi provider stable is 0.59.0; pinned instead of 0.60.0-beta.0. UDM Pro API coverage is proven only by a plan, which waits on GATE 6"
   - "PARTIAL 2026-10-20: Helm 4 is what Flux 2.9.x uses in-cluster; every chart renders with helm 4.3.1 in CI (scripts/ci/render-helm-releases.sh). Install-time behaviour is proven only in the lab"
   - "DONE 2026-10-16: bpg/proxmox, truenas/truenas, ubiquiti-community/unifi validate under OpenTofu 1.13.1"

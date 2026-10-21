@@ -1,9 +1,9 @@
 # TrueNAS root configuration
 
-> **BLOCKED: requires TrueNAS >= 25.04 (25.10 preferred). Upgrading hercules-nas is an owner action, done before
-> cutover.** The pinned provider `truenas/truenas` 1.5.14 speaks only the JSON-RPC 2.0 API at
-> `/api/current`, which first shipped in 25.04. Its own README says older releases "cannot connect".
-> The live NAS runs **24.10.2.4** (`versions.yaml`), so no `plan` or `apply` can work until it is upgraded.
+> **Requires TrueNAS >= 25.04 (25.10 preferred); the live apply is owner-gated.** The pinned provider
+> `truenas/truenas` 1.5.14 speaks only the JSON-RPC 2.0 API at `/api/current`, which first shipped in 25.04. Its own
+> README says older releases "cannot connect". The owner reinstalled hercules-nas on **SCALE 25.10.7** on 2026-10-21
+> (`versions.yaml`), which is the fixture version where the root was proven.
 > The vendor tested the provider on 26.0 and 25.10. 25.04 connects, but the vendor never tested it.
 
 Manages TrueNAS SCALE resources for the homelab: datasets, NFS shares and snapshot tasks.
@@ -12,7 +12,7 @@ Manages TrueNAS SCALE resources for the homelab: datasets, NFS shares and snapsh
 TrueNAS SCALE 25.10.7 VM (`just lab-truenas`, then `just lab-truenas-plan`) ran init, validate, plan (3 to
 add), apply (3 added), a check of the objects through the API, and a second plan with no changes. No destroy
 step runs, because the dataset and share carry `prevent_destroy`; `just lab-truenas down` discards the
-fixture instead. Nothing has run against the real NAS (24.10.2.4, owner upgrade pending). See `docs/lab.md`.
+fixture instead. Nothing has run against the real NAS (25.10.7 since the 2026-10-21 reinstall; the live apply is owner-gated). See `docs/lab.md`.
 
 > **Data safety:** this root can destroy datasets. Treat every `plan` as write-capable. Applies are
 > gated (see `docs/PROJECT-PLAN.md`) and need explicit owner approval. Never `-auto-approve`.

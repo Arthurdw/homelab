@@ -42,8 +42,8 @@ Plus a runner registered to this repo with the `homelab` label, which can reach 
 
 Limitations:
 
-- **truenas cannot plan yet.** Provider 1.5.14 only speaks `/api/current` (TrueNAS >= 25.04), and
-  hercules-nas runs 24.10.2.4. A truenas run fails at connect until the owner upgrades the NAS.
+- **truenas is owner-gated.** Provider 1.5.14 only speaks `/api/current` (TrueNAS >= 25.04). hercules-nas was
+  reinstalled on SCALE 25.10.7 on 2026-10-21, so it should connect, but nothing has run against it yet.
 - **UniFi is not included.** Its API key is full-access and is never placed in CI
   (`docs/secrets-and-state.md` §4). Plan it on the owner's machine.
 - **The state backend is local/undecided** (`docs/secrets-and-state.md` §5). The job uses

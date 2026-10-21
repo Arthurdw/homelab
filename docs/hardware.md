@@ -8,14 +8,14 @@
 
 | Item | Value | Notes |
 |---|---|---|
-| OS | Debian 12 (bookworm), PVE 8.4.11, kernel 6.8.12-13-pve | |
+| OS | Debian 13 (trixie), Proxmox VE 9 (pve-manager 9.2.2), kernel 7.0.2-6-pve | reinstalled by the owner on 2026-10-21; was PVE 8.4.11, kernel 6.8.12-13-pve at capture. Hostname is still `pve`; storage `local` (dir) + `local-lvm` (lvmthin), no guests |
 | CPU | Intel Core i5-7400 — 4 cores / 4 threads @ 3.0 GHz | no SMT; limited parallelism |
 | RAM | 46 GiB usable | currently ~42 GiB consumed by one VM |
 | Boot/root disk | 1× Crucial CT525MX300 SSD (~489 GiB) | **SPOF** — no mirror |
 | Root layout | LVM: `pve-root` 96 G ext4 (7 % used), `pve-data` 360 G lvmthin (0 % used), 8 G swap | no ZFS on the host |
 | GPU | 1× NVIDIA Tesla P4 (`GP104GL`, `10de:1bb3`) | **already passed through to a VM**; IOMMU on (`intel_iommu=on iommu=pt`); in IOMMU group 2 with its root port |
-| NIC 1 | 1 GbE (`enp0s31f6`) | management VLAN bridge `vmbr0` |
-| NIC 2 | dual-port (`enp2s0f0` down / `enp2s0f1` **10 GbE link up**) | storage bridge `vmbr1` → NAS |
+| NIC 1 | 1 GbE (`nic0`; `enp0s31f6` before the PVE 9 reinstall) | management VLAN bridge `vmbr0` (`vmbr0.4` up) |
+| NIC 2 | dual-port 10 GbE X520 (`nic1`, `nic2`; were `enp2s0f0`/`enp2s0f1`) | both down and unconfigured after the reinstall; storage bridge `vmbr1` → NAS to be rebuilt on whichever has link |
 | Pending updates | **185 packages** | patch policy needed |
 | SMART (root SSD) | PASSED | |
 
@@ -23,7 +23,7 @@
 
 | Item | Value | Notes |
 |---|---|---|
-| OS | TrueNAS SCALE, reinstalled by the owner (version to record) | was 24.10.2.4 at capture; the TrueNAS root needs ≥ 25.04 |
+| OS | TrueNAS SCALE 25.10.7, reinstalled by the owner on 2026-10-21 | same version as the L1 fixture; was 24.10.2.4 at capture. Meets the TrueNAS root need of ≥ 25.04 |
 | CPU | Intel Core i5-7400 — 4 cores | same class as host 1 |
 | RAM | 32 GiB, **non-ECC** | affects reliability posture |
 | Board | MSI MS-7A74 | |
