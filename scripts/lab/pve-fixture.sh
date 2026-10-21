@@ -11,7 +11,7 @@
 #
 # The install is unattended and uses the official tooling: the pinned Proxmox VE ISO is verified
 # against its published sha256 (versions.yaml lab_fixture_images), then rewritten by
-# `proxmox-auto-install-assistant prepare-iso` (run in a throwaway debian:bookworm-slim container) to
+# `proxmox-auto-install-assistant prepare-iso` (run in a throwaway debian:trixie-slim container) to
 # carry an answer file. Random credentials are written to talos/out/lab-pve/ (gitignored, mode 700/600),
 # never to a tracked file. After the first boot `up` makes vmbr0 VLAN-aware, and creates the
 # terraform@pve user, a role and an API token for the OpenTofu root.
@@ -227,13 +227,13 @@ ensure_auto_iso() {
   work="$(mktemp -d "$OUT_DIR/build.XXXXXX")"
   cp "$ANSWER" "$work/answer.toml"
   ln "$ISO_STOCK" "$work/in.iso" 2>/dev/null || cp "$ISO_STOCK" "$work/in.iso"
-  note "building the auto-install ISO in a debian:bookworm-slim container"
-  docker run --rm -v "$work:/work" debian:bookworm-slim bash -ec '
+  note "building the auto-install ISO in a debian:trixie-slim container"
+  docker run --rm -v "$work:/work" debian:trixie-slim bash -ec '
     apt-get update -qq >/dev/null
     apt-get install -y -qq curl ca-certificates xorriso >/dev/null
-    curl -fsSL https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg \
-      -o /etc/apt/trusted.gpg.d/proxmox-release-bookworm.gpg
-    echo "deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription" > /etc/apt/sources.list.d/pve.list
+    curl -fsSL https://enterprise.proxmox.com/debian/proxmox-archive-keyring-trixie.gpg \
+      -o /etc/apt/trusted.gpg.d/proxmox-archive-keyring-trixie.gpg
+    echo "deb http://download.proxmox.com/debian/pve trixie pve-no-subscription" > /etc/apt/sources.list.d/pve.list
     apt-get update -qq >/dev/null
     apt-get install -y -qq proxmox-auto-install-assistant >/dev/null
     echo "   proxmox-auto-install-assistant $(dpkg-query -W -f="\${Version}" proxmox-auto-install-assistant)"
@@ -262,6 +262,9 @@ install_pve() {
   note "installer running; it powers the guest off when done (up to 30 minutes)"
   wait_state "shut off" 1800 || die "the installer did not finish in 30 minutes (virsh console $PVE_NAME)"
   : > "$INSTALLED"
+  # A fresh install has a new host key at the same address; the provider's SSH step reads the user's
+  # known_hosts and refuses a changed key, so drop any entry from an earlier fixture.
+  ssh-keygen -R "$PVE_IP" >/dev/null 2>&1 || true
   note "install finished"
 }
 
@@ -291,8 +294,9 @@ configure_pve() {
   fi
   # A dedicated automation user with a role, and a token that inherits its rights (privsep 0).
   # Privileges mirror what the bpg/proxmox provider documents for VM + file management.
+  # PVE 9 removed VM.Monitor (it is rejected as an invalid privilege); It is simply dropped from the list.
   ssh_pve "set -e
-    pveum role list --output-format json | grep -q '\"$PVE_ROLE\"' || pveum role add $PVE_ROLE -privs 'Datastore.Allocate Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Pool.Allocate Sys.Audit Sys.Console Sys.Modify SDN.Use VM.Allocate VM.Audit VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Cloudinit VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options VM.Migrate VM.Monitor VM.PowerMgmt'
+    pveum role list --output-format json | grep -q '\"$PVE_ROLE\"' || pveum role add $PVE_ROLE -privs 'Datastore.Allocate Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Pool.Allocate Sys.Audit Sys.Console Sys.Modify SDN.Use VM.Allocate VM.Audit VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Cloudinit VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options VM.Migrate VM.PowerMgmt'
     pveum user list --output-format json | grep -q '\"$PVE_USER\"' || pveum user add $PVE_USER
     pveum acl modify / --users $PVE_USER --roles $PVE_ROLE" || die "could not create the automation user"
   if grep -q '^LAB_PVE_API_TOKEN=' "$ENV_FILE"; then
