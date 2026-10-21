@@ -34,6 +34,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PVE_NAME="lab-pve"
 PVE_IP="10.99.100.20"
 PVE_MAC="52:54:00:99:10:20"
+PVE_LINK_MAC="52:54:00:99:10:30"   # the storage-link NIC (renamed nic2 inside the guest, as on poseidon)
 PVE_FQDN="lab-pve.lab.internal"
 PVE_NODE="lab-pve"
 PVE_URL="https://${PVE_IP}:8006/"
@@ -85,6 +86,16 @@ wait_state() {  # <wanted> <seconds>
 domain_xml_pve() {  # <with-install-iso: 1|0>
   local boot media="" filter=""
   boot="    <boot dev='hd'/>"
+  # The storage-link NIC is added after the install only, so the installer sees one NIC (the
+  # management one). It sits on the isolated homelab-lab-link network and never carries a filterref.
+  local link=""
+  if [ "$1" = 0 ]; then
+    link="    <interface type='network'>
+      <source network='${NET_LINK}'/>
+      <mac address='${PVE_LINK_MAC}'/>
+      <model type='virtio'/>
+    </interface>"
+  fi
   if [ "$1" = 1 ]; then
     boot+=$'\n'"    <boot dev='cdrom'/>"
     media="    <disk type='file' device='cdrom'>
@@ -131,6 +142,7 @@ ${media}
       <mac address='${PVE_MAC}'/>
       <model type='virtio'/>
 ${filter}    </interface>
+${link}
     <serial type='pty'>
       <target port='0'/>
     </serial>
@@ -292,6 +304,19 @@ configure_pve() {
     wait_ssh
     note "vmbr0 is now VLAN-aware (bridge-vids 2-4094)"
   fi
+  # The storage-link NIC is called nic2 on poseidon (docs/hardware.md); pin the same name here by MAC
+  # (a systemd .link file, so it survives a reboot) and rename the live link once, while it is down.
+  if ssh_pve "ip -o link show nic2 >/dev/null 2>&1"; then
+    note "storage-link NIC already named nic2"
+  else
+    ssh_pve "set -e
+      printf '[Match]\nMACAddress=$PVE_LINK_MAC\n\n[Link]\nName=nic2\n' > /etc/systemd/network/10-nic2.link
+      dev=\$(ip -o link | awk -F': ' -v m=$PVE_LINK_MAC 'BEGIN{IGNORECASE=1} \$0 ~ m {print \$2; exit}')
+      [ -n \"\$dev\" ]
+      ip link set \"\$dev\" down
+      ip link set \"\$dev\" name nic2" || die "could not name the storage-link NIC nic2"
+    note "storage-link NIC is now nic2"
+  fi
   # A dedicated automation user with a role, and a token that inherits its rights (privsep 0).
   # Privileges mirror what the bpg/proxmox provider documents for VM + file management.
   # PVE 9 removed VM.Monitor (it is rejected as an invalid privilege); It is simply dropped from the list.
@@ -331,6 +356,7 @@ cmd_up() {
   ensure_auto_iso
   log "network"
   ensure_lab_network
+  ensure_link_network
   [ -f "$INSTALLED" ] || install_pve
   log "start"
   define_domain 0

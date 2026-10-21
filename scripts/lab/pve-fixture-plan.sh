@@ -15,8 +15,15 @@
 # VMs are created STOPPED (talos_vm_started = false) and small: a 4 GiB nested Proxmox cannot run them,
 # and a second Talos cluster is not the point.
 #
-# Steps: init, validate, plan, apply, check the VMs and image on the fixture, second plan (must be
-# clean: exit 0, no drift), destroy (--keep skips it), check they are gone.
+# The root also owns the 10 GbE storage-link bridge (vmbr1, storage-link.tf). The fixture has a second
+# NIC named nic2 on the isolated homelab-lab-link network (pve-fixture.sh). Before the apply this script
+# does what the owner does by hand on poseidon: the NIC's own `mtu 9000` (the one thing the root cannot
+# express), after first putting the NIC back to a real card's default of 1500.
+#
+# Steps: init, validate, owner pre-step for the NIC, plan, apply, check the VMs, the image and the
+# bridge (address, MTU on bridge and port) on the fixture, second plan (must be clean: exit 0, no
+# drift), destroy (--keep skips it), check the VMs and the bridge are gone. The jumbo-frame ping to the
+# NAS end is scripts/lab/storage-link-ping.sh (run it between --keep and the final destroy).
 #
 # Usage:
 #   scripts/lab/pve-fixture-plan.sh            # needs: just lab-pve
@@ -43,7 +50,7 @@ die()  { printf 'error: %s\n' "$*" >&2; exit 1; }
 PLAN_ONLY=0
 KEEP=0
 case "${1:-}" in
-  -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
+  -h|--help) sed -n '2,34p' "$0"; exit 0 ;;
   --plan) PLAN_ONLY=1 ;;
   --keep) KEEP=1 ;;
   "") : ;;
@@ -140,6 +147,18 @@ run_tofu init -backend=false -input=false -no-color | tail -n 4
 log "validate"
 run_tofu validate -no-color
 
+log "owner pre-step: the storage-link NIC's own MTU (what the root cannot express)"
+pve_ssh "set -e
+  # Start from a hand-free host: no leftover vmbr1, and nic2 at a real NIC's default of 1500.
+  if pvesh get /nodes/$LAB_PVE_NODE/network/vmbr1 >/dev/null 2>&1; then pvesh delete /nodes/$LAB_PVE_NODE/network/vmbr1; fi
+  pvesh set /nodes/$LAB_PVE_NODE/network >/dev/null
+  ip link set nic2 mtu 1500
+  pvesh set /nodes/$LAB_PVE_NODE/network/nic2 --type eth --mtu 9000
+  pvesh set /nodes/$LAB_PVE_NODE/network >/dev/null" || die "could not stage the NIC MTU on the fixture"
+# Without `auto`, ifupdown2 does not touch nic2 on this reload; it applies the stanza's mtu when it
+# enslaves nic2 to the bridge the root creates, which is what the checks after the apply prove.
+pve_ssh "grep -A1 '^iface nic2' /etc/network/interfaces" | sed 's/^/   /'
+
 log "plan"
 run_tofu plan -input=false -no-color -out=fixture.tfplan | tail -n 12
 [ "$PLAN_ONLY" = 0 ] || { note "plan only: stopping"; exit 0; }
@@ -155,6 +174,14 @@ echo "$vms" | jq -r '.[] | "   vmid \(.vmid) \(.name) status \(.status) maxmem \
 pve_ssh "ls -l /var/lib/vz/template/iso/ | grep -E 'talos-.*nocloud-amd64.img'" | sed 's/^/   /' \
   || die "the Talos image is not in local:iso after apply"
 
+log "check the storage-link bridge on the fixture"
+pve_ssh "ip -d link show vmbr1 | head -1; ip -d link show nic2 | head -1; ip -4 -br addr show vmbr1; bridge link show dev nic2 | head -1" | sed 's/^/   /'
+[ "$(pve_ssh "cat /sys/class/net/vmbr1/mtu /sys/class/net/nic2/mtu" | tr '\n' ' ')" = "9000 9000 " ] \
+  || die "vmbr1 and nic2 are not both at MTU 9000"
+pve_ssh "ip -4 -o addr show vmbr1" | grep -q '10\.99\.0\.1/30' || die "vmbr1 does not have 10.99.0.1/30"
+pve_ssh "test -e /sys/class/net/vmbr1/brif/nic2" || die "nic2 is not a port of vmbr1"
+note "vmbr1: 10.99.0.1/30, MTU 9000, port nic2 at MTU 9000"
+
 log "second plan (must be clean)"
 if run_tofu plan -input=false -no-color -detailed-exitcode | tail -n 6; then
   note "clean: no drift, the config is idempotent"
@@ -169,3 +196,5 @@ run_tofu destroy -auto-approve -input=false -no-color | tail -n 6
 left="$(pve_ssh "pvesh get /cluster/resources --type vm --output-format json" | jq 'length')"
 [ "$left" = 0 ] || die "$left VMs are still on the fixture after destroy"
 note "destroyed: no VMs left on the fixture"
+if pve_ssh "test -e /sys/class/net/vmbr1"; then die "vmbr1 is still on the fixture after destroy"; fi
+note "destroyed: vmbr1 is gone (nic2 keeps its own mtu 9000 stanza, as the owner step leaves it)"

@@ -36,6 +36,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAS_NAME="lab-truenas"
 NAS_IP="10.99.100.21"
 NAS_MAC="52:54:00:99:10:21"
+NAS_LINK_MAC="52:54:00:99:10:31"   # the storage-link NIC
 NAS_PREFIX=24
 NAS_ADMIN="truenas_admin"
 NAS_POOL="main"
@@ -79,8 +80,17 @@ wait_state() {  # <wanted> <seconds>
 
 # Serials matter: TrueNAS ignores a disk that has no serial number.
 domain_xml_nas() {  # <with-install-iso: 1|0>
-  local boot media="" filter=""
+  local boot media="" filter="" link=""
   boot="    <boot dev='hd'/>"
+  # The storage-link NIC is added after the install only, so the installer (which adopts the first
+  # NIC it lists) keeps seeing the management one. It sits on the isolated homelab-lab-link network.
+  if [ "$1" = 0 ]; then
+    link="    <interface type='network'>
+      <source network='${NET_LINK}'/>
+      <mac address='${NAS_LINK_MAC}'/>
+      <model type='virtio'/>
+    </interface>"
+  fi
   if [ "$1" = 1 ]; then
     boot+=$'\n'"    <boot dev='cdrom'/>"
     media="    <disk type='file' device='cdrom'>
@@ -134,6 +144,7 @@ ${media}
       <mac address='${NAS_MAC}'/>
       <model type='virtio'/>
 ${filter}    </interface>
+${link}
     <serial type='pty'>
       <target port='0'/>
     </serial>
@@ -288,6 +299,7 @@ cmd_up() {
   if [ -f "$INSTALLED" ]; then note "already installed; the ISO is not needed"; else ensure_iso; fi
   log "network"
   ensure_lab_network
+  ensure_link_network
   [ -f "$INSTALLED" ] || install_nas
   log "start"
   [ -f "$DATA_DISK" ] || qemu-img create -f qcow2 "$DATA_DISK" "${DATA_GIB}G" >/dev/null

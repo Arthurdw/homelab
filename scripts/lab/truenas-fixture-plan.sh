@@ -16,6 +16,13 @@
 # on the fixture first (the owner does that by hand on the real NAS). Dataset name, maproot and the snapshot task keep
 # their production values.
 #
+# The root also puts the NAS end of the 10 GbE storage link (bond1, a one-port failover bond over the port, alias 10.99.0.2/30,
+# MTU 9000; storage-link.tf) on the fixture's second NIC, on the isolated homelab-lab-link network
+# (truenas-fixture.sh). Its name here is enp2s0 (storage_link_interface, written to fixture.auto.tfvars;
+# on the real NAS the owner supplies it). The NIC starts at MTU 1500 like a real card, so the checks
+# prove the bond brings the port to 9000. The jumbo-frame ping from lab-pve is
+# scripts/lab/storage-link-ping.sh; --undo-link removes the bond again (the rest of the state stays).
+#
 # Steps: init, fmt -check, validate, plan, apply, check the dataset, the NFS share and the snapshot
 # task on the NAS, second plan (must be clean: exit 0, no drift). No `destroy`: the dataset and the
 # share carry prevent_destroy on purpose (an application-data red line); the fixture's state is
@@ -24,6 +31,7 @@
 # Usage:
 #   scripts/lab/truenas-fixture-plan.sh            # needs: just lab-truenas
 #   scripts/lab/truenas-fixture-plan.sh --plan     # init, validate and plan only
+#   scripts/lab/truenas-fixture-plan.sh --undo-link   # destroy only the storage-link bond (-target)
 #   scripts/lab/truenas-fixture-plan.sh --keep     # same as no argument; the scratch dir is always kept
 #   scripts/lab/truenas-fixture-plan.sh --endpoint wss://10.99.100.21/api/current   # override (still guarded)
 #
@@ -56,12 +64,14 @@ guard_endpoint() {
 }
 
 PLAN_ONLY=0
+UNDO_LINK=0
 ENDPOINT_ARG=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    -h|--help) sed -n '2,28p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,36p' "$0"; exit 0 ;;
     --plan) PLAN_ONLY=1 ;;
     --keep) : ;;
+    --undo-link) UNDO_LINK=1 ;;
     --endpoint) shift; [ $# -gt 0 ] || die "--endpoint needs a value"; ENDPOINT_ARG="$1" ;;
     *) die "unknown argument: $1" ;;
   esac
@@ -99,6 +109,7 @@ truenas_endpoint             = "$ENDPOINT"
 truenas_insecure             = true
 k8s_nfs_allowed_networks     = ["$LAB_CIDR"]
 timemachine_jolien_quota_gib = 4
+storage_link_interface       = "enp2s0"
 TFVARS
 
 run_tofu() {
@@ -130,6 +141,15 @@ fi
 # that is a manual step (runbooks/household-backups.md); on the fixture it is set here.
 echo '[["smb.update",[{"aapl_extensions":true}]]]' | nas_rpc >/dev/null && note "SMB aapl_extensions on"
 
+if [ "$UNDO_LINK" = 1 ]; then
+  log "undo the storage link (fixture only: destroys truenas_network_interface.storage_link, nothing else)"
+  run_tofu destroy -input=false -no-color -auto-approve -target=truenas_network_interface.storage_link | tail -n 4
+  echo '[["interface.query",[[["name","=","bond1"]]]]]' | nas_rpc | jq -e '.[0] | length == 0' >/dev/null \
+    || die "bond1 is still on the fixture NAS"
+  note "bond1 is gone"
+  exit 0
+fi
+
 log "init (local state, no backend)"
 run_tofu init -backend=false -input=false -no-color | tail -n 4
 log "fmt -check (fixture.auto.tfvars included)"
@@ -159,6 +179,23 @@ echo "$res" | jq -r '"   smb share: \(.[0] | length) (purpose \(.[0][0].purpose 
   "   nfs exports: \([.[2][].path] | join(" "))"'
 echo "$res" | jq -e '(.[0] | length) == 1 and .[0][0].purpose == "TIMEMACHINE_SHARE" and (.[1] | length) == 1 and (.[2] | length) == 2' >/dev/null \
   || die "the Time Machine share or the Kopia/Seafile exports are missing on the NAS after apply"
+
+log "check the storage link on the fixture NAS"
+# The middleware rate-limits logins and this script has just made several; wait for the window.
+res=""
+for _ in 1 2 3 4 5 6; do
+  res="$(echo '[["interface.query",[[["name","in",["bond1","enp2s0"]]]]]]' | nas_rpc 2>/dev/null)" && break
+  sleep 15
+done
+[ -n "$res" ] || die "could not query the NAS interfaces (rate limited?)"
+echo "$res" | jq -r '.[0][] | "   \(.name) \(.type): mtu \(.state.mtu), dhcp \(.ipv4_dhcp), aliases \([.aliases[] | "\(.address)/\(.netmask)"] | join(","))"'
+echo "$res" | jq -e '([.[0][] | select(.name == "bond1")] | length) == 1
+  and ([.[0][] | select(.name == "bond1") | .state.mtu] == [9000])
+  and ([.[0][] | select(.name == "enp2s0") | .state.mtu] == [9000])
+  and ([.[0][] | select(.name == "bond1") | .aliases[] | select(.address == "10.99.0.2" and .netmask == 30)] | length) == 1
+  and ([.[0][] | select(.name == "bond1") | .ipv4_dhcp] == [false])' >/dev/null \
+  || die "bond1 / enp2s0 are not at MTU 9000 with 10.99.0.2/30 on the NAS after apply"
+note "bond1: 10.99.0.2/30, MTU 9000, port enp2s0 at MTU 9000"
 
 log "second plan (must be clean)"
 set +e

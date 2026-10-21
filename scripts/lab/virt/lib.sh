@@ -42,12 +42,16 @@ LAB_DOMAIN_PREFIX="lab-"
 NET_LAB="homelab-lab"
 NET_STORAGE="homelab-lab-storage"
 NWFILTER_NAME="homelab-lab-isolate"
+# The 10 GbE storage-link stand-in for the two nested fixtures (lab-pve <-> lab-truenas): a second,
+# isolated network that carries only their extra NICs. Owned by the fixture scripts, not by guests.tsv.
+NET_LINK="homelab-lab-link"
 
 # Bridge names: at most 15 characters (kernel IFNAMSIZ), and they must match a prefix the host
 # firewall already accepts. UFW's input policy is DROP and /etc/ufw/before.rules only allows
 # libvirt bridges by name (`-i mlt+`); a bridge outside that prefix gets no DHCP/DNS from dnsmasq.
 LAB_BRIDGE="mlt-lab"
 STORAGE_BRIDGE="mlt-labstor"
+LINK_BRIDGE="mlt-link"
 
 # Addressing — docs/decisions.md §2.4. 10.99.100.0/24 and 10.99.101.0/30 are disjoint from
 # 10.0.0.0/16 (house LAN) and 10.10.0.0/16 (server VLAN), so they can never collide with the real
@@ -486,13 +490,31 @@ network_xml_storage() {
   <!-- Isolated network (no forward element) modelling the dedicated point-to-point storage link.
        A /30 gives exactly two endpoints: ${STORAGE_HOST_IP} is the libvirt bridge, i.e. the lab's
        stand-in for the Proxmox end, and ${STORAGE_NAS_IP} is the NAS. No DHCP and no gateway on
-       purpose. MTU 9000 is NOT simulated (the lab fabric is virtual) — recorded in docs/lab.md.
+       purpose. This network stays at MTU 1500; the jumbo-frame link is the separate NET_LINK network below.
        Bridge naming constraints (IFNAMSIZ + the UFW allow-list) are documented next to
        LAB_BRIDGE / STORAGE_BRIDGE at the top of this file. -->
   <bridge name='${STORAGE_BRIDGE}' stp='on' delay='0'/>
   <ip address='${STORAGE_HOST_IP}' netmask='${STORAGE_NETMASK}'/>
 </network>
 EOF
+}
+
+network_xml_link() {
+  cat <<EOF
+<network>
+  <name>${NET_LINK}</name>
+  <!-- Isolated L2 segment for the nested fixtures' storage NICs (no forward element, no DHCP, no
+       NAT, no host address): lab-pve's vmbr1 and lab-truenas's port talk to each other and to nothing
+       else. MTU 9000 is real here (a libvirt bridge carries jumbo frames), which is what lets the
+       fixture prove the 10 GbE link's MTU. Bridge name: see LAB_BRIDGE. -->
+  <mtu size='9000'/>
+  <bridge name='${LINK_BRIDGE}' stp='off' delay='0'/>
+</network>
+EOF
+}
+
+ensure_link_network() {
+  ensure_network "$NET_LINK" network_xml_link
 }
 
 # domain_xml <index>
