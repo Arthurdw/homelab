@@ -2,7 +2,7 @@
 
 Manages UniFi network resources for the homelab.
 
-**Status:** one new network and the two host fixed IPs written. Against the L1 fixture, a self-hosted
+**Status:** one new network, the two host fixed IPs and the lab DNS forward written. Against the L1 fixture, a self-hosted
 controller in Docker (`just lab-unifi up`, then `just lab-unifi-plan`; see `docs/lab.md`), the plan creates only
 `hl-k8s` and the two listed clients, the apply takes over the two pre-seeded client records, the re-plan is clean,
 and a targeted destroy of one reservation leaves the client on the controller.
@@ -39,13 +39,19 @@ tofu plan                                      # review carefully
 | Resource | What | Source |
 |---|---|---|
 | `unifi_network.k8s` | `hl-k8s`: VLAN 20, `10.20.0.0/24`, gateway `10.20.0.1`, purpose corporate, IPv6 off, DHCP `.200-.249` (proposal); `prevent_destroy` | decisions §2, network-plan |
-
+| `unifi_dns_record.lab` | Forward Domain `lab.ardw.be` → `10.20.0.101` (Technitium), record type `NS` in the provider (`dns.tf`) | cluster-settings `TECHNITIUM_LB_IP` |
 | `data.unifi_network.server` | the **existing** server network (VLAN 4, `10.10.0.0/16`), read-only, by `server_network_name` (default `server`); a postcondition checks VLAN and subnet | network-plan |
 | `unifi_client.host["poseidon"]` | fixed IP `10.10.1.1` on the server network for poseidon's MAC; takes over the existing client | host-network-bootstrap §1 |
 | `unifi_client.host["hercules-nas"]` | fixed IP `10.10.1.10` on the server network for hercules-nas's MAC; takes over the existing client | host-network-bootstrap §1 |
 
 A precondition rejects a DHCP pool that overlaps the nodes (`.11-.29`) or MetalLB (`.100-.199`).
 The firewall zone is left to the controller default. Any inter-zone policy is a later, additive change.
+
+**Lab names resolve through the UDM.** `dns.tf` adds one Forward Domain: the UDM sends every lookup under
+`lab.ardw.be` to Technitium (`10.20.0.101`), which answers `*.lab.ardw.be` with Traefik (`10.20.0.100`). New apps
+need no change here. The household DHCP DNS stays as it is: pointing it at Technitium would modify a network we
+did not create and make every lookup in the house depend on the cluster. With the forward, only the lab names
+stop resolving when the cluster is down. The record's name is the domain, so the `hl-` prefix cannot apply.
 
 **The storage link is not a UniFi object.** `10.99.0.0/29` (Proxmox `.1`, NAS `.2`, Talos VMs `.3`/`.4` via
 `vmbr1`, MTU 9000) is a direct 10 GbE cable between the Proxmox dual-port NIC and the NAS. It never touches a
