@@ -126,11 +126,14 @@ UniFi switch-port tagging (HOME native; VLAN 4 and 20 tagged), a UI step.
 - **Hostname.** The Proxmox install is still named `pve`. Either rename it to `poseidon` (step 2.4 of that
   runbook: `hostnamectl set-hostname poseidon` and fix `/etc/hosts`, while there are no guests) or leave it and
   set `proxmox_node_name = "pve"` in the Proxmox root's `terraform.tfvars`. Pick one before step 5.
-- **Interfaces.** `nic0` (1 GbE) is `vmbr0` carrying VLAN 4. `nic1` and `nic2` (the 10 GbE X520) are not
-  configured yet. The direct fibre is on `nic2` (carrier seen 2026-10-21); `nic1` is unused.
+- **Interfaces.** `nic0` (1 GbE) is `vmbr0` carrying VLAN 4. `nic1` and `nic2` are the 10 GbE X520. The direct
+  fibre is on `nic2` (carrier seen 2026-10-21); `nic1` is unused. Only `nic2`'s `mtu 9000` stanza is set by
+  hand; `vmbr1` itself is created by the Proxmox root (step 5).
 - **Direct 10 GbE link.** poseidon `10.99.0.1/30` (on `vmbr1`) to hercules-nas `10.99.0.2/30`, MTU 9000 on
-  both. The subnet is provisional (`docs/decisions.md` §2.2). It needs the cable plugged in first (open
-  inputs below).
+  both. The subnet is provisional (`docs/decisions.md` §2.2). poseidon sees carrier on `nic2`; the NAS side
+  is not configured yet and nothing has been pinged or measured on the real link. Both ends are OpenTofu
+  resources (`storage-link.tf` in the Proxmox and TrueNAS roots, proven on the lab fixtures only), so this
+  ping and iperf3 test runs after those applies; `host-network-bootstrap.md` has the order.
 
 Verify, from poseidon:
 
@@ -160,7 +163,8 @@ tofu plan
 ```
 
 Expected: additions only (datasets, the NFS and SMB shares, snapshot tasks, the user-facing pieces in its
-README). The pool `main` itself is not managed here; it already exists. Any destroy or in-place change to an
+README), plus the storage-link bond (`bond1`, a one-port failover bond on `storage_link_interface`, which
+must be set first). The pool `main` itself is not managed here; it already exists. Any destroy or in-place change to an
 existing dataset is a stop. Needs the Time Machine quota and the `jolien` user (open inputs below), and
 `k8s_nfs_allowed_networks` settled (README and `docs/decisions.md` §2.2).
 
@@ -181,7 +185,8 @@ tofu validate
 tofu plan
 ```
 
-Expected: the Talos control-plane and worker VMs, the Talos image download, and nothing else. If the node
+Expected: the Talos control-plane and worker VMs, the Talos image download, the storage-link bridge `vmbr1`
+(`nic2` must already carry `mtu 9000`), and nothing else. If the node
 is still `pve`, `proxmox_node_name = "pve"` must be set. Read `infrastructure/environments/homelab/proxmox/README.md`.
 
 Then `tofu apply`, then `tofu plan` again.
@@ -225,6 +230,7 @@ Rollback: `flux suspend kustomization --all` stops reconciling. Remove the clust
 | UDM URL | `unifi_api_url` in the same `terraform.tfvars` | 2 |
 | VLAN 4 network name | `server_network_name`, to be confirmed from the controller (default `server`) | 2 |
 | 10 GbE cable and link test | cable between poseidon and the NAS, then the ping and iperf3 test above | 3, 4 |
+| NAS 10 GbE port name | `storage_link_interface` in the TrueNAS root's `terraform.tfvars` (no default; read it in the TrueNAS UI under Network) | 4 |
 | /29 storage-subnet decision | whether the storage link stays a /30 or grows to a /29; undecided, see `docs/decisions.md` §2.2 and `k8s_nfs_allowed_networks` | 3, 4 |
 | Time Machine quota and the `jolien` user | `timemachine_jolien_quota_gib` (2x the Mac's disk is the rule of thumb); the user must exist on the NAS first | 4 |
 | SMTP password | relay `mail.a-line.be`, user `homelab@lab.ardw.be` (`docs/decisions.md` §5.1); set at the key ceremony | 7 |

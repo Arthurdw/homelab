@@ -9,6 +9,16 @@ nested Proxmox VE 9.2, `just lab-pve-plan`): plan, apply, a clean second plan an
 there are created stopped and small; the real host's storage, bridge, VLAN and token are unproven
 (see Verification below).
 
+## Storage link
+
+`storage-link.tf` manages `vmbr1`: port `nic2`, `10.99.0.1/30`, MTU 9000, no gateway (the poseidon end of the
+10 GbE link to the NAS, `docs/decisions.md` §2.2). The role needs no extra privilege. `nic2` itself must carry
+`mtu 9000` first (a hand-written `iface nic2 inet manual` / `mtu 9000` stanza, see
+`docs/runbooks/host-network-bootstrap.md`), because PVE refuses a bridge MTU above its port's. A hand-made
+`vmbr1` is adopted with `tofu import proxmox_network_linux_bridge.storage_link poseidon:vmbr1`. Variables:
+`storage_link_{bridge,port,address,mtu}`. Proven on the lab fixture only (create, import, destroy, jumbo ping
+to the NAS fixture); the real link is unmeasured.
+
 ## Decided topology (docs/decisions.md §3.1)
 
 | Guest | vCPUs | RAM | Disk | Datastore |

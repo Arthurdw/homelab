@@ -21,10 +21,12 @@ fixture instead. Nothing has run against the real NAS (25.10.7 since the 2026-10
 
 Additive only. It creates new objects under the existing pool. It never manages the pool or
 existing datasets/shares (`main`, `main/arthur`, `main/proxmox`, ...; `docs/storage.md`), and it imports
-nothing (deviation D1).
+nothing (deviation D1). The one network object, the storage-link bond, is created rather than imported:
+the provider can only import PHYSICAL interfaces, never configure them.
 
 | Resource | What | Source |
 |---|---|---|
+| `storage-link.tf`: `truenas_network_interface.storage_link` | one-port failover bond `bond1` over the 10 GbE port (`storage_link_interface`, no default), `10.99.0.2/30`, MTU 9000, no DHCP; management interface untouched. Fixture-proven only | decisions §2.2 |
 | `truenas_dataset.k8s` | `main/k8s`, parent for csi-driver-nfs PVC directories; `prevent_destroy` | decisions §4.1, §4.2 |
 | `truenas_nfs_share.k8s` | `/mnt/main/k8s`, storage link only, `maproot root:root` (no_root_squash), `sec=sys` | `kubernetes/infrastructure/storage/release.yaml` |
 | `truenas_periodic_snapshot_task.k8s` | daily, recursive, 14 days | decisions §4.1 ("main/k8s NFS export") |

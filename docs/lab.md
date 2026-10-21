@@ -129,7 +129,13 @@ How it is built:
   nwfilter and the harness's disks. With `--only`, the shared networks and filter are kept. Other domains are
   listed and left alone. `--purge` also deletes downloaded images.
 
-The 10 GbE link's MTU 9000 is not simulated; measure it at cutover (`docs/decisions.md` §2.2).
+The 10 GbE storage link is simulated at layer 2 only: an isolated libvirt network `homelab-lab-link`
+(bridge `mlt-link`, MTU 9000) joins a second NIC on lab-pve (renamed `nic2`) and one on lab-truenas.
+`just lab-pve-plan` applies the Proxmox root's `vmbr1`, `just lab-truenas-plan` applies the TrueNAS root's
+bond (`--undo-link` removes it), and `scripts/lab/storage-link-ping.sh` sends an 8972-byte do-not-fragment
+ping from lab-pve to `10.99.0.2` (an 8973-byte one must be refused). That proves the resources and the MTU
+chain on virtio NICs. The real X520 and the real fibre are unmeasured; measure them at cutover
+(`docs/decisions.md` §2.2).
 
 ## UniFi fixture
 

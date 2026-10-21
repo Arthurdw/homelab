@@ -174,6 +174,10 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
       `10.10.1.1`, hercules-nas `10.10.1.10`) are a narrow, owner-approved take-over of those two client
       records (`unifi/host-reservations.tf`), proven on the L1 fixture. Open: the `TODO(GATE 4)` values,
       the storage link, and a plan against the export)*
+- [ ] 10 GbE storage link as code *(authored: `vmbr1` in the Proxmox root, a one-port failover bond in the
+      TrueNAS root; both proven on the L1 fixtures incl. a jumbo ping. Open: the NAS port name
+      `storage_link_interface`, the owner-applied `nic2` `mtu 9000` stanza, the live apply, and the real
+      ping and iperf3 test)*
 - [x] Every config validated in an L1 fixture before any live plan *(`unifi`, `proxmox` and `truenas` roots:
       `just lab-unifi-plan`, `just lab-pve-plan`, `just lab-truenas-plan`)*
 - [ ] CI plan preview; protected environment for applies *(`.github/workflows/tofu-plan.yml` is written and

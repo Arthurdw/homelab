@@ -1,8 +1,10 @@
 # Runbook: host network bootstrap (Proxmox and TrueNAS)
 
 Owner-executed, at the console, after a fresh install of `poseidon` (Proxmox VE) or `hercules-nas` (TrueNAS
-SCALE). It gets each host onto its management address on VLAN 4 so the IaC can take over. None of the IaC
-roots manage host interfaces or management IPs, so this step is manual and happens once per install.
+SCALE). It gets each host onto its management address on VLAN 4 so the IaC can take over. The IaC roots do
+not manage the management interfaces or addresses: OpenTofu reaches both hosts over that network, so a bad
+apply there would cut its own access. That step is manual and happens once per install. The 10 GbE storage
+link is the exception: the Proxmox and TrueNAS roots manage it (see below).
 
 Addresses come from `docs/network-plan.md`:
 
@@ -10,8 +12,13 @@ Addresses come from `docs/network-plan.md`:
 |---|---|---|---|---|
 | `poseidon` | VLAN 4 on `vmbr0` | `10.10.1.1/16` | `10.10.0.1` | `10.10.0.1` |
 | `hercules-nas` | VLAN 4 on the 1 GbE NIC | `10.10.1.10/16` | `10.10.0.1` | `10.10.0.1` |
-| `poseidon` | 10 GbE storage port | `10.99.0.1/30`, MTU 9000 | none | — |
+| `poseidon` | 10 GbE storage port (`nic2`) | `10.99.0.1/30`, MTU 9000 | none | — |
 | `hercules-nas` | 10 GbE storage port | `10.99.0.2/30`, MTU 9000 | none | — |
+
+The two storage-link rows are managed by the IaC, not by this runbook: `vmbr1` by the Proxmox root
+(`storage-link.tf`) and the NAS port by the TrueNAS root (`storage-link.tf`). Only what OpenTofu cannot
+express stays manual (the `nic2` MTU line in §2). Both were proven on the lab fixtures, never on the real
+link (`docs/lab.md`).
 
 `10.10.0.1` is the UDM's own address on VLAN 4. Never give it to a host. `10.10.1.53` is a dead resolver
 (`docs/decisions.md` §6.1); don't configure it.
@@ -52,7 +59,9 @@ Install with the DHCP address the installer offers, then follow the steps below.
    (`enp0s31f6` on PVE 8, see `docs/hardware.md`); the commands below use that name.
 2. Back up the current config: `cp /etc/network/interfaces /etc/network/interfaces.install`.
 3. Write `/etc/network/interfaces`. `vmbr0` becomes VLAN-aware with no address of its own; the host address
-   moves to `vmbr0.4`; `vmbr1` is the storage link:
+   moves to `vmbr0.4`. The storage link's `nic2` gets its own MTU here (the one thing the Proxmox root
+   cannot set; Proxmox refuses a bridge whose MTU is above its port's). `vmbr1` itself is **not** written
+   by hand: the Proxmox root creates it:
 
    ```text
    auto lo
@@ -75,20 +84,15 @@ Install with the DHCP address the installer offers, then follow the steps below.
 
    iface nic2 inet manual
        mtu 9000
-
-   auto vmbr1
-   iface vmbr1 inet static
-       address 10.99.0.1/30
-       bridge-ports nic2
-       bridge-stp off
-       bridge-fd 0
-       mtu 9000
    ```
 
    The fibre to hercules-nas is on `nic2` (found 2026-10-21 by bringing both ports up and checking for `LOWER_UP` /
    `/sys/class/net/<nic>/carrier`; `nic1` is unused). If the cable is ever moved, re-check the same way.
-   Leave `vmbr1` out until the NAS end
-   exists if you prefer; it doesn't affect management.
+   `vmbr1` (`10.99.0.1/30`, MTU 9000, port `nic2`) comes from `tofu apply` in the Proxmox root. If you
+   already made one by hand, adopt it instead of recreating it:
+   `tofu import proxmox_network_linux_bridge.storage_link poseidon:vmbr1`, after which `tofu plan` shows no
+   changes (the lab proved this). Proxmox only accepts the bridge if `nic2` is at MTU 9000 first, so keep the
+   stanza above in place before the apply.
 4. Hostname and `/etc/hosts`: if the installer left the default `pve`, run `hostnamectl set-hostname poseidon`.
    Then replace the installer's line in `/etc/hosts` with `10.10.1.1 poseidon.<your-domain> poseidon`.
    Proxmox resolves its own name to pick the cluster address, and a stale `10.0.x` or a name mismatch here
@@ -125,7 +129,11 @@ From the web UI, at the install's DHCP address:
 2. **Network → Global Configuration:** IPv4 default gateway `10.10.0.1`, nameserver 1 `10.10.0.1`, hostname
    `hercules-nas`.
 3. Remove DHCP from the parent interface, so the host doesn't keep a second address on HOME.
-4. Optional, once `poseidon`'s `vmbr1` is up: edit the 10 GbE port, alias `10.99.0.2/30`, MTU 9000.
+4. The 10 GbE port is not configured here. The TrueNAS root does it (`storage-link.tf`): a one-port
+   failover bond over the port with alias `10.99.0.2/30` and MTU 9000. Set `storage_link_interface` in
+   `terraform.tfvars` to the port's name (Network → Interfaces; it is not the management NIC), then apply.
+   A bond, because the provider cannot configure a physical interface (PHYSICAL is import-only) and a
+   bridge does not carry its MTU to the port, whereas a bond does (proven on the fixture).
 5. **Test Changes.** TrueNAS rolls back by itself after 60 seconds unless you confirm. Open
    `https://10.10.1.10` in a new tab, and press **Save Changes** in the old one only once the new address
    loads.
