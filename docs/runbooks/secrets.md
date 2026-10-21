@@ -89,6 +89,17 @@ scripts/secrets/decrypt.sh --extract '["stringData"]["password"]' path/to/immich
 `sops FILE` (with `$EDITOR`) re-encrypts in place on save — the convenient way to edit
 an existing encrypted file.
 
+The cluster Secrets are generated in bulk rather than one by one:
+
+- **Lab:** `scripts/secrets/gen-lab-secrets.sh` (all random, disposable values).
+- **Production:** `just secrets-gen-homelab` (`scripts/secrets/gen-homelab-secrets.sh`) writes every Secret listed
+  in `kubernetes/overlays/homelab/README.md`. It refuses to run until the production recipient is in
+  `.sops.yaml`, generates the passwords and keys, and prompts without echo for the values only you know (or
+  reads them from `HOMELAB_*` env vars, see `--help`). It never overwrites a file without `--force`, and never
+  regenerates the Authentik secret key, Seafile JWT key or Kopia repository password without
+  `--rotate-immutable` as well. Afterwards, read values back with `decrypt.sh` and store an offline copy of the
+  Kopia repository password: losing it loses every backup.
+
 ## 4. Rotate a secret
 
 Two different things, often confused:

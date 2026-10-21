@@ -81,6 +81,10 @@ secrets-check:
 secrets-verify:
   ./scripts/secrets/verify.sh
 
+# Write the production Secrets (needs the production age recipient in .sops.yaml), e.g. `--dry-run`
+secrets-gen-homelab *args:
+  ./scripts/secrets/gen-homelab-secrets.sh {{args}}
+
 # Build every kustomization and schema-check it. Mirrors the CI `kubernetes` job — if you
 # change one, change the other. A failed or empty render is an error, never a silent pass.
 k8s-validate:

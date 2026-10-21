@@ -39,6 +39,17 @@ Certificate is issued.
 
 ## Adding one
 
+`scripts/secrets/gen-homelab-secrets.sh` (`just secrets-gen-homelab`) writes every Secret in the table and
+adds it to the kustomization. It generates the passwords and keys, prompts (without echo) for the Cloudflare
+token, the SMTP relay password, the Seafile admin email and the Kopia devices, or reads them from
+`HOMELAB_CLOUDFLARE_API_TOKEN`, `HOMELAB_SMTP_PASSWORD`, `HOMELAB_SEAFILE_ADMIN_EMAIL` and
+`HOMELAB_KOPIA_USERS` (comma-separated `<user>_<host>`). Existing files are kept; `--force` rewrites them,
+except `authentik-credentials`, `seafile-jwt` and `kopia-repository`, which also need `--rotate-immutable`.
+`--dry-run` lists what would be written. Read values back with `scripts/secrets/decrypt.sh`, and keep an offline
+copy of the `kopia-repository` password.
+
+To add or change a single Secret by hand:
+
 ```sh
 # Plaintext only in a private temp dir; never in the repo.
 tmp="$(mktemp -d)" && chmod 700 "$tmp"
