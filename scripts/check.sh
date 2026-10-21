@@ -19,7 +19,8 @@ fi
 if have tofu; then
   echo "== tofu fmt =="
   tofu fmt -check -recursive || { echo "FAILED: tofu fmt"; fail=1; }
-  roots=$(grep -rl --include='*.tf' -e '^terraform {' . 2>/dev/null | xargs -r -n1 dirname | sort -u)
+  # Git-visible files only, so gitignored lab scratch roots (talos/out/) aren't validated.
+  roots=$(git ls-files -co --exclude-standard -z '*.tf' | xargs -0 -r grep -l -e '^terraform {' | xargs -r -n1 dirname | sort -u)
   for d in $roots; do
     echo "== tofu validate: $d =="
     (cd "$d" && tofu init -backend=false -input=false >/dev/null && tofu validate) || { echo "FAILED: validate $d"; fail=1; }
