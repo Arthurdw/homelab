@@ -119,6 +119,44 @@ talos-validate:
   ./scripts/talos/validate.sh
 
 # ---------------------------------------------------------------------------
+# Live Talos cluster — docs/runbooks/talos-bootstrap.md, in this order.
+# Node addresses default to docs/decisions.md §2.1 (talos_cp_ipv4 / talos_worker_ipv4 in the proxmox root);
+# override with TALOS_CP / TALOS_WORKER.
+# ---------------------------------------------------------------------------
+
+talos_cp := env('TALOS_CP', '10.20.0.11')
+talos_worker := env('TALOS_WORKER', '10.20.0.12')
+
+# Generate talos/out (offline). `just talos-gen --force` replaces the PKI: only before any node uses it
+talos-gen *args:
+  ./scripts/talos/gen-configs.sh {{args}}
+  ./scripts/talos/validate.sh
+
+# First config push to nodes in maintenance mode (--insecure), control plane first, then point talosconfig at the CP
+talos-apply:
+  talosctl apply-config --insecure --nodes {{talos_cp}} --file talos/out/controlplane.yaml
+  talosctl apply-config --insecure --nodes {{talos_worker}} --file talos/out/worker.yaml
+  talosctl --talosconfig talos/out/talosconfig config endpoint {{talos_cp}}
+  talosctl --talosconfig talos/out/talosconfig config node {{talos_cp}}
+
+# Talos version and cluster members (read-only)
+talos-health:
+  talosctl --talosconfig talos/out/talosconfig --nodes {{talos_cp}} version
+  talosctl --talosconfig talos/out/talosconfig --nodes {{talos_cp}} get members
+
+# Bootstrap etcd, exactly once (irreversible); the script itself still wants --confirm
+talos-bootstrap *args:
+  ./scripts/talos/bootstrap.sh --node {{talos_cp}} {{args}}
+
+# Write the admin kubeconfig to talos/out/kubeconfig (gitignored); needs --confirm
+talos-kubeconfig *args:
+  ./scripts/talos/kubeconfig.sh --node {{talos_cp}} {{args}}
+
+# Install Cilium before Flux; needs --confirm
+talos-cni *args:
+  ./scripts/talos/install-cni.sh --kubeconfig talos/out/kubeconfig {{args}}
+
+# ---------------------------------------------------------------------------
 # Lab (local test-driven development) — see docs/lab.md
 # ---------------------------------------------------------------------------
 
