@@ -73,19 +73,20 @@ Install with the DHCP address the installer offers, then follow the steps below.
        address 10.10.1.1/16
        gateway 10.10.0.1
 
-   iface nic1 inet manual
+   iface nic2 inet manual
        mtu 9000
 
    auto vmbr1
    iface vmbr1 inet static
        address 10.99.0.1/30
-       bridge-ports nic1
+       bridge-ports nic2
        bridge-stp off
        bridge-fd 0
        mtu 9000
    ```
 
-   Use whichever 10 GbE port has link (`nic1` or `nic2`; both were down and unconfigured after the 2026-10-21 reinstall).
+   The fibre to hercules-nas is on `nic2` (found 2026-10-21 by bringing both ports up and checking for `LOWER_UP` /
+   `/sys/class/net/<nic>/carrier`; `nic1` is unused). If the cable is ever moved, re-check the same way.
    Leave `vmbr1` out until the NAS end
    exists if you prefer; it doesn't affect management.
 4. Hostname and `/etc/hosts`: if the installer left the default `pve`, run `hostnamectl set-hostname poseidon`.

@@ -15,7 +15,7 @@
 | Root layout | LVM: `pve-root` 96 G ext4 (7 % used), `pve-data` 360 G lvmthin (0 % used), 8 G swap | no ZFS on the host |
 | GPU | 1× NVIDIA Tesla P4 (`GP104GL`, `10de:1bb3`) | **already passed through to a VM**; IOMMU on (`intel_iommu=on iommu=pt`); in IOMMU group 2 with its root port |
 | NIC 1 | 1 GbE (`nic0`; `enp0s31f6` before the PVE 9 reinstall) | management VLAN bridge `vmbr0` (`vmbr0.4` up) |
-| NIC 2 | dual-port 10 GbE X520 (`nic1`, `nic2`; were `enp2s0f0`/`enp2s0f1`) | both down and unconfigured after the reinstall; storage bridge `vmbr1` → NAS to be rebuilt on whichever has link |
+| NIC 2 | dual-port 10 GbE X520 (`nic1`, `nic2`; were `enp2s0f0`/`enp2s0f1`) | storage fibre to the NAS is on `nic2` (carrier seen 2026-10-21); `nic1` unused; storage bridge `vmbr1` on `nic2` not yet configured or tested |
 | Pending updates | **185 packages** | patch policy needed |
 | SMART (root SSD) | PASSED | |
 

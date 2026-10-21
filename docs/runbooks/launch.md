@@ -127,7 +127,7 @@ UniFi switch-port tagging (HOME native; VLAN 4 and 20 tagged), a UI step.
   runbook: `hostnamectl set-hostname poseidon` and fix `/etc/hosts`, while there are no guests) or leave it and
   set `proxmox_node_name = "pve"` in the Proxmox root's `terraform.tfvars`. Pick one before step 5.
 - **Interfaces.** `nic0` (1 GbE) is `vmbr0` carrying VLAN 4. `nic1` and `nic2` (the 10 GbE X520) are not
-  configured yet. The direct link uses one of them on each side.
+  configured yet. The direct fibre is on `nic2` (carrier seen 2026-10-21); `nic1` is unused.
 - **Direct 10 GbE link.** poseidon `10.99.0.1/30` (on `vmbr1`) to hercules-nas `10.99.0.2/30`, MTU 9000 on
   both. The subnet is provisional (`docs/decisions.md` §2.2). It needs the cable plugged in first (open
   inputs below).
