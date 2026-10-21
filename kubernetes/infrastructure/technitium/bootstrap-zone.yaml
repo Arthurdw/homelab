@@ -3,6 +3,8 @@
 # zones, so this CronJob keeps them converged through the Technitium HTTP API:
 #   - primary zone lab.ardw.be (created only if missing)
 #   - lab.ardw.be and *.lab.ardw.be A -> Traefik's MetalLB VIP (TRAEFIK_LB_IP from cluster-settings)
+#   - <host>.lab.ardw.be A -> each physical host (HOST_RECORDS from cluster-settings). A specific
+#     record wins over the wildcard, so these names reach the host itself, not Traefik.
 # Records are written with overwrite=true, so each run replaces the A RRset with the desired value
 # and running it again changes nothing.
 #
@@ -64,6 +66,9 @@ spec:
                   value: lab.ardw.be
                 - name: TARGET_IP
                   value: ${TRAEFIK_LB_IP}
+                # Space-separated name=ip pairs; empty means no host records.
+                - name: HOST_RECORDS
+                  value: "${HOST_RECORDS}"
               command:
                 - /bin/sh
                 - -c
@@ -111,6 +116,19 @@ spec:
                     must "A $name -> $TARGET_IP" zones/records/add \
                       -d "zone=$ZONE" --data-urlencode "domain=$name" -d type=A \
                       -d "ipAddress=$TARGET_IP" -d ttl=300 -d overwrite=true
+                  done
+
+                  # Unquoted on purpose: word splitting turns the list into name=ip pairs (set -f: no globbing).
+                  set -f
+                  for pair in $HOST_RECORDS; do
+                    host=$(printf '%s' "$pair" | cut -d= -f1)
+                    ip=$(printf '%s' "$pair" | cut -d= -f2)
+                    if [ -z "$host" ] || [ -z "$ip" ] || [ "$host=$ip" != "$pair" ]; then
+                      echo "FAILED: bad HOST_RECORDS entry: $pair" >&2; exit 1
+                    fi
+                    must "A $host.$ZONE -> $ip" zones/records/add \
+                      -d "zone=$ZONE" --data-urlencode "domain=$host.$ZONE" -d type=A \
+                      -d "ipAddress=$ip" -d ttl=300 -d overwrite=true
                   done
               resources:
                 requests:

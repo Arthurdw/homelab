@@ -64,8 +64,8 @@ spec:
     # (Found by the lab: "can't evaluate field enabled in type interface {}".)
     #
     # Two Services, because the common library sets one type per Service:
-    #   - main: ClusterIP, web console only (port-forward to reach it). It stays the primary
-    #     service because the chart's probes target the primary port.
+    #   - main: ClusterIP, web console only (reached through the ingress below). It stays the
+    #     primary service because the chart's probes target the primary port.
     #   - dns: LoadBalancer on a fixed MetalLB IP, DNS 53/UDP+TCP only.
     # The chart enables web 80/443, DHCP 67, DoT 853 and DoH 8053 by default; every port is
     # disabled explicitly because Helm merges these values into the chart defaults.
@@ -113,6 +113,25 @@ spec:
             port: 53
             targetPort: 53
             protocol: TCP
+
+    # Web console (5380 on the main Service) at https://dns.lab.ardw.be. DNS (53) is never routed
+    # through Traefik; it stays on the `dns` LoadBalancer above.
+    ingress:
+      main:
+        enabled: true
+        ingressClassName: traefik
+        hosts:
+          # Internal zone <app>.lab.ardw.be (decisions.md §5.7), served by Technitium itself.
+          - host: dns.lab.ardw.be
+            paths:
+              - path: /
+                pathType: Prefix
+        # TLS on websecure with NO secretName: Traefik serves its default TLSStore certificate, the
+        # *.lab.ardw.be wildcard (decisions.md §5.7). The list replaces the chart default, which
+        # would otherwise name a placeholder secret.
+        tls:
+          - hosts:
+              - dns.lab.ardw.be
 
     # Config, zones and logs live in /etc/dns, kept on a local-path PVC (decisions.md §4.3: state
     # stays node-local). The PVC is RWO, so the common library's default Recreate strategy is

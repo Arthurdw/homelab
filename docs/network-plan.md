@@ -75,3 +75,19 @@ cannot collide with the live `10.0/16` and `10.10/16`, the K8s VLAN, the `10.99.
 
 **There is deliberately no BACKUP VLAN** — household PC→NAS backups are controlled by firewall policy,
 append-only repos and NAS-side snapshots instead (`docs/decisions.md` §2.7).
+
+## Internal names (`lab.ardw.be`, served by Technitium)
+
+The zone-bootstrap CronJob (`kubernetes/infrastructure/technitium/bootstrap-zone.yaml`) keeps these A records:
+
+| Name | Points at | Notes |
+|---|---|---|
+| `lab.ardw.be`, `*.lab.ardw.be` | Traefik VIP (`TRAEFIK_LB_IP`) | every app, e.g. `dns.lab.ardw.be` (Technitium web console) |
+| `poseidon.lab.ardw.be` | `10.10.1.1` | Proxmox, UI on `:8006` |
+| `hercules-nas.lab.ardw.be` | `10.10.1.10` | TrueNAS |
+| `unifi.lab.ardw.be` | `10.0.0.1` | UDM Pro |
+
+Host names come from `HOST_RECORDS` in each cluster's `cluster-settings.yaml` (the lab has only
+`lab-nas.lab.ardw.be` -> `10.99.100.10`). A specific record wins over the wildcard. The names are the machines'
+own hostnames, unique across sites, so other sites' hosts can be added later without renaming. Proxmox, TrueNAS
+and UniFi keep their self-signed certificates, so the browser warns on these names.

@@ -21,3 +21,9 @@ data:
   TECHNITIUM_LB_IP: 10.20.0.101
   # ClusterIssuer for the *.lab.ardw.be wildcard (docs/decisions.md §5.7): Let's Encrypt DNS-01 via Cloudflare.
   CLUSTER_ISSUER: letsencrypt-production
+  # Physical hosts that get an A record <name>.lab.ardw.be in Technitium (bootstrap-zone.yaml), as
+  # space-separated name=ip pairs: Proxmox, TrueNAS and the UDM on the home network
+  # (docs/network-plan.md). Names are the machines' own hostnames, unique across sites, so a later
+  # multi-site setup (shared UniFi network with family sites, NAS-to-NAS replication) can add other
+  # sites' hosts without renaming; per-site subdomains can come later.
+  HOST_RECORDS: "poseidon=10.10.1.1 hercules-nas=10.10.1.10 unifi=10.0.0.1"
