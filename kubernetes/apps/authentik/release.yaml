@@ -4,8 +4,8 @@
 #           server/worker image is ghcr.io/goauthentik/server:2026.8.4 — the chart pins it)
 #
 # Authentik is NEVER required to recover infrastructure: break-glass access is independent of it
-# (docs/runbooks/break-glass.md, docs/secrets-and-state.md §6). No other app is wired to it yet; SSO
-# for Grafana, Immich, etc. is a later, per-app step.
+# (docs/runbooks/break-glass.md, docs/secrets-and-state.md §6). Seafile signs in through it (blueprints.yaml);
+# SSO for Grafana, Immich, etc. is a later, per-app step.
 #
 # No Redis: authentik 2025.10+ moved its cache, tasks and websockets into PostgreSQL, and this chart no
 # longer has a Redis dependency at all.
@@ -14,6 +14,7 @@
 # committed in cleartext:
 #   secret-key         cookie signing + unique IDs; long random string; NEVER change after first install
 #   postgres-password  password of the `authentik` database user (bundled PostgreSQL + the app)
+# Also `authentik-smtp` (relay login) and `authentik-seafile-oidc` (client-secret of the Seafile provider).
 # The chart's own generated config Secret then carries only non-secret settings: `secret_key` and
 # `postgresql.password` stay empty here (the chart drops empty values), and the real values are
 # injected into the server and worker as env vars from `authentik-credentials`, which take precedence.
@@ -46,6 +47,14 @@ spec:
       retries: 3
   values:
     global:
+      # One replica each and little spare memory on the small cluster: stop the old pod before starting the
+      # new one (no surge pod, which cannot be scheduled and times the upgrade out). Not `type: Recreate`: the
+      # live Deployments already carry a defaulted rollingUpdate block, which that type forbids.
+      deploymentStrategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxSurge: 0
+          maxUnavailable: 1
       # Applied to both the server and the worker Deployments.
       env:
         - name: AUTHENTIK_SECRET_KEY
@@ -63,6 +72,17 @@ spec:
             secretKeyRef:
               name: authentik-smtp
               key: smtp-password
+        # Client secret of the Seafile OIDC provider, read by blueprints.yaml (!Env).
+        - name: AUTHENTIK_SEAFILE_OIDC_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: authentik-seafile-oidc
+              key: client-secret
+
+    # Blueprints (blueprints.yaml): the chart mounts each ConfigMap under /blueprints/mounted.
+    blueprints:
+      configMaps:
+        - authentik-blueprints
 
     authentik:
       # Deliberately empty: supplied from the `authentik-credentials` Secret via global.env above.

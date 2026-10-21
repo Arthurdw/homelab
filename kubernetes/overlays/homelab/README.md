@@ -21,6 +21,7 @@ the values are real and are generated or chosen by the owner.
 | apps | `seafile/seafile-admin` | `email`, `password` | First Seafile admin (created on first start only) | |
 | apps | `seafile/seafile-smtp` | `smtp-password` | Seafile mails (`seafile@lab.ardw.be`) | Same relay login as `alertmanager-smtp` |
 | apps | `seafile/seafile-jwt` | `jwt-private-key` | Seahub token signing | Must never change after the first install |
+| apps | `authentik/authentik-seafile-oidc` and `seafile/seafile-oidc` | `client-secret` | Seafile's OIDC login: Authentik's blueprint and Seahub | The two Secrets must hold the same value |
 | apps | `kopia/kopia-repository` | `password` | Kopia repository encryption | The only key to the backups: keep an offline copy |
 | apps | `kopia/kopia-server` | `username`, `password`, `control-username`, `control-password` | Kopia server UI/API and control login | |
 | apps | `kopia/kopia-users` | one key `<user>_<host>` per device, e.g. `dunia_dunia-pc`, `arthur_arthur-pc` | Kopia client logins (`user@host`) | Add a key per device, see `kubernetes/apps/kopia/server.yaml` |

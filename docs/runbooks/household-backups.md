@@ -98,7 +98,9 @@ the PVC's subdirectory of `main/k8s` instead.) Mount the dataset (or copy it) on
 ## (c) Seafile (needs the cluster live)
 
 Install the Seafile client (desktop or mobile) from seafile.com, server `https://seafile.lab.ardw.be`, and
-sign in. Web sign-in through Authentik is planned but not wired yet (`TODO(authentik)` in
-`kubernetes/apps/seafile/seafile.yaml`); until then the admin creates each account in the Seafile admin panel.
+sign in. On the web login page, "Single Sign-On" signs in through Authentik (the `seafile` application, declared
+in `kubernetes/apps/authentik/blueprints.yaml`); an Authentik user is created in Seafile on first login, by
+email address. Local login stays on, so the admin account always works, and the admin can still create accounts
+in the Seafile admin panel.
 The clients keep their own tokens either way (decisions §5.8). Seafile is for files you want everywhere. It is
 not a device backup: keep the Kopia or Time Machine job running as well.

@@ -105,6 +105,11 @@ secret apps seafile seafile-db root-password=@rand password=@rand
 secret apps seafile seafile-admin email=admin@lab.ardw.be password=@rand
 secret apps seafile seafile-smtp smtp-password=@rand
 secret apps seafile seafile-jwt jwt-private-key=@rand:40
+# OIDC client secret of Seafile's Authentik login: the SAME value in both namespaces (Authentik's blueprint
+# declares the client, Seafile presents it). Generated once per run; an existing file is kept.
+seafile_oidc="$(rand 48)"
+secret apps authentik authentik-seafile-oidc client-secret="$seafile_oidc"
+secret apps seafile seafile-oidc client-secret="$seafile_oidc"
 # Kopia repository server (kubernetes/apps/kopia). The repository password is the only key to the
 # backups; the server login is the UI/API, the control login is for the server's own control API,
 # and kopia-users holds one password per client user, key `<user>_<host>` for user@host (test_lab here).

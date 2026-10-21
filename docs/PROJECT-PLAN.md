@@ -218,10 +218,13 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
       `<app>.lab.ardw.be`
 - [x] `immich-db` Secret (SOPS) before first deploy; app certificates come from the wildcard *(lab Secret
       generated; the production one waits on the key ceremony, `kubernetes/overlays/homelab/README.md`)*
-- [ ] Authentik SSO *(Authentik is deployed at `auth.lab.ardw.be` with a daily database dump and mails through
-      the relay as `auth@lab.ardw.be`; wiring apps to it is still to do)*
+- [x] Authentik SSO *(Authentik is deployed at `auth.lab.ardw.be` with a daily database dump and mails through
+      the relay as `auth@lab.ardw.be`; Seafile signs in through it, declared by a blueprint. Proven in the lab
+      2026-10-21: the OIDC discovery document is served for `seafile`, and Seafile's `/oauth/login/` answers 302
+      to Authentik's authorize endpoint with `client_id=seafile`; a full browser login is not run yet. Other
+      apps are still to be wired)*
 - [x] Seafile (decisions §5.8) at `seafile.lab.ardw.be`, MariaDB with a daily dump *(proven in the lab
-      2026-10-21: login page, admin API token. Authentik OIDC is a `TODO(authentik)`)*
+      2026-10-21: login page, admin API token. Authentik OIDC sign-in added the same day)*
 - [x] Household device backups (decisions §5.9): Time Machine share for jolien, Kopia server at
       `kopia.lab.ardw.be` for dunia and arthur *(Kopia: a client snapshot through Traefik in the lab;
       Time Machine: the share on the TrueNAS fixture. Runbook: `docs/runbooks/household-backups.md`)*

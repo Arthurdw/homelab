@@ -13,17 +13,19 @@
 #
 # SECRETS (kubernetes/overlays/homelab/README.md): `seafile-db` (root-password, password), `seafile-admin`
 # (email, password), `seafile-jwt` (jwt-private-key, never change it after the first install),
-# `seafile-smtp` (smtp-password).
+# `seafile-smtp` (smtp-password), `seafile-oidc` (client-secret).
 #
 # MAIL: the image has no EMAIL_* env vars; settings only come from Python. Seahub imports
 # `seahub.local_settings` before conf/seahub_settings.py, so the ConfigMap below is mounted there and reads the
 # relay password from the environment. That keeps the password out of git. The mount path contains the
 # Seafile version (14.0.9): bump it together with the image tag.
 #
-# TODO(authentik): web sign-in should go through Authentik OIDC (decisions.md §5.8). Not wired yet: it needs an
-# Authentik OAuth2 provider/application and then, in the ConfigMap below, ENABLE_OAUTH = True plus
-# OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET (a new Secret), OAUTH_REDIRECT_URL (https://seafile.lab.ardw.be/oauth/callback/)
-# and the OAUTH_*_URL endpoints. Desktop and mobile clients keep their own tokens.
+# SIGN-IN: web sign-in goes through Authentik OIDC (decisions.md §5.8): the ConfigMap enables OAUTH_* with the
+# client `seafile`, declared by the Authentik blueprint (kubernetes/apps/authentik/blueprints.yaml). The client
+# secret is the Secret `seafile-oidc` (client-secret), the same value as Authentik's `authentik-seafile-oidc`.
+# Local login stays enabled, so the admin created from `seafile-admin` always works. Desktop and mobile clients
+# keep their own tokens. Seahub itself fetches the token and userinfo from Authentik, so auth.lab.ardw.be must
+# resolve from the pod and its certificate must be trusted (it is, with the public wildcard in production).
 #
 # EXPOSURE: LAN only, via the internal zone seafile.lab.ardw.be (decisions.md §5.7).
 apiVersion: v1
@@ -65,6 +67,21 @@ data:
     EMAIL_HOST_PASSWORD = os.environ.get("SEAFILE_SMTP_PASSWORD", "")
     DEFAULT_FROM_EMAIL = "seafile@lab.ardw.be"
     SERVER_EMAIL = "seafile@lab.ardw.be"
+
+    # Sign-in through Authentik (client `seafile`, authentik blueprints.yaml). The uid is the email address.
+    ENABLE_OAUTH = True
+    OAUTH_CLIENT_ID = "seafile"
+    OAUTH_CLIENT_SECRET = os.environ.get("SEAFILE_OIDC_SECRET", "")
+    OAUTH_REDIRECT_URL = "https://seafile.lab.ardw.be/oauth/callback/"
+    OAUTH_PROVIDER_DOMAIN = "auth.lab.ardw.be"
+    OAUTH_AUTHORIZATION_URL = "https://auth.lab.ardw.be/application/o/authorize/"
+    OAUTH_TOKEN_URL = "https://auth.lab.ardw.be/application/o/token/"
+    OAUTH_USER_INFO_URL = "https://auth.lab.ardw.be/application/o/userinfo/"
+    OAUTH_SCOPE = ["openid", "profile", "email"]
+    OAUTH_ATTRIBUTE_MAP = {
+        "email": (True, "uid"),
+        "name": (False, "name"),
+    }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -156,6 +173,11 @@ spec:
                 secretKeyRef:
                   name: seafile-smtp
                   key: smtp-password
+            - name: SEAFILE_OIDC_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: seafile-oidc
+                  key: client-secret
           # First start creates the databases and the config: allow up to ~10 minutes before liveness applies.
           startupProbe:
             httpGet:
