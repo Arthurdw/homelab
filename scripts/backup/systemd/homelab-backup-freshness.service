@@ -1,0 +1,9 @@
+[Unit]
+Description=Check the age of the last successful offsite backup
+OnFailure=homelab-backup-alert@%n.service
+
+[Service]
+Type=oneshot
+# Optional overrides: BACKUP_STAMP_FILE, BACKUP_MAX_AGE_HOURS (default 36).
+EnvironmentFile=-/etc/homelab/backup.env
+ExecStart=/usr/local/bin/homelab-backup-freshness

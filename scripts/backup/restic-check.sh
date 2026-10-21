@@ -31,6 +31,11 @@ restic check --read-data-subset="$SUBSET"
 
 if [ -n "${RESTIC_RESTORE_DIR:-}" ]; then
   log "== restore smoke test -> $RESTIC_RESTORE_DIR =="
+  # The directory is deleted on exit, so refuse one that already holds something.
+  if [ -n "$(ls -A "$RESTIC_RESTORE_DIR" 2>/dev/null)" ]; then
+    echo "RESTIC_RESTORE_DIR is not empty, refusing to restore into (and delete) it: $RESTIC_RESTORE_DIR" >&2
+    exit 1
+  fi
   mkdir -p "$RESTIC_RESTORE_DIR"
   trap 'rm -rf -- "$RESTIC_RESTORE_DIR"' EXIT
   tag_args=()
@@ -43,7 +48,7 @@ if [ -n "${RESTIC_RESTORE_DIR:-}" ]; then
   fi
   restic restore latest "${tag_args[@]+"${tag_args[@]}"}" "${inc_args[@]+"${inc_args[@]}"}" --target "$RESTIC_RESTORE_DIR"
   log "restored files:"
-  find "$RESTIC_RESTORE_DIR" -maxdepth 3 -type f | head -20 || true
+  find "$RESTIC_RESTORE_DIR" -type f | head -20 || true
 fi
 
 log "done"

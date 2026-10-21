@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily check that the offsite backup is fresh
+
+[Timer]
+# Daily at 08:00, well after the 02:30 backup. One alert mail per day while stale.
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

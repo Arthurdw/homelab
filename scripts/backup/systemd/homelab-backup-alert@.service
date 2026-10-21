@@ -1,0 +1,9 @@
+[Unit]
+Description=Email an alert that %i failed
+# Started by OnFailure=homelab-backup-alert@%n.service in the backup units.
+
+[Service]
+Type=oneshot
+# ALERT_* settings; the SMTP login lives in the netrc file it names. Keep both mode 0600.
+EnvironmentFile=/etc/homelab/alert.env
+ExecStart=/usr/local/bin/homelab-backup-alert %i

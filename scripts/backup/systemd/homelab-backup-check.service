@@ -2,10 +2,14 @@
 Description=Verify the offsite backup repository (restic check)
 After=network-online.target
 Wants=network-online.target
+OnFailure=homelab-backup-alert@%n.service
 
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/homelab/backup.env
+# systemd gives the service no $HOME, so restic would run uncached; keep its cache here.
+CacheDirectory=homelab-restic
+Environment=RESTIC_CACHE_DIR=/var/cache/homelab-restic
 # Higher subset on the weekly verify; see RESTIC_READ_DATA_SUBSET.
 Environment=RESTIC_READ_DATA_SUBSET=10%
 ExecStart=/usr/local/bin/homelab-restic-check
