@@ -164,7 +164,9 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
       household backup datasets, Time Machine share, Kopia and Seafile exports (`truenas/backups.tf`) are
       authored and proven on the L1 fixture. **Blocked** on the real NAS: ≥ 25.04, see Phase 2)*
 - [ ] UniFi resources: K8s VLAN 20 and storage link, additive only *(the `hl-k8s` network, VLAN 20, is
-      authored on provider 0.59.0 with `prevent_destroy` and validates. Open: the `TODO(GATE 4)` values,
+      authored on provider 0.59.0 with `prevent_destroy` and validates. The host fixed IPs (poseidon
+      `10.10.1.1`, hercules-nas `10.10.1.10`) are a narrow, owner-approved take-over of those two client
+      records (`unifi/host-reservations.tf`), proven on the L1 fixture. Open: the `TODO(GATE 4)` values,
       the storage link, and a plan against the export)*
 - [x] Every config validated in an L1 fixture before any live plan *(`unifi`, `proxmox` and `truenas` roots:
       `just lab-unifi-plan`, `just lab-pve-plan`, `just lab-truenas-plan`)*

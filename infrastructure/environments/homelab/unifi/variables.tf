@@ -43,3 +43,41 @@ variable "k8s_dhcp" {
     error_message = "k8s_dhcp must be a range within .2-.254 with first <= last."
   }
 }
+
+# -----------------------------------------------------------------------------
+# Host fixed IPs on the server network (host-reservations.tf)
+# -----------------------------------------------------------------------------
+
+variable "server_network_name" {
+  description = "Name of the EXISTING server network (VLAN 4, 10.10.0.0/16) on the controller. Read with a data source only, never managed. TODO(GATE 4): confirm the real name from the controller export."
+  type        = string
+  default     = "server"
+}
+
+variable "host_reservations" {
+  description = "MAC per host for the fixed-IP reservations, keyed by host name (poseidon, hercules-nas). The IPs come from the plan (locals in host-reservations.tf). MACs are private: set them in the gitignored terraform.tfvars only. Only the clients listed here are touched (taken over with allow_existing); an empty map manages nothing."
+  type = map(object({
+    mac = string
+  }))
+  default = {}
+
+  validation {
+    condition     = alltrue([for h in keys(var.host_reservations) : contains(["poseidon", "hercules-nas"], h)])
+    error_message = "host_reservations keys must be poseidon and/or hercules-nas (the hosts with a planned IP)."
+  }
+
+  validation {
+    condition     = alltrue([for r in values(var.host_reservations) : can(regex("^([0-9a-f]{2}:){5}[0-9a-f]{2}$", r.mac))])
+    error_message = "Each MAC must be lowercase, colon-separated (aa:bb:cc:dd:ee:ff), as the controller stores it."
+  }
+
+  validation {
+    condition     = alltrue([for r in values(var.host_reservations) : r.mac != "00:00:00:00:00:00"])
+    error_message = "A MAC is still the 00:00:00:00:00:00 placeholder from terraform.tfvars.example."
+  }
+
+  validation {
+    condition     = length(distinct([for r in values(var.host_reservations) : r.mac])) == length(var.host_reservations)
+    error_message = "Two hosts share a MAC."
+  }
+}

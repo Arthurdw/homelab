@@ -9,7 +9,10 @@
 # The controller's HTTPS port is published on 127.0.0.1 ONLY (default 18443). Nothing else is exposed.
 #
 # `up` also finishes first-run setup through the controller's own setup API (it creates the local
-# admin; the default site already exists), so there is no wizard to click through. Random credentials
+# admin; the default site already exists), so there is no wizard to click through. It then seeds,
+# OUTSIDE of tofu, the objects the real controller already has and the root must only read or take
+# over: the `server` network (VLAN 4, 10.10.0.0/16) and two known clients with fake, locally
+# administered MACs (FIXTURE_HOST_MACS below; never a real MAC). Seeding is idempotent. Random credentials
 # are written to talos/out/lab-unifi/ (gitignored, mode 700/600) and never to a tracked file.
 #
 # Only containers, the network and the volumes named lab-unifi* are ever created or removed here.
@@ -46,6 +49,9 @@ ENV_FILE="$OUT_DIR/fixture.env"
 MONGO_ENV="$OUT_DIR/mongo.env"
 MONGO_INIT="$OUT_DIR/init-mongo.js"
 ADMIN_USER="labadmin"
+# Fake, locally administered MACs standing in for poseidon and hercules-nas (fixture only).
+# scripts/lab/unifi-fixture-plan.sh uses the same values.
+FIXTURE_HOST_MACS="poseidon=02:00:00:00:01:01 hercules-nas=02:00:00:00:01:10"
 
 log()  { printf '\n\033[1m== %s ==\033[0m\n' "$*"; }
 note() { printf '   %s\n' "$*"; }
@@ -180,6 +186,46 @@ do_up() {
     note "created local admin '$UNIFI_FIXTURE_USERNAME' (site 'default')"
   fi
   note "credentials: $ENV_FILE"
+
+  seed_existing
+}
+
+# Pre-existing objects, created through the controller API and not through tofu, so the root meets
+# them the way it meets the real controller: a server network to read, clients to take over.
+seed_existing() {
+  log "seed pre-existing objects (outside tofu)"
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+  local jar api body
+  jar="$(mktemp)"
+  api="$URL/api/s/default"
+  body="$(jq -nc --arg u "$UNIFI_FIXTURE_USERNAME" --arg p "$UNIFI_FIXTURE_PASSWORD" '{username:$u,password:$p}')"
+  curl -sk --max-time 10 -c "$jar" -X POST "$URL/api/login" -H 'content-type: application/json' -d "$body" \
+    | grep -q '"rc":"ok"' || { rm -f "$jar"; die "seed: login failed"; }
+
+  if curl -sk --max-time 10 -b "$jar" "$api/rest/networkconf" | jq -e '.data[] | select(.name=="server")' >/dev/null; then
+    note "network 'server' present"
+  else
+    curl -sk --max-time 10 -b "$jar" -X POST "$api/rest/networkconf" -H 'content-type: application/json' \
+      -d '{"name":"server","purpose":"corporate","enabled":true,"vlan_enabled":true,"vlan":4,"ip_subnet":"10.10.0.1/16","networkgroup":"LAN","dhcpd_enabled":true,"dhcpd_start":"10.10.0.100","dhcpd_stop":"10.10.255.254","setting_preference":"manual"}' \
+      | grep -q '"rc":"ok"' || { rm -f "$jar"; die "seed: creating network 'server' failed"; }
+    note "created network 'server' (VLAN 4, 10.10.0.0/16)"
+  fi
+
+  local pair host mac
+  for pair in $FIXTURE_HOST_MACS; do
+    host="${pair%%=*}"
+    mac="${pair#*=}"
+    if curl -sk --max-time 10 -b "$jar" "$api/rest/user" | jq -e --arg m "$mac" '.data[] | select(.mac==$m)' >/dev/null; then
+      note "client $mac ($host) present"
+    else
+      body="$(jq -nc --arg m "$mac" --arg n "$host" '{mac:$m,name:$n,note:"seeded outside tofu"}')"
+      curl -sk --max-time 10 -b "$jar" -X POST "$api/rest/user" -H 'content-type: application/json' -d "$body" \
+        | grep -q '"rc":"ok"' || { rm -f "$jar"; die "seed: creating client $mac failed"; }
+      note "created client $mac ($host), no fixed IP"
+    fi
+  done
+  rm -f "$jar"
 }
 
 do_status() {
@@ -216,6 +262,9 @@ do_down() {
   done
   rm -f "$ENV_FILE" "$MONGO_ENV" "$MONGO_INIT"
   note "removed credentials in $OUT_DIR"
+  # The plan script's scratch state describes objects on the controller just removed; keeping it would
+  # make the next run plan against IDs that no longer exist.
+  if [ -d "$OUT_DIR/tofu" ]; then rm -rf "${OUT_DIR:?}/tofu"; note "removed scratch tofu state in $OUT_DIR/tofu"; fi
 }
 
 case "${1:-}" in
@@ -223,6 +272,6 @@ case "${1:-}" in
   status) do_status ;;
   stop)   do_stop ;;
   down)   do_down ;;
-  -h|--help|"") sed -n '2,26p' "$0"; [ -n "${1:-}" ] || exit 2 ;;
+  -h|--help|"") sed -n '2,28p' "$0"; [ -n "${1:-}" ] || exit 2 ;;
   *) die "unknown argument: $1" ;;
 esac

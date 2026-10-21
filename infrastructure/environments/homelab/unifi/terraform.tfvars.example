@@ -12,3 +12,14 @@ unifi_allow_insecure = true
 
 # K8s VLAN DHCP pool (host offsets; TODO(GATE 4) proposal, see variables.tf)
 # k8s_dhcp = { enabled = true, first = 200, last = 249 }
+
+# Existing server network (VLAN 4), read-only. TODO(GATE 4): confirm the name from the export.
+# server_network_name = "server"
+
+# Fixed IPs for the hosts (poseidon 10.10.1.1, hercules-nas 10.10.1.10; the IPs are fixed in
+# host-reservations.tf). Takes over ONLY these existing client records. Real MACs go in
+# terraform.tfvars (gitignored), lowercase. The placeholder below is rejected by validation.
+# host_reservations = {
+#   poseidon       = { mac = "00:00:00:00:00:00" }
+#   "hercules-nas" = { mac = "00:00:00:00:00:00" }
+# }

@@ -137,12 +137,17 @@ The 10 GbE link's MTU 9000 is not simulated; measure it at cutover (`docs/decisi
 Docker, bound to `127.0.0.1:18443` only (`LAB_UNIFI_PORT`), capped at 1.5 GiB and 512 MiB. Images are pinned by
 digest in `versions.yaml` (`lab_fixture_images`). The first run creates a random local admin non-interactively and
 writes the credentials to `talos/out/lab-unifi/` (gitignored). `status`, `stop` (keeps data) and `down` (removes
-containers, volumes and credentials) are also available.
+containers, volumes and credentials) are also available. `up` then seeds, outside tofu, what the real controller
+already has: a `server` network (VLAN 4, `10.10.0.0/16`) and two known clients with fake, locally administered MACs
+(`02:00:00:00:01:01`, `02:00:00:00:01:10`). `down` also removes the plan script's scratch state.
 
 `just lab-unifi-plan` copies `infrastructure/environments/homelab/unifi` into `talos/out/lab-unifi/tofu/`, runs
-`init -backend=false`, `validate`, `plan`, `apply`, checks the network on the controller, then re-plans and requires
-no changes. It refuses any endpoint that is not `https://127.0.0.1:<port>` or `https://localhost:<port>`, and drops
-`UNIFI_*` and `TF_VAR_unifi_*` from the calling shell. `--plan` stops after the plan. There is no `destroy` step
+`init -backend=false`, `validate` and `plan` with the fake MACs as `host_reservations`. It fails if the plan does
+anything but create `hl-k8s` and the two listed clients. It then applies, checks the network and both fixed IPs on
+the controller (the take-over keeps the seeded client name and note), re-plans and requires no changes. Last, it
+destroys one reservation with `-target` and checks the client is still on the controller (`skip_forget_on_destroy`).
+It refuses any endpoint that is not `https://127.0.0.1:<port>` or `https://localhost:<port>`, and drops
+`UNIFI_*` and `TF_VAR_unifi_*` from the calling shell. `--plan` stops after the plan. There is no full `destroy`
 (the network has `prevent_destroy`); `just lab-unifi down` discards the fixture.
 
 Limits: a self-hosted controller has no API keys (a UniFi OS feature), so the fixture authenticates with the local

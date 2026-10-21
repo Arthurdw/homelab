@@ -37,7 +37,12 @@ Install with the DHCP address the installer offers, then follow the steps below.
   additive-only, `docs/PROJECT-PLAN.md` §4.4).
 - **UniFi fixed IPs** on the server network: `10.10.1.1` for `poseidon`'s MAC and `10.10.1.10` for
   `hercules-nas`'s. The server network's DHCP range covers both addresses, so without a reservation DHCP could
-  hand them to another client.
+  hand them to another client. These are managed by the UniFi root
+  (`infrastructure/environments/homelab/unifi/host-reservations.tf`): put the two MACs in its gitignored
+  `terraform.tfvars` as `host_reservations`, then plan (it must show only those two clients) and apply (README
+  there). Until the root is applied, set them by hand as a fallback: UniFi Network → Client Devices → the host →
+  Settings → Fixed IP Address, on the server network. The root takes over a hand-set reservation without
+  change.
 - Not every unmanaged switch passes 802.1Q-tagged frames. If step 2's verification fails with the config
   right, plug the host into a UniFi port directly to rule the switch out.
 
