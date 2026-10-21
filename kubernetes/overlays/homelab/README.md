@@ -17,6 +17,13 @@ the values are real and are generated or chosen by the owner.
 | apps | `immich/immich-db` | `username`, `password` | Immich and its PostgreSQL, `immich-db-dump` | |
 | apps | `authentik/authentik-credentials` | `secret-key`, `postgres-password` | Authentik and its PostgreSQL, `authentik-db-dump` | `secret-key` must never change after the first install |
 | apps | `authentik/authentik-smtp` | `smtp-password` | Authentik recovery mails | Same relay login as `alertmanager-smtp` |
+| apps | `seafile/seafile-db` | `root-password`, `password` | Seafile's MariaDB, `seafile-db-dump` | `password` is the `seafile` DB user |
+| apps | `seafile/seafile-admin` | `email`, `password` | First Seafile admin (created on first start only) | |
+| apps | `seafile/seafile-smtp` | `smtp-password` | Seafile mails (`seafile@lab.ardw.be`) | Same relay login as `alertmanager-smtp` |
+| apps | `seafile/seafile-jwt` | `jwt-private-key` | Seahub token signing | Must never change after the first install |
+| apps | `kopia/kopia-repository` | `password` | Kopia repository encryption | The only key to the backups: keep an offline copy |
+| apps | `kopia/kopia-server` | `username`, `password`, `control-username`, `control-password` | Kopia server UI/API and control login | |
+| apps | `kopia/kopia-users` | one key `<user>_<host>` per device, e.g. `dunia_dunia-pc`, `arthur_arthur-pc` | Kopia client logins (`user@host`) | Add a key per device, see `kubernetes/apps/kopia/server.yaml` |
 
 ## What happens before they exist
 

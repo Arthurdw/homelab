@@ -1,0 +1,108 @@
+---
+# Seafile database backups: a daily logical dump of the three databases written to the NAS, like
+# kubernetes/apps/authentik/backup.yaml. A restore needs this dump and the /shared data from the same time
+# (decisions.md §5.8); the `seafile-jwt` and `seafile-admin` Secrets come from the secrets store. Alerts:
+# monitoring's homelab.backup group picks this CronJob up by its `<app>-db-dump` name.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: seafile-db-backups
+  namespace: seafile
+  labels:
+    app.kubernetes.io/name: seafile
+    app.kubernetes.io/part-of: seafile
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nas-nfs
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: seafile-db-dump
+  namespace: seafile
+  labels:
+    app.kubernetes.io/name: seafile
+    app.kubernetes.io/part-of: seafile
+spec:
+  # Daily at 04:17 (cluster time is UTC), clear of the Immich (03:17) and Authentik (03:47) dumps.
+  schedule: "17 4 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+          # mysql uid/gid. TODO(storage): confirm the `nas-nfs` export accepts uid/gid 999.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+            fsGroupChangePolicy: OnRootMismatch
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: mariadb-dump
+              # Same image as the database (versions.yaml app_images.seafile_mariadb).
+              image: docker.io/library/mariadb:11.8.9@sha256:f16d7a344413e519dff518f27bdb221388f84b0d274c97c4fb5f2cb0dc1b34fa
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/bash
+                - -c
+              args:
+                - |
+                  set -euo pipefail
+                  ts="$(date -u +%Y%m%dT%H%M%SZ)"
+                  # `$${...}` escapes Flux postBuild substitution; brace-less `$VAR` is left alone.
+                  out="/backups/seafile-$${ts}.sql.gz"
+                  # Dump to a name the retention glob ignores, so a dump that dies half way never
+                  # leaves a truncated `.sql.gz` that looks like the newest backup.
+                  tmp="$out.partial"
+                  trap 'rm -f "$tmp"' EXIT
+                  prev="$(ls -1t /backups/seafile-*.sql.gz 2>/dev/null | head -n 1 || true)"
+                  mariadb-dump --host=seafile-mariadb --user=root \
+                    --single-transaction --routines --databases ccnet_db seafile_db seahub_db \
+                    | gzip > "$tmp"
+                  mv "$tmp" "$out"
+                  echo "wrote $${out}"
+                  # Size anomaly: a dump far smaller than the previous one means data went missing.
+                  # Fail the Job so DatabaseBackupJobFailed alerts; keep it as `.suspect`, not a restore point.
+                  if [ -n "$prev" ]; then
+                    size="$(stat -c %s "$out")"
+                    prev_size="$(stat -c %s "$prev")"
+                    if [ $((size * 100)) -lt $((prev_size * DUMP_MIN_PERCENT)) ]; then
+                      mv "$out" "$out.suspect"
+                      echo "SIZE ANOMALY: $${size} bytes is under $${DUMP_MIN_PERCENT}% of the previous dump ($${prev_size} bytes, $prev)" >&2
+                      ls -1t /backups/seafile-*.suspect | tail -n +4 | xargs -r rm -f
+                      exit 1
+                    fi
+                  fi
+                  # Keep the 14 most recent dumps.
+                  ls -1t /backups/seafile-*.sql.gz 2>/dev/null | tail -n +15 | xargs -r rm -f
+              env:
+                - name: DUMP_MIN_PERCENT
+                  value: "50"
+                - name: MYSQL_PWD
+                  valueFrom:
+                    secretKeyRef:
+                      name: seafile-db
+                      key: root-password
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: seafile-db-backups

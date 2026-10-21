@@ -65,6 +65,13 @@ app_images:
   # Authentik dump CronJob (kubernetes/apps/authentik/backup.yaml) and scripts/backup/db-restore-test.sh,
   # which reuses the CronJob images (the immich one above, and this one). Same major as the chart's PostgreSQL.
   authentik_postgres: "docker.io/library/postgres:17.11-trixie@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3"
+  # Seafile (kubernetes/apps/seafile). The all-in-one CE image; its local_settings.py mount path embeds the
+  # version, so bump the mount in seafile.yaml together with this tag.
+  seafile: "docker.io/seafileltd/seafile-mc:14.0.9@sha256:75d8b88e8bfaa54099082aec0e99ff1a962bd364bfc21da34125fa66998f0861"
+  seafile_mariadb: "docker.io/library/mariadb:11.8.9@sha256:f16d7a344413e519dff518f27bdb221388f84b0d274c97c4fb5f2cb0dc1b34fa"
+  seafile_memcached: "docker.io/library/memcached:1.6.45-alpine@sha256:9e4de012dc607573052061c0bcb38abc775e1dd59b24e7ac38d1892842094aaf"
+  # Kopia repository server (kubernetes/apps/kopia); household PCs back up to it over HTTPS.
+  kopia: "docker.io/kopia/kopia:0.23.1@sha256:89fd95ee2942880ca00eae964266958a394421ddbdf69bca62e38afc55f5900e"
   # Prometheus data-dir chown initContainer (kubernetes/infrastructure/monitoring/release.yaml)
   busybox: "docker.io/library/busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e"
   # Technitium zone-bootstrap CronJob (kubernetes/infrastructure/technitium/bootstrap-zone.yaml)

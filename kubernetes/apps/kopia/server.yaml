@@ -1,0 +1,256 @@
+---
+# Kopia repository server (decisions.md §5.9): dunia's Windows PC and arthur's Linux PC back up to
+# kopia.lab.ardw.be over HTTPS (gRPC). The repository is a plain Kopia filesystem repository on the NAS, so it
+# also restores with the `kopia` CLI from any machine that can mount it. Clients encrypt before upload; the
+# repository password is the only key to the backups (store it with an offline copy).
+#
+# ADDING A DEVICE USER. Each client device is a Kopia user `<user>@<host>`, e.g. `dunia@dunia-pc`. The
+# wrapper below creates (or updates) one user per file in the `kopia-users` Secret, where the key is
+# `<user>_<host>` and the value that user's password:
+#   1. add a key to `kopia-users` in the secrets store (scripts/secrets/gen-lab-secrets.sh for the lab,
+#      kubernetes/overlays/homelab/README.md for homelab), e.g. `dunia_dunia-pc`;
+#   2. let Flux roll the Deployment (restart it if only the Secret changed);
+#   3. on the device: `kopia repository connect server --url https://kopia.lab.ardw.be
+#      --override-username=dunia --override-hostname=dunia-pc`, then `kopia snapshot create <dir>`.
+#
+# STORAGE: the repository is on the NAS over NFS (StorageClass `nas-nfs`). TODO(storage): the decision puts it on
+# the dataset `main/backups/kopia`, but `nas-nfs` serves one export (`main/k8s`) with a per-PVC subdirectory. To
+# land on `main/backups/kopia`, the TrueNAS side must export that dataset and a static PV (or a second
+# StorageClass) must point at it. The repo is created on first start if /repository is empty.
+#
+# TLS: Traefik terminates TLS for clients (the *.lab.ardw.be wildcard, decisions.md §5.7) and re-encrypts to the
+# server, which serves its own throwaway self-signed certificate (made at start, never leaves the pod) and
+# negotiates HTTP/2 over it, which gRPC needs. Tested in the lab: the server's `--insecure` listener does NOT
+# speak h2c, so plain-HTTP behind the proxy fails with a 504. Traefik skips verifying that in-cluster hop
+# (ServersTransport below); the client-facing certificate is verified as usual.
+#
+# SECRETS (kubernetes/overlays/homelab/README.md): `kopia-repository` (password), `kopia-server` (username,
+# password for the UI/API; control-username, control-password), `kopia-users` (see above).
+#
+# EXPOSURE: LAN only, internal zone kopia.lab.ardw.be (decisions.md §5.7).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kopia-repository
+  namespace: kopia
+  labels:
+    app.kubernetes.io/name: kopia
+    app.kubernetes.io/part-of: kopia
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nas-nfs
+  resources:
+    requests:
+      # Initial reservation, grow once the real size is known.
+      storage: 1Ti
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kopia
+  namespace: kopia
+  labels:
+    app.kubernetes.io/name: kopia
+    app.kubernetes.io/part-of: kopia
+spec:
+  replicas: 1
+  # Kopia holds an exclusive repository session: never two pods at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kopia
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kopia
+        app.kubernetes.io/part-of: kopia
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: kopia
+          # versions.yaml app_images.kopia
+          image: docker.io/kopia/kopia:0.23.1@sha256:89fd95ee2942880ca00eae964266958a394421ddbdf69bca62e38afc55f5900e
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              set -eu
+              # `$${...}` escapes Flux postBuild substitution.
+              # Connect to the repository, creating it on the first start.
+              if ! kopia repository connect filesystem --path=/repository >/dev/null 2>&1; then
+                echo "no repository at /repository yet: creating it"
+                kopia repository create filesystem --path=/repository
+              fi
+              # One Kopia user per file in /users (file name `<user>_<host>`, content: the password).
+              for f in /users/*; do
+                [ -f "$f" ] || continue
+                n="$(basename "$f")"
+                u="$${n%%_*}@$${n#*_}"
+                if kopia server users info "$u" >/dev/null 2>&1; then
+                  kopia server users set "$u" --user-password="$(cat "$f")"
+                else
+                  kopia server users add "$u" --user-password="$(cat "$f")"
+                fi
+              done
+              # Throwaway self-signed certificate for the Traefik -> server hop only.
+              openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj "/CN=kopia" \
+                -keyout /tmp/kopia/tls.key -out /tmp/kopia/tls.crt >/dev/null 2>&1
+              exec kopia server start --address=https://0.0.0.0:51515 \
+                --tls-cert-file=/tmp/kopia/tls.crt --tls-key-file=/tmp/kopia/tls.key \
+                --grpc --ui \
+                --server-username="$KOPIA_SERVER_USERNAME" --server-password="$KOPIA_SERVER_PASSWORD" \
+                --server-control-username="$KOPIA_SERVER_CONTROL_USER" \
+                --server-control-password="$KOPIA_SERVER_CONTROL_PASSWORD"
+          ports:
+            - name: http
+              containerPort: 51515
+          env:
+            - name: HOME
+              value: /tmp/kopia
+            - name: KOPIA_CONFIG_PATH
+              value: /tmp/kopia/repository.config
+            - name: KOPIA_CACHE_DIRECTORY
+              value: /tmp/kopia/cache
+            - name: KOPIA_LOG_DIR
+              value: /tmp/kopia/logs
+            - name: KOPIA_CHECK_FOR_UPDATES
+              value: "false"
+            - name: KOPIA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kopia-repository
+                  key: password
+            - name: KOPIA_SERVER_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: kopia-server
+                  key: username
+            - name: KOPIA_SERVER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kopia-server
+                  key: password
+            - name: KOPIA_SERVER_CONTROL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: kopia-server
+                  key: control-username
+            - name: KOPIA_SERVER_CONTROL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kopia-server
+                  key: control-password
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 768Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: repository
+              mountPath: /repository
+            - name: tmp
+              mountPath: /tmp/kopia
+            - name: users
+              mountPath: /users
+              readOnly: true
+      volumes:
+        - name: repository
+          persistentVolumeClaim:
+            claimName: kopia-repository
+        - name: tmp
+          emptyDir: {}
+        - name: users
+          secret:
+            secretName: kopia-users
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kopia
+  namespace: kopia
+  labels:
+    app.kubernetes.io/name: kopia
+    app.kubernetes.io/part-of: kopia
+  annotations:
+    # Read by Traefik on the Service: gRPC needs HTTP/2 to the backend, so HTTPS to the server, whose
+    # certificate is self-signed (see the header).
+    traefik.ingress.kubernetes.io/service.serversscheme: https
+    traefik.ingress.kubernetes.io/service.serverstransport: kopia-kopia@kubernetescrd
+spec:
+  selector:
+    app.kubernetes.io/name: kopia
+  ports:
+    - name: http
+      port: 51515
+      targetPort: http
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: kopia
+  namespace: kopia
+  labels:
+    app.kubernetes.io/name: kopia
+    app.kubernetes.io/part-of: kopia
+spec:
+  # The server's certificate is self-signed and only reachable inside the cluster.
+  insecureSkipVerify: true
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kopia
+  namespace: kopia
+  labels:
+    app.kubernetes.io/name: kopia
+    app.kubernetes.io/part-of: kopia
+spec:
+  ingressClassName: traefik
+  rules:
+    # Internal zone <app>.lab.ardw.be (decisions.md §5.7), served by Technitium only.
+    - host: kopia.lab.ardw.be
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kopia
+                port:
+                  name: http
+  # TLS on websecure with NO secretName: Traefik serves its default TLSStore certificate, the
+  # *.lab.ardw.be wildcard (decisions.md §5.7).
+  tls:
+    - hosts:
+        - kopia.lab.ardw.be

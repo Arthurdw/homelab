@@ -7,3 +7,10 @@ resources:
   - immich-db.sops.yaml
   - authentik-credentials.sops.yaml
   - authentik-smtp.sops.yaml
+  - seafile-db.sops.yaml
+  - seafile-admin.sops.yaml
+  - seafile-smtp.sops.yaml
+  - seafile-jwt.sops.yaml
+  - kopia-repository.sops.yaml
+  - kopia-server.sops.yaml
+  - kopia-users.sops.yaml

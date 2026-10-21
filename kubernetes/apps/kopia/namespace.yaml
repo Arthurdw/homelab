@@ -1,0 +1,11 @@
+---
+# Pod Security: the Kopia server runs non-root with a read-only root filesystem, so it fits `restricted`;
+# `baseline` is enforced like the other app namespaces and `restricted` is warned/audited.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kopia
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

@@ -99,5 +99,17 @@ secret apps immich immich-db username=immich password=@rand
 # secret-key must never change after the first install (kubernetes/apps/authentik/release.yaml).
 secret apps authentik authentik-credentials secret-key=@rand:60 postgres-password=@rand
 secret apps authentik authentik-smtp smtp-password=@rand
+# Seafile (kubernetes/apps/seafile): MariaDB root and app passwords, the first admin, the relay login
+# and the JWT key seahub signs with (like authentik's secret-key, never change it after first install).
+secret apps seafile seafile-db root-password=@rand password=@rand
+secret apps seafile seafile-admin email=admin@lab.ardw.be password=@rand
+secret apps seafile seafile-smtp smtp-password=@rand
+secret apps seafile seafile-jwt jwt-private-key=@rand:40
+# Kopia repository server (kubernetes/apps/kopia). The repository password is the only key to the
+# backups; the server login is the UI/API, the control login is for the server's own control API,
+# and kopia-users holds one password per client user, key `<user>_<host>` for user@host (test_lab here).
+secret apps kopia kopia-repository password=@rand:40
+secret apps kopia kopia-server username=admin password=@rand control-username=control control-password=@rand
+secret apps kopia kopia-users test_lab=@rand
 
 log "done. Check: scripts/secrets/check.sh --check && just k8s-validate"

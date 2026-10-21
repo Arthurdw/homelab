@@ -5,3 +5,5 @@ resources:
   - immich
   - audiobookshelf
   - authentik
+  - seafile
+  - kopia

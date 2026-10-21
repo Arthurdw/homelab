@@ -1,0 +1,251 @@
+---
+# Seafile Community Edition (decisions.md §5.8): the official all-in-one seafile-mc image, i.e. nginx, Seahub
+# and the file server in one container, on top of MariaDB and memcached (mariadb.yaml). There is no Helm
+# chart, so this is plain manifests; the image is pinned in versions.yaml (app_images.seafile).
+#
+# DATA: /shared (blocks, config, logs) on the NAS over NFS (StorageClass `nas-nfs`, decisions.md §4.1), like
+# the Immich library. TODO(storage): the decision puts this on its own dataset `main/apps/seafile`, but
+# `nas-nfs` serves one export (`main/k8s`) with a per-PVC subdirectory. To land on `main/apps/seafile`, the
+# TrueNAS side must export that dataset and a static PV (or a second StorageClass) must point at it.
+#
+# The first start generates /shared/seafile/conf from the env below (admin, DB, hostname). After that the
+# files win: changing SEAFILE_* env later does not rewrite them, edit /shared/seafile/conf instead.
+#
+# SECRETS (kubernetes/overlays/homelab/README.md): `seafile-db` (root-password, password), `seafile-admin`
+# (email, password), `seafile-jwt` (jwt-private-key, never change it after the first install),
+# `seafile-smtp` (smtp-password).
+#
+# MAIL: the image has no EMAIL_* env vars; settings only come from Python. Seahub imports
+# `seahub.local_settings` before conf/seahub_settings.py, so the ConfigMap below is mounted there and reads the
+# relay password from the environment. That keeps the password out of git. The mount path contains the
+# Seafile version (14.0.9): bump it together with the image tag.
+#
+# TODO(authentik): web sign-in should go through Authentik OIDC (decisions.md §5.8). Not wired yet: it needs an
+# Authentik OAuth2 provider/application and then, in the ConfigMap below, ENABLE_OAUTH = True plus
+# OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET (a new Secret), OAUTH_REDIRECT_URL (https://seafile.lab.ardw.be/oauth/callback/)
+# and the OAUTH_*_URL endpoints. Desktop and mobile clients keep their own tokens.
+#
+# EXPOSURE: LAN only, via the internal zone seafile.lab.ardw.be (decisions.md §5.7).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: seafile-data
+  namespace: seafile
+  labels:
+    app.kubernetes.io/name: seafile
+    app.kubernetes.io/component: server
+    app.kubernetes.io/part-of: seafile
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nas-nfs
+  resources:
+    requests:
+      # Initial reservation, grow once the real size is known.
+      storage: 200Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: seafile-local-settings
+  namespace: seafile
+  labels:
+    app.kubernetes.io/name: seafile
+    app.kubernetes.io/part-of: seafile
+data:
+  local_settings.py: |
+    # Mounted at seahub/local_settings.py (see seafile.yaml). The relay password is read from the env.
+    import os
+
+    EMAIL_USE_SSL = True
+    EMAIL_USE_TLS = False
+    EMAIL_HOST = "mail.a-line.be"
+    EMAIL_PORT = 465
+    EMAIL_HOST_USER = "homelab@lab.ardw.be"
+    EMAIL_HOST_PASSWORD = os.environ.get("SEAFILE_SMTP_PASSWORD", "")
+    DEFAULT_FROM_EMAIL = "seafile@lab.ardw.be"
+    SERVER_EMAIL = "seafile@lab.ardw.be"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seafile
+  namespace: seafile
+  labels:
+    app.kubernetes.io/name: seafile
+    app.kubernetes.io/component: server
+    app.kubernetes.io/part-of: seafile
+spec:
+  replicas: 1
+  # /shared holds one set of config and a single-writer fileserver: never two pods at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: seafile
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: seafile
+        app.kubernetes.io/component: server
+        app.kubernetes.io/part-of: seafile
+    spec:
+      containers:
+        - name: seafile
+          # versions.yaml app_images.seafile
+          image: docker.io/seafileltd/seafile-mc:14.0.9@sha256:75d8b88e8bfaa54099082aec0e99ff1a962bd364bfc21da34125fa66998f0861
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+          env:
+            - name: TIME_ZONE
+              value: Europe/Brussels
+            - name: SEAFILE_SERVER_HOSTNAME
+              value: seafile.lab.ardw.be
+            - name: SEAFILE_SERVER_PROTOCOL
+              value: https
+            - name: CSRF_TRUSTED_ORIGINS
+              value: '["https://seafile.lab.ardw.be"]'
+            - name: SEAFILE_MYSQL_DB_HOST
+              value: seafile-mariadb
+            - name: SEAFILE_MYSQL_DB_PORT
+              value: "3306"
+            - name: SEAFILE_MYSQL_DB_USER
+              value: seafile
+            - name: SEAFILE_MYSQL_DB_CCNET_DB_NAME
+              value: ccnet_db
+            - name: SEAFILE_MYSQL_DB_SEAFILE_DB_NAME
+              value: seafile_db
+            - name: SEAFILE_MYSQL_DB_SEAHUB_DB_NAME
+              value: seahub_db
+            - name: SEAFILE_MYSQL_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: seafile-db
+                  key: password
+            - name: INIT_SEAFILE_MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: seafile-db
+                  key: root-password
+            - name: INIT_SEAFILE_ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: seafile-admin
+                  key: email
+            - name: INIT_SEAFILE_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: seafile-admin
+                  key: password
+            - name: JWT_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: seafile-jwt
+                  key: jwt-private-key
+            - name: CACHE_PROVIDER
+              value: memcached
+            - name: MEMCACHED_HOST
+              value: seafile-memcached
+            - name: MEMCACHED_PORT
+              value: "11211"
+            - name: SEAFILE_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: seafile-smtp
+                  key: smtp-password
+          # First start creates the databases and the config: allow up to ~10 minutes before liveness applies.
+          startupProbe:
+            httpGet:
+              path: /api2/ping/
+              port: http
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /api2/ping/
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api2/ping/
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 640Mi
+            limits:
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "SETGID", "SETUID", "DAC_OVERRIDE", "FOWNER"]
+          volumeMounts:
+            - name: data
+              mountPath: /shared
+            - name: local-settings
+              mountPath: /opt/seafile/seafile-server-14.0.9/seahub/seahub/local_settings.py
+              subPath: local_settings.py
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: seafile-data
+        - name: local-settings
+          configMap:
+            name: seafile-local-settings
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: seafile
+  namespace: seafile
+  labels:
+    app.kubernetes.io/name: seafile
+    app.kubernetes.io/component: server
+    app.kubernetes.io/part-of: seafile
+spec:
+  selector:
+    app.kubernetes.io/name: seafile
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: seafile
+  namespace: seafile
+  labels:
+    app.kubernetes.io/name: seafile
+    app.kubernetes.io/part-of: seafile
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  ingressClassName: traefik
+  rules:
+    # Internal zone <app>.lab.ardw.be (decisions.md §5.7), served by Technitium only.
+    - host: seafile.lab.ardw.be
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: seafile
+                port:
+                  name: http
+  # TLS on websecure with NO secretName: Traefik serves its default TLSStore certificate, the
+  # *.lab.ardw.be wildcard (decisions.md §5.7).
+  tls:
+    - hosts:
+        - seafile.lab.ardw.be

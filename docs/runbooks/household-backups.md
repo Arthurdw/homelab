@@ -46,9 +46,11 @@ by hand (the IaC refuses to destroy it).
 
 ## (b) Windows and Linux: Kopia (needs the cluster live)
 
-The server admin first creates one account per person on the Kopia server, `<user>@<machine>` (for
-example `arthur@laptop`), and hands over the password. The server's
-repository password is a separate secret that clients never see.
+The server admin first creates one account per device on the Kopia server, `<user>@<machine>` (for
+example `arthur@laptop`), and hands over the password. An account is one key in the `kopia-users` Secret,
+named `<user>_<machine>`, whose value is the password; the server adds or updates the accounts when it starts
+(`kubernetes/apps/kopia/server.yaml`, header). The server's repository password is a separate secret that
+clients never see.
 
 1. Install: KopiaUI (GUI, Windows or Linux) or the `kopia` CLI, from kopia.io. Use the same major version
    as the server.
@@ -59,8 +61,10 @@ repository password is a separate secret that clients never see.
      --override-username <user> --override-hostname <machine>
    ```
 
-   It asks for the account password. (If you ever point it at a server with a self-signed certificate, add
-   `--server-cert-fingerprint <sha256>` from the server's logs.) KopiaUI: Repository, Kopia Server.
+   It asks for the account password; for an unattended connect, set it in `KOPIA_PASSWORD` instead (the
+   `--password` flag doesn't reach the repository open). On the lab, whose certificate comes from the
+   internal CA, add `--server-cert-fingerprint <sha256>` of the certificate Traefik serves. KopiaUI:
+   Repository, Kopia Server.
 3. Set the policy for the home directory (adjust the path; on Windows `C:\Users\<user>`):
 
    ```sh
@@ -87,11 +91,14 @@ diff -r ~/Documents /tmp/restore-test/Documents | head
 ```
 
 **Disaster restore without the cluster.** The repository is a plain Kopia repository on
-`main/backups/kopia`. Mount the dataset (or copy it) on any machine and run
+`main/backups/kopia`. (Until the `TODO(storage)` in `kubernetes/apps/kopia/server.yaml` is closed, it lives in
+the PVC's subdirectory of `main/k8s` instead.) Mount the dataset (or copy it) on any machine and run
 `kopia repository connect filesystem --path <dir>`, with the repository password from the secrets store.
 
 ## (c) Seafile (needs the cluster live)
 
 Install the Seafile client (desktop or mobile) from seafile.com, server `https://seafile.lab.ardw.be`, and
-sign in (the web login goes through Authentik, the clients keep their own tokens; decisions §5.8). Seafile is for files you want everywhere. It is not a
-device backup: keep the Kopia or Time Machine job running as well.
+sign in. Web sign-in through Authentik is planned but not wired yet (`TODO(authentik)` in
+`kubernetes/apps/seafile/seafile.yaml`); until then the admin creates each account in the Seafile admin panel.
+The clients keep their own tokens either way (decisions §5.8). Seafile is for files you want everywhere. It is
+not a device backup: keep the Kopia or Time Machine job running as well.

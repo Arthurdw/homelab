@@ -1,0 +1,196 @@
+---
+# Seafile's MariaDB (ccnet_db, seafile_db, seahub_db) and the memcached its Seahub caches in.
+#
+# Database on the node SSD (`local-path`, decisions.md §4.3), never on NFS: MariaDB over NFS corrupts and
+# crawls. Its protection is the logical dump in backup.yaml, which lands on the NAS. Seafile's own init
+# creates the three databases and the `seafile` user through the root login (INIT_SEAFILE_MYSQL_ROOT_PASSWORD),
+# so this pod only needs the root password.
+#
+# SECRETS: `seafile/seafile-db` (`root-password`, `password`); see kubernetes/overlays/homelab/README.md.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: seafile-mariadb-data
+  namespace: seafile
+  labels:
+    app.kubernetes.io/name: seafile
+    app.kubernetes.io/component: mariadb
+    app.kubernetes.io/part-of: seafile
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seafile-mariadb
+  namespace: seafile
+  labels:
+    app.kubernetes.io/name: seafile
+    app.kubernetes.io/component: mariadb
+    app.kubernetes.io/part-of: seafile
+spec:
+  replicas: 1
+  # One writer on a node-local volume: stop the old pod before starting the new one.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: seafile
+      app.kubernetes.io/component: mariadb
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: seafile
+        app.kubernetes.io/component: mariadb
+        app.kubernetes.io/part-of: seafile
+    spec:
+      containers:
+        - name: mariadb
+          # versions.yaml app_images.seafile_mariadb
+          image: docker.io/library/mariadb:11.8.9@sha256:f16d7a344413e519dff518f27bdb221388f84b0d274c97c4fb5f2cb0dc1b34fa
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: mysql
+              containerPort: 3306
+          env:
+            - name: MARIADB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: seafile-db
+                  key: root-password
+            - name: MARIADB_AUTO_UPGRADE
+              value: "1"
+          startupProbe:
+            tcpSocket:
+              port: mysql
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - mariadb-admin ping -h127.0.0.1 -uroot -p"$MARIADB_ROOT_PASSWORD" --silent
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: mysql
+            periodSeconds: 20
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 50m
+              memory: 192Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "SETGID", "SETUID", "DAC_OVERRIDE", "FOWNER"]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: seafile-mariadb-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: seafile-mariadb
+  namespace: seafile
+  labels:
+    app.kubernetes.io/name: seafile
+    app.kubernetes.io/component: mariadb
+    app.kubernetes.io/part-of: seafile
+spec:
+  selector:
+    app.kubernetes.io/name: seafile
+    app.kubernetes.io/component: mariadb
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: mysql
+---
+# Seahub's cache (CACHE_PROVIDER=memcached on the Seafile pod). Disposable: no volume.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seafile-memcached
+  namespace: seafile
+  labels:
+    app.kubernetes.io/name: seafile
+    app.kubernetes.io/component: memcached
+    app.kubernetes.io/part-of: seafile
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: seafile
+      app.kubernetes.io/component: memcached
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: seafile
+        app.kubernetes.io/component: memcached
+        app.kubernetes.io/part-of: seafile
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 11211
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: memcached
+          # versions.yaml app_images.seafile_memcached
+          image: docker.io/library/memcached:1.6.45-alpine@sha256:9e4de012dc607573052061c0bcb38abc775e1dd59b24e7ac38d1892842094aaf
+          imagePullPolicy: IfNotPresent
+          args: ["-m", "64"]
+          ports:
+            - name: memcached
+              containerPort: 11211
+          readinessProbe:
+            tcpSocket:
+              port: memcached
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: memcached
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 96Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: seafile-memcached
+  namespace: seafile
+  labels:
+    app.kubernetes.io/name: seafile
+    app.kubernetes.io/component: memcached
+    app.kubernetes.io/part-of: seafile
+spec:
+  selector:
+    app.kubernetes.io/name: seafile
+    app.kubernetes.io/component: memcached
+  ports:
+    - name: memcached
+      port: 11211
+      targetPort: memcached
