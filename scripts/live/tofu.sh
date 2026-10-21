@@ -13,8 +13,9 @@
 #            on the apply that creates the accounts (users.tf). `plan` always uses a throwaway value; `apply`
 #            prompts for them while the accounts are not in state yet, and uses the throwaway once they are.
 #            Exported TF_VAR_user_*_password values win over both.
-#   proxmox  proxmox.env holds PROXMOX_VE_API_TOKEN. Uploads would go over SSH through the ssh-agent
-#            (providers.tf); the current resources do not need it.
+#   proxmox  proxmox.env holds PROXMOX_VE_API_TOKEN. Creating the Talos VMs imports their disk over SSH as
+#            root, through the ssh-agent only (providers.tf; ~/.ssh/config is ignored), so `apply` refuses to
+#            start unless the agent holds a key.
 #
 # State is local (terraform.tfstate in the root, gitignored). Init runs once, when .terraform is missing.
 #
@@ -72,6 +73,11 @@ case "$root" in
     ;;
   proxmox)
     [ -n "${PROXMOX_VE_API_TOKEN:-}" ] || die "PROXMOX_VE_API_TOKEN is not set in $env_file"
+    if [ "$action" = apply ] && ! ssh-add -L >/dev/null 2>&1; then
+      die "no key in the ssh-agent; the provider imports the VM disks over SSH as root. Run:
+  eval \"\$(ssh-agent -s)\"; ssh-add <key root on the node accepts>
+then check: ssh -F /dev/null root@<node> true"
+    fi
     ;;
 esac
 
