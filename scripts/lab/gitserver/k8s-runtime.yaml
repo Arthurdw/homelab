@@ -1,0 +1,78 @@
+---
+# The lab Git server for clusters that cannot load a local image (the libvirt Talos lab; the kind lab
+# uses k8s.yaml + the baked homelab-git:lab image instead). Same nginx + fcgiwrap + git-http-backend
+# as the Dockerfile, but installed at start on the stock alpine image, with nginx.conf and
+# entrypoint.sh from the `homelab-git` ConfigMap (created by virt/flux-up.sh from this directory).
+#
+# The repository is NOT in the image: virt/flux-up.sh streams the baked bare repo into the emptyDir
+# with `kubectl exec ... tar`, and the container waits for it. A restarted pod comes back empty until
+# the next `just lab-virt-flux`. Read-only, anonymous, ClusterIP — disposable lab only.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab-git
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homelab-git
+  namespace: lab-git
+  labels:
+    app: homelab-git
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: homelab-git
+  template:
+    metadata:
+      labels:
+        app: homelab-git
+    spec:
+      containers:
+        - name: git
+          image: alpine:3.21
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              apk add --no-cache git git-daemon nginx fcgiwrap spawn-fcgi >/dev/null
+              # The streamed repo keeps the workstation's uid; git-http-backend runs as root.
+              git config --system --add safe.directory '*'
+              cp /cfg/nginx.conf /etc/nginx/nginx.conf
+              until [ -f /git/homelab.git/HEAD ]; do sleep 2; done
+              exec /bin/sh /cfg/entrypoint.sh
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /homelab.git/info/refs?service=git-upload-pack
+              port: 80
+            initialDelaySeconds: 2
+            periodSeconds: 3
+          volumeMounts:
+            - name: repo
+              mountPath: /git
+            - name: cfg
+              mountPath: /cfg
+      volumes:
+        - name: repo
+          emptyDir: {}
+        - name: cfg
+          configMap:
+            name: homelab-git
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: homelab-git
+  namespace: lab-git
+spec:
+  selector:
+    app: homelab-git
+  ports:
+    - port: 80
+      targetPort: 80

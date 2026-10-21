@@ -29,6 +29,11 @@ TALOS_LAB_OUT="${TALOS_LAB_OUT:-$REPO_ROOT/talos/out/lab}"
 LIBVIRT_URI="${LIBVIRT_URI:-qemu:///system}"
 VIRSH_TIMEOUT="${VIRSH_TIMEOUT:-20}"
 VIRSH_BIN="${VIRSH_BIN:-virsh}"
+# Guest disk cache. `unsafe` ignores the guest's flushes: with `none`, every etcd fsync on the control
+# plane waited behind whatever else was saturating the workstation's NVMe, etcd missed its deadlines
+# and the API server dropped out mid-install (2026-10-20). A host crash loses the guests' disks, which
+# are disposable. `LAB_DISK_CACHE=none` restores durable writes.
+LAB_DISK_CACHE="${LAB_DISK_CACHE:-unsafe}"
 
 # ---------------------------------------------------------------------------
 # What this harness owns. down.sh may remove NOTHING else.
@@ -66,6 +71,9 @@ LAB_VIRT_DIR="${LAB_VIRT_DIR:-/var/tmp/homelab-lab-virt}"
 # Runtime behaviour knobs.
 DRY="${DRY:-0}"
 WITH_NWFILTER="${WITH_NWFILTER:-1}"
+# 1 = each Talos node gets its guests.tsv address, default route and resolver as static config
+# (talos_node_config), so the install does not depend on DHCP. 0 = DHCP only, as production.
+STATIC_NET="${STATIC_NET:-1}"
 WAIT_TIMEOUT="${WAIT_TIMEOUT:-600}"
 RAM_HEADROOM_MIB="${RAM_HEADROOM_MIB:-1024}"
 
@@ -426,6 +434,14 @@ ensure_talos_configs() {
       "$REPO_ROOT/scripts/talos/validate.sh" >/dev/null \
       || die "talosctl validate failed for the lab configs"
     note "configs validated (talosctl validate --mode metal)"
+    # gen-configs.sh keeps existing output, so configs generated before WORKER_PATCH="" still carry
+    # the 90 GiB UserVolumeConfig that the 40 GiB lab worker cannot provision.
+    if grep -q 'kind: UserVolumeConfig' "$TALOS_LAB_OUT/worker.yaml" \
+       && ( # shellcheck source=/dev/null
+            . "$TALOS_LAB_INPUTS"; [ -z "${WORKER_PATCH-x}" ] ); then
+      die "stale $TALOS_LAB_OUT/worker.yaml (has a UserVolumeConfig, but the lab sets WORKER_PATCH=\"\");" \
+          "regenerate: TALOS_INPUTS=$TALOS_LAB_INPUTS TALOS_OUT_DIR=$TALOS_LAB_OUT scripts/talos/gen-configs.sh --force"
+    fi
   fi
 }
 
@@ -482,17 +498,31 @@ EOF
 # domain_xml <index>
 domain_xml() {
   local i="$1"
-  local name kind vcpu mem disk boot cdrom_path disk_path filter nics iface2
+  local name kind vcpu mem disk boot media disk_path filter nics iface2
   name="${GUEST_NAMES[$i]}"; kind="${GUEST_KIND[$i]}"
   vcpu="${GUEST_VCPU[$i]}"; mem="${GUEST_MEM[$i]}"; disk="${GUEST_DISK[$i]}"
   disk_path="$(guest_disk_path "$name")"
+  # Talos boots its ISO from a SATA CD-ROM. The Debian seed is a read-only virtio disk instead: the
+  # genericcloud image runs the cloud kernel, which does not see a SATA CD-ROM, so cloud-init found no
+  # NoCloud datasource, configured no network and the guest never asked for a lease (2026-10-20).
+  # NoCloud finds the `cidata` label on any block device.
   if [ "$kind" = "talos" ]; then
     boot="    <boot dev='hd'/>
     <boot dev='cdrom'/>"
-    cdrom_path="$(talos_iso_path)"
+    media="    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source file='$(talos_iso_path)'/>
+      <target dev='sda' bus='sata'/>
+      <readonly/>
+    </disk>"
   else
     boot="    <boot dev='hd'/>"
-    cdrom_path="$(guest_seed_iso_path "$name")"
+    media="    <disk type='file' device='disk'>
+      <driver name='qemu' type='raw'/>
+      <source file='$(guest_seed_iso_path "$name")'/>
+      <target dev='vdb' bus='virtio'/>
+      <readonly/>
+    </disk>"
   fi
   filter=""
   if [ "$WITH_NWFILTER" = 1 ]; then
@@ -533,16 +563,11 @@ ${boot}
   <devices>
     <emulator>/usr/bin/qemu-system-x86_64</emulator>
     <disk type='file' device='disk'>
-      <driver name='qemu' type='qcow2' cache='none' discard='unmap'/>
+      <driver name='qemu' type='qcow2' cache='${LAB_DISK_CACHE}' discard='unmap'/>
       <source file='${disk_path}'/>
       <target dev='vda' bus='virtio'/>
     </disk>
-    <disk type='file' device='cdrom'>
-      <driver name='qemu' type='raw'/>
-      <source file='${cdrom_path}'/>
-      <target dev='sda' bus='sata'/>
-      <readonly/>
-    </disk>
+${media}
     <interface type='network'>
       <source network='${NET_LAB}'/>
       <mac address='${GUEST_MAC_LAB[$i]}'/>
@@ -554,6 +579,11 @@ ${iface2}    <serial type='pty'>
     <console type='pty'>
       <target type='serial' port='0'/>
     </console>
+    <!-- The Talos schematic carries qemu-guest-agent, which waits for this channel and holds the node
+         in "booting" without it (docs/decisions.md §3.5). Harmless on the Debian guest. -->
+    <channel type='unix'>
+      <target type='virtio' name='org.qemu.guest_agent.0'/>
+    </channel>
     <video>
       <model type='none'/>
     </video>
@@ -673,30 +703,72 @@ ensure_networks() {
   ensure_network "$NET_STORAGE" network_xml_storage
 }
 
+# Dedicated lab-only ssh key for the NAS stand-in (never the user's own key): created once, mode 600
+# in a 700 directory. The public half is injected into the seed at build time, so the tracked
+# user-data stays free of keys. Access: `just lab-nas-ssh`.
+lab_ssh_key_path() { printf '%s/ssh/lab_ed25519' "$LAB_VIRT_DIR"; }
+
+ensure_lab_ssh_key() {
+  local key
+  key="$(lab_ssh_key_path)"
+  [ -f "$key" ] && return 0
+  mkdir -p "$(dirname "$key")"
+  chmod 0700 "$(dirname "$key")"
+  ssh-keygen -q -t ed25519 -N '' -C "homelab-lab lab-nas" -f "$key"
+  chmod 0600 "$key"
+}
+
+# user-data for the seed: the tracked file plus a `users:` block carrying the lab key.
+nas_user_data() {  # <tracked user-data>
+  cat "$1"
+  cat <<EOF
+
+users:
+  - name: debian
+    shell: /bin/bash
+    lock_passwd: true
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - $(cat "$(lab_ssh_key_path).pub")
+EOF
+}
+
+# The instance-id is derived from the seed content, so cloud-init re-runs (new ssh keys, new
+# packages) on the next boot after the seed changed; an unchanged seed keeps the same id.
 ensure_nas_seed_iso() {  # <name>
-  local name="$1" dir iso
+  local name="$1" dir iso id
   dir="$LAB_VIRT_DIR/seed/$name"
   iso="$(guest_seed_iso_path "$name")"
-  if [ "$DRY" != 1 ] && [ -f "$iso" ]; then
-    note "have $(basename "$iso")"
-    return 0
-  fi
   if [ "$DRY" = 1 ]; then
     printf '\n   [dry-run] seed ISO for %s would be built from:\n' "$name"
     if [ -r "$CLOUD_INIT_DIR/$name/user-data" ]; then
       head -3 "$CLOUD_INIT_DIR/$name/user-data" | sed 's/^/      /'
     fi
-    printf '      (+ meta-data, + generated network-config)\n'
+    printf '      (+ users: debian with the generated lab key, + meta-data with a content-derived instance-id, + generated network-config)\n'
     printf '   [dry-run] xorriso -as mkisofs -output %s -volid cidata -joliet -rock user-data meta-data network-config\n' "$iso"
     return 0
   fi
+  ensure_lab_ssh_key
   mkdir -p "$dir"
-  cp "$CLOUD_INIT_DIR/$name/user-data" "$CLOUD_INIT_DIR/$name/meta-data" "$dir/"
-  nas_network_config > "$dir/network-config"
-  ( cd "$dir" && xorriso -as mkisofs -output "$iso" -volid cidata -joliet -rock \
+  nas_user_data "$CLOUD_INIT_DIR/$name/user-data" > "$dir/user-data.new"
+  nas_network_config > "$dir/network-config.new"
+  id="$(cat "$dir/user-data.new" "$dir/network-config.new" "$CLOUD_INIT_DIR/$name/meta-data" | sha256sum | cut -c1-12)"
+  if [ -f "$iso" ] && [ -f "$dir/instance-id" ] && [ "$(cat "$dir/instance-id")" = "$id" ]; then
+    rm -f "$dir/user-data.new" "$dir/network-config.new"
+    note "have $(basename "$iso")"
+    return 0
+  fi
+  mv "$dir/user-data.new" "$dir/user-data"
+  mv "$dir/network-config.new" "$dir/network-config"
+  sed "s/^instance-id:.*/instance-id: $name-$id/" "$CLOUD_INIT_DIR/$name/meta-data" > "$dir/meta-data"
+  # Build beside the target and rename: the old ISO may belong to libvirt-qemu and be open in a
+  # running guest, which keeps its old copy until the next boot.
+  ( cd "$dir" && xorriso -as mkisofs -output "$iso.new" -volid cidata -joliet -rock \
       user-data meta-data network-config >/dev/null 2>&1 ) || die "xorriso failed building $iso"
-  chmod 0644 "$iso"
-  note "built $(basename "$iso")"
+  chmod 0644 "$iso.new"
+  mv -f "$iso.new" "$iso"
+  printf '%s\n' "$id" > "$dir/instance-id"
+  note "built $(basename "$iso") (instance-id $name-$id; a running guest picks it up on its next boot)"
 }
 
 ensure_disk() {  # <index>
@@ -803,10 +875,59 @@ talos_config_for() {  # <name> -> path
   esac
 }
 
-talos_apply() {  # <name> <ip>
-  local name="$1" ip="$2" cfg
-  cfg="$(talos_config_for "$name")"
-  [ -f "$cfg" ] || die "missing $cfg (run scripts/talos/gen-configs.sh)"
+# talos_node_config <index> -> path. Writes <name>.yaml next to the generated configs: the role's
+# config plus this guest's hostname and, with STATIC_NET=1, its address, default route and resolver.
+# The link is selected by its MAC from guests.tsv, so the interface name (enp1s0 or otherwise) does
+# not matter. Production keeps DHCP reservations; this is lab-only (docs/lab.md, known issues).
+talos_node_config() {
+  local i="$1" name ip mac base out patch
+  name="${GUEST_NAMES[$i]}"; ip="${GUEST_IP_LAB[$i]}"; mac="${GUEST_MAC_LAB[$i]}"
+  base="$(talos_config_for "$name")"
+  out="$TALOS_LAB_OUT/$name.yaml"
+  patch="$TALOS_LAB_OUT/$name.patch.yaml"
+  [ -f "$base" ] || die "missing $base (run scripts/talos/gen-configs.sh)"
+  {
+    printf 'apiVersion: v1alpha1\nkind: HostnameConfig\nhostname: %s\nauto: "off"\n' "$name"
+    if [ "$STATIC_NET" = 1 ]; then
+      cat <<EOF
+---
+apiVersion: v1alpha1
+kind: LinkAliasConfig
+name: lab0
+selector:
+  match: mac(link.permanent_addr) == "${mac}"
+---
+apiVersion: v1alpha1
+kind: LinkConfig
+name: lab0
+up: true
+addresses:
+  - address: ${ip}/24
+routes:
+  - gateway: ${LAB_GATEWAY}
+---
+apiVersion: v1alpha1
+kind: ResolverConfig
+nameservers:
+  - address: ${LAB_GATEWAY}
+EOF
+    fi
+  } >"$patch"
+  talosctl machineconfig patch "$base" --patch "@$patch" -o "$out" >/dev/null \
+    || die "could not patch $base for $name"
+  talosctl validate --mode metal --config "$out" >/dev/null \
+    || die "talosctl validate failed for $out"
+  chmod 600 "$out" "$patch"
+  printf '%s' "$out"
+}
+
+talos_apply() {  # <index>
+  local i="$1" name ip cfg
+  name="${GUEST_NAMES[$i]}"; ip="${GUEST_IP_LAB[$i]}"
+  cfg="$(talos_node_config "$i")"
+  if [ "$STATIC_NET" = 1 ]; then
+    note "$name: static ${ip}/24 via $LAB_GATEWAY (STATIC_NET=0 for DHCP only)"
+  fi
   log "$name: apply-config (maintenance mode, --insecure)"
   run talosctl apply-config --insecure --nodes "$ip" --file "$cfg"
 }
@@ -827,6 +948,31 @@ talos_wait_configured() {  # <ip>
     fi
     if [ "$(date +%s)" -ge "$deadline" ]; then
       err "node $ip did not come back configured within ${WAIT_TIMEOUT}s"
+      return 1
+    fi
+    sleep 5
+  done
+}
+
+# The authenticated API answers as soon as apply-config is accepted, while the node is still running
+# from the ISO and installing, so talos_wait_configured is not "ready to bootstrap": `talosctl bootstrap`
+# then fails with *bootstrap is not available yet*. The machine stage does not tell the two apart
+# (it reads `booting` before the install as well as after). The STATE volume does: its phase is
+# `failed` while the node runs from the ISO and `ready` once it has rebooted from the installed disk,
+# which is also when the etcd service first exists. Verified on lab-talos-cp, 2026-10-20.
+talos_wait_installed() {  # <ip>
+  local ip="$1" deadline phase="" last=""
+  deadline=$(( $(date +%s) + WAIT_TIMEOUT ))
+  while :; do
+    phase="$(talosctl --talosconfig "$TALOS_LAB_OUT/talosconfig" --endpoints "$ip" --nodes "$ip" \
+      get volumestatus STATE -o jsonpath='{.spec.phase}' 2>/dev/null || true)"
+    if [ -n "$phase" ] && [ "$phase" != "$last" ]; then note "node $ip STATE volume: $phase"; last="$phase"; fi
+    if [ "$phase" = "ready" ]; then
+      note "node $ip booted from its installed disk"
+      return 0
+    fi
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      err "node $ip did not finish installing within ${WAIT_TIMEOUT}s (STATE volume: ${last:-unknown})"
       return 1
     fi
     sleep 5

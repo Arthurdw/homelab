@@ -4,17 +4,19 @@
 # Creates two private libvirt networks (10.99.100.0/24 NAT + 10.99.101.0/30 isolated, never bridged
 # to the house LAN), then the guests listed in guests.tsv, then drives the Talos nodes exactly like
 # docs/runbooks/talos-bootstrap.md: wait for the maintenance-mode DHCP lease, apply-config
-# --insecure, wait for the node to come back, and bootstrap the control plane once.
+# --insecure, wait for the node to come back, and bootstrap the control plane once. After the
+# bootstrap it fetches the kubeconfig into talos/out/lab and installs Cilium (scripts/talos/install-cni.sh),
+# so the nodes turn Ready and Flux can be installed next (docs/lab.md).
 #
 # Usage:
 #   scripts/lab/virt/up.sh --dry-run                 # print everything, create nothing
 #   scripts/lab/virt/up.sh --only lab-talos-cp       # one guest (recommended: RAM is tight)
 #   scripts/lab/virt/up.sh                           # every guest in guests.tsv
 #
-# Flags: --dry-run | --only <a,b> | --all | --force | --no-config | --no-bootstrap
-#        --no-nwfilter | --timeout <seconds>
+# Flags: --dry-run | --only <a,b> | --all | --force | --no-config | --no-bootstrap | --no-cni
+#        --no-nwfilter | --dhcp | --timeout <seconds>
 #
-# Env:   LAB_VIRT_DIR, LIBVIRT_URI, WAIT_TIMEOUT, RAM_HEADROOM_MIB
+# Env:   LAB_VIRT_DIR, LIBVIRT_URI, WAIT_TIMEOUT, RAM_HEADROOM_MIB, STATIC_NET
 #
 # The host also runs Docker and the kind lab; RAM is the binding constraint, so the RAM gate
 # refuses an over-committed start unless --force. See docs/lab.md ('libvirt guests').
@@ -24,14 +26,15 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=SCRIPTDIR/lib.sh
 . "$HERE/lib.sh"
 
-usage() { sed -n '2,20p' "$0"; }
+usage() { sed -n '2,23p' "$0"; }
 
 ONLY=""
 FORCE=0
 DO_CONFIG=1
 DO_BOOTSTRAP=1
+DO_CNI=1
 
-# shellcheck disable=SC2034 # WITH_NWFILTER and WAIT_TIMEOUT are consumed by lib.sh
+# shellcheck disable=SC2034 # WITH_NWFILTER, STATIC_NET and WAIT_TIMEOUT are consumed by lib.sh
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --dry-run)      DRY=1; shift ;;
@@ -39,8 +42,10 @@ while [ "$#" -gt 0 ]; do
     --all)          ONLY=""; shift ;;
     --force)        FORCE=1; shift ;;
     --no-config)    DO_CONFIG=0; shift ;;
-    --no-bootstrap) DO_BOOTSTRAP=0; shift ;;
+    --no-bootstrap) DO_BOOTSTRAP=0; DO_CNI=0; shift ;;
+    --no-cni)       DO_CNI=0; shift ;;
     --no-nwfilter)  WITH_NWFILTER=0; shift ;;
+    --dhcp)         STATIC_NET=0; shift ;;
     --timeout)      WAIT_TIMEOUT="${2:-}"; shift 2 ;;
     -h|--help)      usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage >&2; exit 2 ;;
@@ -127,8 +132,9 @@ while read -r i; do
     log "$name: maintenance-mode boot"
     wait_lease "$NET_LAB" "${GUEST_MAC_LAB[$i]}" "$name_ip" >/dev/null
     wait_tcp "$name_ip" 50000
-    talos_apply "$name" "$name_ip"
+    talos_apply "$i"
     talos_wait_configured "$name_ip"
+    talos_wait_installed "$name_ip"
   else
     log "$name: cloud-init boot"
     wait_lease "$NET_LAB" "${GUEST_MAC_LAB[$i]}" "$name_ip" >/dev/null
@@ -149,8 +155,27 @@ if [ "$DO_BOOTSTRAP" = 1 ] && [ "$needs_talos" = 1 ]; then
     log "bootstrap the control plane ($cp_ip) — creates etcd, cannot be undone in place"
     # Let the talosconfig carry the endpoint: scripts/talos/bootstrap.sh only passes --nodes.
     talos_config_point_at "$cp_ip"
-    "$REPO_ROOT/scripts/talos/bootstrap.sh" \
-      --node "$cp_ip" --talosconfig "$TALOS_LAB_OUT/talosconfig" --confirm
+    # Retry only the "not available yet" refusal (etcd still preparing); anything else is fatal.
+    deadline=$(( $(date +%s) + WAIT_TIMEOUT ))
+    until out="$("$REPO_ROOT/scripts/talos/bootstrap.sh" \
+        --node "$cp_ip" --talosconfig "$TALOS_LAB_OUT/talosconfig" --confirm 2>&1)"; do
+      case "$out" in
+        *"not available yet"*) : ;;
+        *) printf '%s\n' "$out" >&2; die "bootstrap failed" ;;
+      esac
+      [ "$(date +%s)" -lt "$deadline" ] || die "bootstrap still not available after ${WAIT_TIMEOUT}s"
+      note "bootstrap not available yet; retrying"
+      sleep 10
+    done
+    printf '%s\n' "$out"
+    if [ "$DO_CNI" = 1 ]; then
+      log "kubeconfig + Cilium (docs/runbooks/talos-bootstrap.md §6-7)"
+      wait_tcp "$cp_ip" 6443
+      run env TALOS_INPUTS="$TALOS_LAB_INPUTS" TALOS_OUT_DIR="$TALOS_LAB_OUT" \
+        "$REPO_ROOT/scripts/talos/kubeconfig.sh" --node "$cp_ip" --confirm
+      run "$REPO_ROOT/scripts/talos/install-cni.sh" \
+        --kubeconfig "$TALOS_LAB_OUT/kubeconfig" --confirm
+    fi
   else
     note "no control-plane guest selected — skipping bootstrap"
   fi
@@ -159,7 +184,7 @@ fi
 log "lab is up"
 "$VIRSH_BIN" -c "$LIBVIRT_URI" list --all
 echo
-note "kubeconfig:   scripts/talos/kubeconfig.sh --node <cp> --talosconfig $TALOS_LAB_OUT/talosconfig --confirm"
-note "CNI install:  see docs/runbooks/talos-bootstrap.md §7 (Flannel is disabled by patches/common.yaml)"
+note "kubeconfig:   $TALOS_LAB_OUT/kubeconfig (gitignored; admin credentials)"
+note "nodes:        kubectl --kubeconfig $TALOS_LAB_OUT/kubeconfig get nodes -o wide"
 note "status:       just lab-virt-status"
 note "tear down:    just lab-virt-down"

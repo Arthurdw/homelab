@@ -13,6 +13,6 @@
 # mac_storage/ip_storage: only the NAS is on the /30 storage link today; 10.99.101.1 is the
 #           libvirt bridge (the lab's stand-in for the Proxmox end of that point-to-point link).
 
-lab-talos-cp  talos   2  2048  20  52:54:00:99:10:11  10.99.100.11  -  -
-lab-talos-wk  talos   3  4096  40  52:54:00:99:10:12  10.99.100.12  -  -
+lab-talos-cp  talos   3  4096  20  52:54:00:99:10:11  10.99.100.11  -  -
+lab-talos-wk  talos   3  6144  40  52:54:00:99:10:12  10.99.100.12  -  -
 lab-nas       debian  2  2048  50  52:54:00:99:10:10  10.99.100.10  52:54:00:99:11:02  10.99.101.2

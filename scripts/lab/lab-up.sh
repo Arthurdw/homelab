@@ -30,10 +30,10 @@ for tool in kind kubectl flux age-keygen; do
   command -v "$tool" >/dev/null 2>&1 || { echo "missing tool: $tool (run scripts/lab/install-tools.sh)" >&2; exit 1; }
 done
 
-log "1/8 tool check"
+log "1/4 tool check"
 note "kind $(kind version | awk '{print $2}') | flux $(flux --version) | branch $BRANCH"
 
-log "2/8 kind cluster '$CLUSTER'"
+log "2/4 kind cluster '$CLUSTER'"
 if kind get clusters 2>/dev/null | grep -qx "$CLUSTER"; then
   note "already exists"
 else
@@ -41,7 +41,7 @@ else
 fi
 kubectl config use-context "kind-${CLUSTER}" >/dev/null
 
-log "3/8 build + load the lab Git server image"
+log "3/4 build + load the lab Git server image"
 CTX="$(mktemp -d)"
 trap 'rm -rf "$CTX"' EXIT
 # shellcheck source=SCRIPTDIR/lab-git-image.sh
@@ -50,44 +50,14 @@ bake_lab_git_image "$CTX" "$BRANCH" "$REPO_ROOT"
 kind load docker-image homelab-git:lab --name "$CLUSTER"
 note "image baked from the WORKING TREE (${BRANCH}@$(git -C "$CTX/homelab.git" rev-parse --short "$BRANCH"))"
 
-log "4/8 deploy the Git server"
+log "4/4 deploy the Git server"
 kubectl apply -f scripts/lab/gitserver/k8s.yaml >/dev/null
 kubectl -n "$GIT_NS" rollout status deploy/homelab-git --timeout=180s
 note "serving $GIT_URL"
 
-log "5/8 install Flux"
-flux install
-kubectl -n flux-system wait --for=condition=Available --timeout=180s \
-  deploy/source-controller deploy/kustomize-controller deploy/helm-controller
-
-log "6/8 SOPS age key (lab-only, outside the repo)"
-mkdir -p "$(dirname "$AGE_KEY")"
-if [ ! -f "$AGE_KEY" ]; then
-  age-keygen -o "$AGE_KEY" 2>/dev/null
-  note "generated $AGE_KEY"
-fi
-kubectl -n flux-system create secret generic sops-age \
-  --from-file=age.agekey="$AGE_KEY" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-note "sops-age secret present (decryption key for the lab)"
-
-log "7/8 wire Flux to the repo"
-flux create source git flux-system --url="$GIT_URL" --branch="$BRANCH" --interval=1m --export \
-  | kubectl apply -f - >/dev/null
-flux reconcile source git flux-system
-kubectl -n flux-system wait --for=condition=Ready gitrepository/flux-system --timeout=120s
-
-log "8/8 apply the REAL cluster Kustomizations (lab cluster dir)"
-# cluster-settings must exist before the Kustomizations reconcile, or Flux would substitute
-# EMPTY STRINGS for every ${VAR} (and the CI guard is not involved at runtime).
-kubectl apply -f kubernetes/clusters/lab/cluster-settings.yaml >/dev/null
-kubectl apply -f kubernetes/clusters/lab/infrastructure.yaml \
-  -f kubernetes/clusters/lab/infrastructure-configs.yaml >/dev/null
-if [ "$SYNC" = "all" ]; then
-  kubectl apply -f kubernetes/clusters/lab/apps.yaml >/dev/null
-else
-  note "SYNC=$SYNC — apps Kustomization not applied"
-fi
-flux reconcile kustomization infrastructure --with-source || true
+# shellcheck source=SCRIPTDIR/lab-flux.sh
+. "$REPO_ROOT/scripts/lab/lab-flux.sh"
+lab_flux_wire "$BRANCH" "$GIT_URL" "$AGE_KEY" "$SYNC"
 
 log "status (Flux may still be progressing)"
 flux get all -A
