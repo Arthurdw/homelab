@@ -64,7 +64,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          roots=$(grep -rl --include='*.tf' -e '^terraform {' . 2>/dev/null | xargs -r -n1 dirname | sort -u || true)
+          roots=$(git ls-files -co --exclude-standard -z '*.tf' | xargs -0 -r grep -l -e '^terraform {' 2>/dev/null | xargs -r -n1 dirname | sort -u || true)
           if [ -z "$roots" ]; then echo "no OpenTofu roots yet"; exit 0; fi
           for d in $roots; do
             echo "::group::validate $d"
@@ -90,7 +90,8 @@ jobs:
           if [ ${#dirs[@]} -eq 0 ]; then echo "no kustomizations yet"; exit 0; fi
           for d in "${dirs[@]}"; do
             echo "::group::build $d"
-            kustomize build "$d" | kubeconform -strict -summary -ignore-missing-schemas -
+            # `del(.sops)`: SOPS metadata on encrypted Secrets is not part of the Secret schema.
+            kustomize build "$d" | yq 'del(.sops)' | kubeconform -strict -summary -ignore-missing-schemas -
             echo "::endgroup::"
           done
 
@@ -137,3 +138,5 @@ jobs:
           mapfile -t sh < <(find . -name '*.sh' -not -path './.git/*')
           if [ ${#sh[@]} -eq 0 ]; then echo "no shell scripts"; exit 0; fi
           shellcheck -x "${sh[@]}"
+      - name: backup alert self-test (local SMTP sinks, systemd-analyze verify)
+        run: scripts/backup/test/alert-selftest.sh

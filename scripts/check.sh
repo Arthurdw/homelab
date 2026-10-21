@@ -56,6 +56,14 @@ else
   echo "== shellcheck == skipped (missing: shellcheck) =="
 fi
 
+# --- Backup alert path (local SMTP sinks + systemd-analyze; no network, no host changes) ---
+if have curl && have openssl && have python3 && have systemd-analyze; then
+  echo "== backup alert self-test =="
+  ./scripts/backup/test/alert-selftest.sh || { echo "FAILED: backup alert self-test"; fail=1; }
+else
+  echo "== backup alert self-test == skipped (missing: curl, openssl, python3 or systemd-analyze) =="
+fi
+
 # --- GitHub Actions workflows ---
 if have actionlint; then
   echo "== actionlint =="

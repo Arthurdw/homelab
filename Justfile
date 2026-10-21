@@ -13,6 +13,10 @@ default:
 check:
   ./scripts/check.sh
 
+# Backup alert path: backup-alert.sh against local SMTP sinks, plus systemd-analyze verify on the units
+backup-selftest:
+  ./scripts/backup/test/alert-selftest.sh
+
 # Install the pinned binary tools the CI checks need (helm, yq, actionlint, shellcheck,
 # kubeconform, kustomize) into ~/.local/bin.
 ci-tools:
@@ -33,7 +37,8 @@ fmt:
 # Validate every OpenTofu root (backend disabled; no live access)
 validate:
   #!/usr/bin/env bash
-  roots=$(grep -rl --include='*.tf' -e '^terraform {' . 2>/dev/null | xargs -r -n1 dirname | sort -u)
+  # git-visible files only: gitignored scratch (e.g. the lab UniFi fixture copy) is not a root
+  roots=$(git ls-files -co --exclude-standard -z '*.tf' | xargs -0 -r grep -l -e '^terraform {' 2>/dev/null | xargs -r -n1 dirname | sort -u)
   if [ -z "$roots" ]; then echo "no OpenTofu roots yet"; exit 0; fi
   for d in $roots; do
     echo "== validate $d =="
@@ -100,6 +105,8 @@ k8s-validate:
       echo "ERROR: $d rendered empty" >&2; rc=1; continue
     fi
     if command -v kubeconform >/dev/null 2>&1; then
+      # SOPS metadata on encrypted Secrets is not part of the Secret schema; strip it first.
+      if command -v yq >/dev/null 2>&1; then manifest="$(printf '%s\n' "$manifest" | yq 'del(.sops)')"; fi
       printf '%s\n' "$manifest" | kubeconform -strict -summary -ignore-missing-schemas - || rc=1
     else
       echo "  rendered ok (install kubeconform for schema checks)"
@@ -151,9 +158,42 @@ lab-virt-up *args:
 lab-virt-down *args:
   ./scripts/lab/virt/down.sh {{args}}
 
+# Flux on the libvirt Talos lab, reconciling this working tree (re-run = sync)
+lab-virt-flux *args:
+  ./scripts/lab/virt/flux-up.sh {{args}}
+
+# ssh into the lab-nas stand-in with the harness's lab-only key. The args run on lab-nas as one command line,
+# so `just lab-nas-ssh 'a; b'` runs both there. Try: `just lab-nas-ssh sudo systemctl status nfs-kernel-server`
+lab-nas-ssh *args:
+  ssh -i /var/tmp/homelab-lab-virt/ssh/lab_ed25519 -o IdentitiesOnly=yes -o UserKnownHostsFile=/var/tmp/homelab-lab-virt/ssh/known_hosts -o StrictHostKeyChecking=accept-new debian@10.99.100.10 {{quote(args)}}
+
 # Show libvirt networks, guests, DHCP leases and Talos state
 lab-virt-status *args:
   ./scripts/lab/virt/status.sh {{args}}
+
+# Self-hosted UniFi controller fixture (Docker, 127.0.0.1 only): up | status | stop | down
+lab-unifi *args:
+  ./scripts/lab/unifi-fixture.sh {{args}}
+
+# Plan, apply and re-plan the unifi root against the fixture only (refuses non-loopback endpoints)
+lab-unifi-plan *args:
+  ./scripts/lab/unifi-fixture-plan.sh {{args}}
+
+# Nested Proxmox VE fixture (libvirt guest lab-pve, 10.99.100.20, 4 GiB): up | status | stop | down [--purge]
+lab-pve *args='up':
+  ./scripts/lab/pve-fixture.sh {{args}}
+
+# Plan, apply, re-plan and destroy the proxmox root against the fixture only (refuses non-10.99.100.x endpoints)
+lab-pve-plan *args:
+  ./scripts/lab/pve-fixture-plan.sh {{args}}
+
+# TrueNAS SCALE fixture (libvirt guest lab-truenas, 10.99.100.21, 4-6 GiB): up | status | stop | down [--purge]
+lab-truenas *args='up':
+  ./scripts/lab/truenas-fixture.sh {{args}}
+
+# Plan, apply and re-plan the truenas root against the fixture only (refuses non-10.99.100.x endpoints; no destroy: prevent_destroy)
+lab-truenas-plan *args:
+  ./scripts/lab/truenas-fixture-plan.sh {{args}}
 
 # Show lab prerequisites / resource requirements (no changes)
 lab-doctor:

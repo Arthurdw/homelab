@@ -1,0 +1,64 @@
+---
+# DORMANT: OpenTofu plan preview against the live homelab. It never applies.
+#
+# Inactive until the owner registers a self-hosted runner labelled `homelab` and creates the
+# protected `homelab-plan` environment with its secrets/variables (infrastructure/README.md,
+# "CI plan preview"). Until then a dispatch just queues with no runner to pick it up.
+#
+# - Manual trigger only: no push/PR trigger, so fork PRs can never reach the LAN runner.
+# - Hosted runners cannot reach poseidon/hercules-nas (private LAN, no inbound ports).
+# - The UniFi root is deliberately absent: its key is full-access and never goes to CI
+#   (docs/secrets-and-state.md §4).
+# - truenas is BLOCKED until hercules-nas runs TrueNAS >= 25.04 (provider 1.5.14 needs /api/current).
+# - The state backend is undecided (docs/secrets-and-state.md §5), so init uses -backend=false and
+#   the plan compares against an EMPTY state. Every resource shows as a create.
+name: tofu-plan
+
+on:
+  workflow_dispatch:
+    inputs:
+      root:
+        description: "OpenTofu root to plan (under infrastructure/environments/homelab)"
+        required: true
+        type: choice
+        options:
+          - proxmox
+          - truenas
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tofu-plan-${{ inputs.root }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: tofu plan (${{ inputs.root }}, never applies)
+    runs-on: [self-hosted, homelab]
+    environment: homelab-plan
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: infrastructure/environments/homelab/${{ inputs.root }}
+    env:
+      TF_IN_AUTOMATION: "1"
+      TF_INPUT: "0"
+      # Proxmox: token from the environment secret; endpoint is not secret.
+      PROXMOX_VE_API_TOKEN: ${{ inputs.root == 'proxmox' && secrets.PROXMOX_VE_API_TOKEN || '' }}
+      TF_VAR_proxmox_endpoint: ${{ vars.PROXMOX_ENDPOINT }}
+      # TrueNAS: wss://<host>/api/current
+      TF_VAR_truenas_api_key: ${{ inputs.root == 'truenas' && secrets.TRUENAS_API_KEY || '' }}
+      TF_VAR_truenas_endpoint: ${{ vars.TRUENAS_ENDPOINT }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: "1.13.1"
+          tofu_wrapper: false
+      - name: tofu init (no backend; state backend undecided)
+        run: tofu init -backend=false -input=false -lockfile=readonly
+      - name: tofu plan (read-only preview)
+        run: tofu plan -lock=false -input=false -no-color
