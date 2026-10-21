@@ -23,7 +23,8 @@ Legend: **T** = tier · **Irrep.** = irreplaceable? · **Snap** = local snapshot
 | OpenTofu state (per system) | 2 | yes | backend | yes | encrypted | recoverable without cluster |
 | Talos machine secrets + kubeconfig | 2 | yes | Vault/offline | yes | encrypted | never in repo |
 | SOPS/age private key | 2 | **critical** | offline escrow | yes | offline | losing it loses all encrypted secrets |
-| Immich DB + media | TBD | likely yes | app | yes | DB dump + media backup | related recovery set; order matters |
+| Immich DB + media | TBD | likely yes | app | yes | DB dump + media backup | related recovery set; order matters. Dump: daily `pg_dump` (`kubernetes/apps/immich/backup.yaml`), same alerts and `scripts/backup/db-restore-test.sh immich` (lab: restored, 71 tables) |
+| Authentik DB + `authentik-credentials` Secret | TBD | yes (users, flows, providers) | app | TBD | daily `pg_dump` to `nas-nfs` (`kubernetes/apps/authentik/backup.yaml`), 14 kept; alerts on stale, failed and size-anomalous dumps | restore with the same `secret-key`; `scripts/backup/db-restore-test.sh authentik` proves the dump (lab: restored, 230 tables) |
 | Audiobookshelf config/media | TBD | depends | app | TBD | TBD | classify media by replaceability |
 | Flux repo (+ secret decryption) | 2 | yes | Git | yes | Git + encrypted secrets | repo is public; secrets separate |
 | UniFi config export | 2 | yes | UDM Pro | yes | file | export before each change |

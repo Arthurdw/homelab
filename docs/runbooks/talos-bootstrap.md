@@ -18,7 +18,6 @@ commands ad hoc.
 | `<CP_IP>` | control-plane node address | owner |
 | `<WORKER_IP>` | worker node address | owner |
 | `<API_ENDPOINT>` | Kubernetes API endpoint / VIP (set as `CLUSTER_ENDPOINT`) | owner |
-| `<CNI_MANIFEST>` | the chosen CNI's install manifest | Cilium manifest (`docs/decisions.md` §3.3) |
 
 ## 1. Pre-checks
 
@@ -105,14 +104,18 @@ The admin kubeconfig is written to the gitignored `talos/out/kubeconfig` and is 
 ## 7. Install the CNI
 
 `talos/patches/common.yaml` deletes Talos' bundled Flannel document, so Talos has **not** installed a
-CNI and pods are not yet networked. Install the chosen CNI:
+CNI and pods are not yet networked, including the Flux controllers. Install Cilium once, by hand:
 
 ```sh
-kubectl --kubeconfig talos/out/kubeconfig apply -f <CNI_MANIFEST>
+./scripts/talos/install-cni.sh --kubeconfig talos/out/kubeconfig --dry-run   # preview
+./scripts/talos/install-cni.sh --kubeconfig talos/out/kubeconfig --confirm
 ```
 
-The CNI is Cilium with kube-proxy replacement (`docs/decisions.md` §3.3). Confirm the Cilium version
-supports the pinned Kubernetes `v1.37.1` before installing, and record it in `versions.yaml`.
+The script reads the chart, version and values from `kubernetes/infrastructure/cilium/release.yaml` and
+installs them as the Helm release `cilium` in namespace `cilium`, the release that HelmRelease manages.
+Flux adopts it on its first reconcile, so from then on Cilium changes go through git only. Cilium runs with
+kube-proxy replacement (`docs/decisions.md` §3.3); confirm the pinned chart supports Kubernetes `v1.37.1`
+before installing (`versions.yaml`).
 
 ## 8. Verification
 

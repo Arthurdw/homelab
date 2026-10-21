@@ -4,9 +4,12 @@ Operational, step-by-step procedures. Keep them executable by someone (or someth
 the system was built.
 
 - `upgrades.md` — ordered, reversible upgrade procedures for every layer.
+- `host-network-bootstrap.md` — after a fresh install, put Proxmox and TrueNAS on their VLAN 4 management
+  addresses and the storage link.
 - `talos-bootstrap.md` — turn freshly booted Talos nodes into a Kubernetes cluster.
 - `secrets.md` — SOPS + age: key ceremony, add/rotate, recovery, CI.
-- `phase-reports/` — historical build reports.
+- `break-glass.md` — access by IP and local credentials when DNS, SSO, Traefik or MetalLB are down.
+- `phase-reports/` — historical build reports: `phase-01-10-scaffold.md`, `phase-lab-virt-2026-10-20.md`.
 - `../disaster-recovery.md` — recovery after losing part or all of the homelab.
 - `../secrets-and-state.md` — how secrets and state are stored and recovered.
 - `../backup-policy.md` / `../backup-matrix.md` — what is backed up and how it is verified.

@@ -74,7 +74,7 @@ See `docs/network-plan.md`. **Decided at GATE 0** (rationale: `docs/decisions.md
   `10.20.0.100–199`. Keeps cluster traffic off the management segment, and it is additive-only on the UDM.
 - **Storage link:** moves from link-local to `10.99.0.0/30` (Proxmox `.1`, NAS `.2`, no gateway, MTU 9000) —
   **provisional** until throughput and MTU are measured at cutover.
-- **Pods `10.244.0.0/16`, Services `10.96.0.0/12`** — identical in every environment, deliberately.
+- **Pods `10.244.0.0/16`, Services `10.96.0.0/16`** — identical in every environment, deliberately.
 - **Lab addresses are disjoint**: nodes/VIPs `10.99.100.0/24`, storage link `10.99.101.0/30`.
 - **IPv6 disabled** on the new K8s and storage segments; the house LAN is left untouched.
 - **Management stays private.** Emergency access is Tailscale — no DMZ, no inbound ports.
@@ -106,7 +106,7 @@ See `docs/network-plan.md`. **Decided at GATE 0** (rationale: `docs/decisions.md
 ## 8. Applications (incremental; each must document pins, ingress/auth, storage, secrets, resources, backup+restore, upgrade/rollback, exposure)
 
 Order: ingress+certs → DNS → identity → monitoring → Immich → Audiobookshelf → private cloud
-(Nextcloud **or** Seafile, decided once) → local-only services → Forgejo (later). No Jellyfin.
+(Seafile, decisions §5.8) → local-only services → Forgejo (later). No Jellyfin.
 
 - **Traefik** + **cert-manager** (Cloudflare DNS-01, narrowly scoped creds); management UIs never public.
 - **Authentik** for web SSO; never required to recover infrastructure; break-glass creds kept independently.

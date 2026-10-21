@@ -31,24 +31,25 @@
 
 1. **What answers `<INTERNAL_RESOLVER_IP>`?** Nothing — `10.10.1.53` is dead and the NAS was silently using
    `1.1.1.1`. The UDM answers on the server VLAN. (`docs/decisions.md` §6.1)
-2. **Pod/service CIDRs and reserved ranges** — pods `10.244.0.0/16`, services `10.96.0.0/12`; never-use ranges
+2. **Pod/service CIDRs and reserved ranges** — pods `10.244.0.0/16`, services `10.96.0.0/16`; never-use ranges
    are listed in `docs/decisions.md` §2.4.
 3. **Storage subnet** — moves to `10.99.0.0/30` over the 10 GbE link (provisional; §2.2).
 4. **IPv6** — disabled on the new K8s and storage segments; the house LAN is untouched (§2.5).
+5. **Management VLAN tag** — VLAN 4, `10.10.0.0/16`, gateway `10.10.0.1` (the owner read it from the UniFi
+   controller, 2026-10-21). Both hosts are being reinstalled, so the old Proxmox/NAS naming mismatch goes away;
+   `docs/runbooks/host-network-bootstrap.md` puts them on VLAN 4 behind the unmanaged switch.
 
 ## Still open
 
-5. **Management VLAN tag**, and whether the NAS/Proxmox VLAN mismatch is cosmetic or real — the owner is
-   handing over the full-access API key (held outside the repo) so the controller can be inventoried
-   read-only rather than guessed at. That inventory is also the required baseline for anything additive in
-   the zone model below.
-6. **The NAS's LAN-facing NIC speed.** This document records 1 GbE for the management NIC, while the
+6. **A read-only UniFi inventory** — the owner is handing over the full-access API key (held outside the
+   repo). The inventory is the required baseline for anything additive in the zone model below.
+7. **The NAS's LAN-facing NIC speed.** This document records 1 GbE for the management NIC, while the
    interface list shows a possibly-10G `enp4s0` behind the management VLAN. It decides whether household
    PC→NAS backups are capped at ~110 MB/s and contend with everything else — the 10 GbE link is
    point-to-point (Proxmox↔NAS), so household devices cannot use it.
-7. **An mDNS reflector for the IOT zone** — required before any smart-home device moves, or casting,
+8. **An mDNS reflector for the IOT zone** — required before any smart-home device moves, or casting,
    printers and AirPlay break (`docs/decisions.md` §2.6).
-8. **A Cloudflare token scoped to `Zone → DNS → Edit` on `lab.ardw.be`** — needed for the DNS-01 certificates
+9. **A Cloudflare token scoped to `Zone → DNS → Edit` on the `ardw.be` zone** — needed for the DNS-01 certificates
    (`docs/decisions.md` §5.7). Until it exists, applications stay on the internal-CA fallback and household
    devices will warn.
 
@@ -64,7 +65,7 @@
 | GUEST | 60 | `10.30.60.0/24` | visitors, internet only — new |
 | Storage p2p (10 GbE) | — | `10.99.0.0/30` | Proxmox `10.99.0.1`, NAS `10.99.0.2`; no gateway; MTU 9000 |
 | Pods | — | `10.244.0.0/16` | identical in every environment |
-| Services | — | `10.96.0.0/12` | identical in every environment |
+| Services | — | `10.96.0.0/16` | identical in every environment |
 | Lab nodes/VIPs | — | `10.99.100.0/24` | MetalLB `10.99.100.100–199`; local lab only |
 | Lab storage link | — | `10.99.101.0/30` | local lab only |
 

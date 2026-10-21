@@ -58,6 +58,7 @@ just ci              # run the GitHub Actions workflow locally with `act`
 just lab-up          # kind + in-cluster git server + Flux reconciling this working tree
 just lab-sync        # re-bake the working tree into the lab and re-sync Flux
 just lab-virt-up     # libvirt guests: Talos control plane + worker + NAS stand-in (try --dry-run)
+just lab-virt-flux   # Flux on those guests, reconciling this working tree
 ```
 
 CI is static (no credentials, no applies) and is verified locally with [`act`](https://github.com/nektos/act)

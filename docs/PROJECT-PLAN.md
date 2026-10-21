@@ -77,7 +77,7 @@ Non-negotiables:
 | L0, Talos | `talosctl validate --mode metal` on generated configs | `just talos-validate` (local only) |
 | L1, Kubernetes | kind + an in-cluster git server + Flux reconciling the real tree | `just lab-up` |
 | L1, nodes | libvirt guests: Talos CP + worker, a Debian NFS/SMB stand-in for the NAS | `just lab-virt-*` (`docs/lab.md`) |
-| L1, providers | nested PVE (proxmox provider), self-hosted UniFi controller (unifi provider) | **not built** |
+| L1, providers | nested PVE (proxmox provider), self-hosted UniFi controller (unifi provider) | `just lab-pve-plan`, `just lab-unifi-plan` (`docs/lab.md`) |
 | L2 | the full stack in the lab before any live apply | not started |
 | L3 | restore drills into isolated targets | not started |
 
@@ -132,11 +132,17 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
 - [x] SOPS + age secret tooling and the CI gate; state-backend design (`docs/secrets-and-state.md`)
 - [x] kind + Flux lab reconciling the real tree (`just lab-up`)
 - [x] libvirt harness for Talos and NAS guests (`scripts/lab/virt/`)
-- [ ] **Lab Talos install completes.** Blocked: the guest cannot install its default route, so it has no DNS
-      and the installer pull fails (`docs/lab.md`, *Status and known issues*)
-- [ ] Lab worker, lab NAS NFS path (now exported at `/mnt/main/k8s`, unverified), and a Talos + Flux run on the
-      guests
-- [ ] L1 provider fixtures: nested PVE, self-hosted UniFi controller
+- [x] Lab Talos install completes *(2026-10-20: static per-node network config, Image Factory installer; the
+      control plane bootstraps and the worker joins, `docs/lab.md`)*
+- [x] Lab worker and lab NAS NFS/SMB path (exported at `/mnt/main/k8s`) verified
+- [x] A full Talos + Flux run on the guests *(2026-10-20, `clean-slate@f61c006`: 3 Kustomizations and all 11
+      HelmReleases Ready; `docs/runbooks/phase-reports/phase-lab-virt-2026-10-20.md`)*
+- [x] L1 UniFi fixture: self-hosted Network Application 10.6.106, provider 0.59.0; plan 1 add, apply, second plan
+      "No changes" (`just lab-unifi-plan`, `docs/lab.md`). Unproven: the API-key path, UDM gateway/zone
+      behaviour, the real VLAN 20 conflict gate
+- [x] L1 Proxmox fixture: nested Proxmox VE 8.4, provider bpg/proxmox 0.116.1; plan 3 to add, apply, second plan
+      "No changes", destroy 3, run twice on 2026-10-21 (`just lab-pve-plan`, `docs/lab.md`). Unproven: booting the
+      Talos VMs under Proxmox, the real host's datastore, bridge, VLAN tag and token privileges
 
 ### Phase 2: TrueNAS inventory and backup design, ⛔ GATE 2
 
@@ -144,17 +150,26 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
       (decisions §4.1)
 - [ ] Classify every dataset into a tier *(needs owner input)*
 - [ ] Choose the mechanism (ZFS replication vs restic) once the offsite target exists *(deferred, decisions §5.5)*
-- [ ] Verify the `truenas/truenas` provider against the 24.10 API (`versions.yaml` verification_tasks)
-- [ ] Local snapshot policy
+- [x] Verify the `truenas/truenas` provider: 1.5.14 against an L1 TrueNAS SCALE 25.10.7 fixture (2026-10-21,
+      `just lab-truenas-plan`): plan 3 to add, apply, API check, second plan "No changes". It needs SCALE ≥ 25.04
+      (its WebSocket API) and hercules-nas runs 24.10, so a real plan waits on the owner's upgrade
+- [ ] Local snapshot policy *(daily snapshots of `main/k8s` kept 14 days are authored in
+      `truenas/k8s.tf`; the policy for the other datasets waits on tiering)*
 
 ### Phase 3: Infrastructure IaC (greenfield: build, don't import), ⛔ GATE 3 before any live apply
 
 - [x] OpenTofu roots per state boundary; providers pinned; lock files committed; `tofu validate` clean
 - [x] Proxmox: the `talos-vm` module and the decided topology (1 CP + 1 worker with a data disk)
-- [ ] TrueNAS resources (datasets, NFS share, snapshot tasks) *(needs live-API verification)*
-- [ ] UniFi resources: K8s VLAN 20 and storage link, additive only *(needs the export and provider verification)*
-- [ ] Every config validated in an L1 fixture before any live plan
-- [ ] CI plan preview; protected environment for applies
+- [ ] TrueNAS resources *(the `main/k8s` dataset, its NFS share and snapshot task are authored in
+      `truenas/k8s.tf` and proven on the L1 fixture. **Blocked** on the real NAS: ≥ 25.04, see Phase 2)*
+- [ ] UniFi resources: K8s VLAN 20 and storage link, additive only *(the `hl-k8s` network, VLAN 20, is
+      authored on provider 0.59.0 with `prevent_destroy` and validates. Open: the `TODO(GATE 4)` values,
+      the storage link, and a plan against the export)*
+- [x] Every config validated in an L1 fixture before any live plan *(`unifi`, `proxmox` and `truenas` roots:
+      `just lab-unifi-plan`, `just lab-pve-plan`, `just lab-truenas-plan`)*
+- [ ] CI plan preview; protected environment for applies *(`.github/workflows/tofu-plan.yml` is written and
+      dormant: manual dispatch only, a self-hosted `homelab` runner, plan only, never apply. The runner and
+      the `homelab-plan` environment are owner setup)*
 
 ### Phase 4: Hardware cutover (owner-executed), ⛔ GATE 4 per risky step
 
@@ -173,7 +188,8 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
 - [x] Talos v1.14.4 / K8s v1.37.1 pinned; config generation and offline validation (`talos/`, `scripts/talos/`)
 - [x] Patches: Flannel and kube-proxy off for Cilium; the local-path user volume on the worker data disk
 - [x] Guarded bootstrap/kubeconfig helpers and runbook (`docs/runbooks/talos-bootstrap.md`)
-- [ ] Bootstrap the control plane, join the worker, bring up Cilium, check storage reachability *(lab first)*
+- [x] Bootstrap the control plane, join the worker, bring up Cilium *(lab, 2026-10-20; both nodes Ready)*
+- [x] Check storage reachability from the cluster *(lab: a `nas-nfs` PVC bound and a pod wrote and read a file)*
 - [ ] No HA claims on a single host
 
 ### Phase 6: Flux and platform services, ⛔ GATE 6
@@ -182,42 +198,59 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
       (MetalLB pool, NFS server) substituted at build time
 - [x] Cilium, MetalLB, Traefik, cert-manager, Technitium, kube-prometheus-stack (SMTP alerts), csi-driver-nfs
       (`nas-nfs`), local-path; all render; the kind lab installed cert-manager, MetalLB and Traefik
-- [ ] Real Flux bootstrap against a Talos cluster
-- [ ] Let's Encrypt DNS-01 ClusterIssuer via Cloudflare with a zone-scoped token, and a wildcard for
-      `*.lab.ardw.be` (decisions §5.7). Today only `internal-ca` exists
-- [ ] Traefik: HTTP→HTTPS redirect, default certificate, dashboard exposure
-- [ ] Technitium: persistence, forwarders, a fixed LoadBalancer IP, trimmed ports; the split-horizon records
-- [ ] Monitoring persistence (Prometheus, Alertmanager and Grafana state is ephemeral today)
-- [ ] mDNS reflection across zones, if needed (decisions §2.6)
-- [ ] Break-glass access that does not depend on in-cluster DNS or Authentik is documented
+- [ ] Real Flux bootstrap against a Talos cluster *(lab Talos: done, the full tree is Ready. Real cluster: not started)*
+- [x] Let's Encrypt DNS-01 ClusterIssuers (staging, production) via Cloudflare, and a `*.lab.ardw.be` wildcard
+      Certificate whose issuer is per cluster (`CLUSTER_ISSUER`: `internal-ca` on the lab). Issuing for real
+      needs the Cloudflare token and an ACME email (§8)
+- [x] Traefik: HTTP→HTTPS redirect, the wildcard as default certificate (TLSStore), dashboard internal only
+- [x] Technitium: persistence, forwarders, a fixed LoadBalancer IP for DNS only, web UI ClusterIP; a CronJob that
+      creates the `lab.ardw.be` zone with its apex and wildcard records pointing at Traefik
+- [x] Monitoring persistence on `local-path` (Prometheus 20Gi with 15d / 18GB retention, Alertmanager, Grafana)
+- [ ] mDNS reflection across zones, if needed (decisions §2.6) *(decided at cutover, on the UDM; nothing in
+      this repo yet)*
+- [x] Break-glass access that does not depend on in-cluster DNS or Authentik is documented
+      (`docs/runbooks/break-glass.md`)
 
 ### Phase 7: Applications, ⛔ GATE 7 before any public exposure
 
 - [x] Immich and Audiobookshelf specified, rendering, with per-app notes (`docs/apps/`); hosts are
       `<app>.lab.ardw.be`
-- [ ] `immich-db` Secret (SOPS) before first deploy; move the app certificates to the LE wildcard
-- [ ] Authentik SSO
-- [ ] Nextcloud **or** Seafile (decision recorded), Stremio local-only, Forgejo mirror later (decisions §5.4)
+- [x] `immich-db` Secret (SOPS) before first deploy; app certificates come from the wildcard *(lab Secret
+      generated; the production one waits on the key ceremony, `kubernetes/overlays/homelab/README.md`)*
+- [ ] Authentik SSO *(Authentik is deployed at `auth.lab.ardw.be` with a daily database dump; SMTP and wiring
+      apps to it are still to do)*
+- [ ] Seafile (decisions §5.8), Stremio local-only, Forgejo mirror later (decisions §5.4)
 
 ### Phase 8: Backup automation and verification, ⛔ GATE 8 after a successful restore test
 
 - [x] restic backup/check scripts and systemd units (`scripts/backup/`; dormant until a target exists)
-- [x] Immich database dump job (`kubernetes/apps/immich/backup.yaml`)
-- [ ] Offsite target purchased and built (decisions §5.5, deferred)
-- [ ] Wire the backup failure alerts (`OnFailure=`; see `scripts/backup/README.md`)
-- [ ] First backup **and a restore of it** into a test target
-- [ ] Alerts on last-success age, failures and size anomalies
+- [x] Database dump jobs for Immich and Authentik (`kubernetes/apps/*/backup.yaml`), with staleness,
+      never-succeeded and failure alerts for every `<app>-db-dump` CronJob
+- [ ] Offsite target purchased and built (decisions §5.5, deferred; `docs/future-work.md`)
+- [x] Wire the backup failure alerts (`OnFailure=` mails the unit and its journal tail; `scripts/backup/README.md`)
+- [x] First backup **and a restore of it** into a test target *(proven in the lab, 2026-10-20: both DB dumps
+      restored into a throwaway postgres with matching table counts; restic backup, check and `diff -r` restore.
+      `scripts/backup/README.md`)*
+- [ ] First backup and restore against the real offsite target (pending the target)
+- [x] Alerts on last-success age, failures and size anomalies *(dump under `DUMP_MIN_PERCENT` fails the Job and
+      so `DatabaseBackupJobFailed`; restic under `BACKUP_MIN_PERCENT` exits 1 and `OnFailure=` mails. Alerts
+      proven to "pending" only, no mail sent)*
 
 ### Phase 9: Upgrades and operations, ⛔ GATE 9
 
 - [x] Upgrade runbook (`docs/runbooks/upgrades.md`): Talos, K8s, charts, one at a time with verification
-- [ ] Resolve the open compatibility checks in `versions.yaml`: the Flux K8s range, the UniFi provider, Helm 4
-- [ ] Prove that normal applies never trigger OS upgrades
+- [ ] Resolve the open compatibility checks in `versions.yaml` *(UniFi provider: done, 0.59.0. Helm 4: partly.
+      Flux on K8s 1.37: running on the lab, 1.37.1; the full tree is Ready. TrueNAS provider: proven on a 25.10 fixture; the real NAS is blocked on its version)*
+- [x] Prove that normal applies never trigger OS upgrades: on the L1 Proxmox fixture (2026-10-21), bumping
+      `versions.yaml` v1.14.4 to v1.14.3 planned "1 to add, 0 to change, 1 to destroy" (only
+      `proxmox_download_file.talos`); after apply the VM disks were unchanged and a re-plan was clean. Reasoning in
+      the `talos-vm` README
 
 ### Phase 10: Disaster recovery validation, ⛔ GATE 10 = exit
 
 - [x] DR runbooks for the spec's scenarios (`docs/disaster-recovery.md`)
-- [ ] Non-destructive restore tests (offsite files, config, DB consistency)
+- [ ] Non-destructive restore tests (offsite files, config, DB consistency) *(`db-restore-test.sh` and
+      `restic-restore-diff.sh` exist and ran in the lab; still to run on real hardware)*
 - [ ] Recovery verified without Kubernetes; final checklist
 
 ---
@@ -242,9 +275,22 @@ Hard rules:
 
 ## 8. Still open with the owner
 
-- **UniFi:** the API key handover, a config export, and the management VLAN tag and NAS/Proxmox VLAN mismatch.
+- **UniFi:** the API key handover and a config export. The management VLAN is 4 (owner, 2026-10-21); the
+  uplink port behind the unmanaged switch needs VLANs 4 and 20 tagged (`docs/runbooks/host-network-bootstrap.md`).
 - **Offsite:** hardware to purchase or build (decisions §5.5).
-- **Cloudflare:** a token scoped to `lab.ardw.be` for DNS-01 (needed before real certificates).
+- **Cloudflare:** a DNS-01 token scoped to `Zone → DNS → Edit` on `ardw.be` (the zone Cloudflare hosts,
+  confirmed 2026-10-21; decisions §5.7), kept by the owner until the key ceremony. Also a real ACME account
+  email (today `acme-placeholder@example.invalid`).
+- **Production key ceremony:** the age key, then the six production Secrets
+  (`kubernetes/overlays/homelab/README.md`). Until then production `infrastructure` can't become Ready.
+- **TrueNAS upgrade to SCALE ≥ 25.04:** the `truenas/truenas` provider needs it; without it `truenas/` stays
+  unapplied. The root itself is proven on a 25.10 lab fixture.
+- **Production LoadBalancer IPs:** `cluster-settings` proposes `10.20.0.100` (Traefik) and `10.20.0.101`
+  (Technitium); not yet in `docs/decisions.md`.
+- **Flux on K8s 1.37.1:** the whole tree is Ready on the lab at 1.37.1; keep it.
+- **Small calls:** the Traefik dashboard is reachable in-cluster on 8080 (`api.insecure`); Technitium forwards
+  over plain UDP (DoT/DoH is an option); whether the `nas-nfs` export accepts the PostgreSQL dump jobs'
+  uid 999; Authentik SMTP.
 - **Tier 1:** the directory list, at cutover prep.
 - **Redaction policy:** `docs/SPEC.md` replaces private addresses with placeholders. `docs/network-plan.md`
   and `docs/decisions.md` show the planned RFC 1918 addresses. Pick one convention.
@@ -268,6 +314,10 @@ Hard rules:
 | 2026-10-16 | 1 | Fixed a false-green `just k8s-validate` that validated nothing. |
 | 2026-10-16 | 1 | libvirt guest harness added; the Talos install is blocked on the guest default route. |
 | 2026-10-20 | all | Review-and-cleanup round. Bugs fixed: per-environment `cluster-settings` (no more TEST-NET MetalLB pool in production); PSA `privileged` labels on the cilium/metallb/storage/monitoring namespaces; the Immich dump job's shell; `gen-configs --force` passthrough; the lab worker skips the 90 GiB volume; the lab NAS exports the production NFS path; restic check no longer restores all of Tier 1; `lab-git-image` no longer copies ignored files; the systemd unit fixes. Also: stale gate labels, hostnames per §5.7, and this plan rewritten. |
+| 2026-10-20 | 3,6,7,8 | Built the open buildable items: LE DNS-01 issuers and the wildcard, Traefik redirect/default cert/dashboard, Technitium persistence and zone bootstrap, monitoring persistence, break-glass runbook, Authentik with a DB dump, generic dump alerts, restic failure and freshness alerts, lab SOPS overlays, UniFi VLAN 20 on 0.59.0, TrueNAS `main/k8s` (blocked on NAS ≥ 25.04), dormant plan-preview workflow. Fixed `infrastructure-configs` stalling `apps`. Nothing applied. |
+| 2026-10-20 | 1,5,6 | Local libvirt lab run: Talos CP + worker installed and Ready (v1.14.4 / K8s v1.37.1), NAS NFS/SMB serving, Flux adopted Cilium and the whole tree is Ready (3 Kustomizations, 11 HelmReleases, `clean-slate@f61c006`). Fixes: NAS seed as a virtio disk, Image Factory installer, static node network, service CIDR /16, CP 3 GiB and worker 6 GiB, `cache='unsafe'`, HelmRelease remediation retries, a lab local-path path, the Prometheus data-dir chown, and the Authentik Secret rename (`authentik-credentials`) (`docs/runbooks/phase-reports/phase-lab-virt-2026-10-20.md`). |
+| 2026-10-20 | 2,5 | Lab proofs: UniFi L1 fixture (plan, apply, clean re-plan on provider 0.59.0; fixed `setting_preference = "manual"` on the network) and the backup/restore proof (dumps, restic, restore tests, size anomalies). Production bugs fixed: Immich dump `securityContext`, partial dumps, `restic-check.sh` deleting a non-empty directory, a `maxdepth` listing. Real offsite target and real hardware still pending (`docs/runbooks/phase-reports/phase-lab-virt-2026-10-20.md`). |
+| 2026-10-21 | 2,3,5,9 | L1 fixtures for every OpenTofu root: nested Proxmox VE 8.4 (`just lab-pve-plan`; plan, apply, clean re-plan, destroy, run twice) and TrueNAS SCALE 25.10.7 (`just lab-truenas-plan`; plan 3 to add, apply, API check, clean re-plan). OS-upgrade proof: a Talos version bump on the PVE fixture replaced only the image download, not the VMs (`ignore_changes` in `talos-vm`). Technitium chart 1.13.5 (15.6.2) fixes the auth.config loss and the start-up crash. Lab re-verified: dumps, restore tests, NFS, MetalLB, DNS. Backup alert mail proven against local SMTP sinks and the units verified (`just backup-selftest`, in CI); the `To:` header is now comma-separated. `DatabaseBackupJobFailed` fired in the lab and Alertmanager mailed firing and resolved to a sink. The backup units ran on `lab-nas` (backup, check, freshness, failure mails, a timer firing); restic now gets a cache dir under systemd (`docs/runbooks/phase-reports/phase-lab-virt-2026-10-20.md`). |
 
 ## 10. Definition of done
 
@@ -277,5 +327,7 @@ Hard rules:
 - [ ] Kubernetes reproducibly bootstrapped, with documented upgrade and recovery
 - [x] No secrets in the public repo (`.gitignore`, gitleaks and the SOPS gate in CI)
 - [x] CI validates every PR statically *(live-apply gating still to add)*
-- [ ] Every live-facing config proven in the lab first *(K8s/Flux layer yes; Talos guests, PVE and UniFi
-      fixtures not yet)*
+- [ ] Every live-facing config proven in the lab first *(K8s/Flux layer yes; Talos guests yes, Flux on them
+      yes; PVE, UniFi and TrueNAS fixtures yes; the alert mail against local SMTP sinks and `systemd-analyze verify`
+      of the units yes; a backup rule firing through Alertmanager to a sink yes; the units installed and run by their
+      timers on `lab-nas`, failure mails included, yes. Open: a real SMTP provider)*

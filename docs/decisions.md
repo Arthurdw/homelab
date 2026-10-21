@@ -53,8 +53,13 @@ change is that it is unconventional and easy to misdiagnose.
 
 ### 2.3 — Container CIDRs are identical in every environment — *decided*
 
-Pods `10.244.0.0/16`, Services `10.96.0.0/12`. They are cluster-internal and never routed, so keeping them
+Pods `10.244.0.0/16`, Services `10.96.0.0/16`. They are cluster-internal and never routed, so keeping them
 identical between lab and production keeps manifests portable and stops "works in lab" divergences.
+
+Services were the Talos default `10.96.0.0/12` until 2026-10-20, when the first lab bring-up flagged it
+(Talos diagnostic `address-overlap`). A /12 spans `10.96.0.0–10.111.255.255` and so covers `10.99.x`, the lab
+network and storage link, which means a ClusterIP could land on a node address. The /16 is pinned in
+`talos/patches/common.yaml` and keeps `10.96.0.1` (API) and `10.96.0.10` (CoreDNS).
 
 ### 2.4 — Lab addressing is disjoint from production addressing — *decided*
 
@@ -115,12 +120,16 @@ must not share a broadcast domain (e.g. iSCSI). Neither exists here.
 
 | Guest | vCPU | RAM | Disk |
 |---|---|---|---|
-| `talos-cp-1` | 2 | 2 GiB | 20 GiB |
+| `talos-cp-1` | 2 | 4 GiB | 20 GiB |
 | `talos-wk-1` | 3 | 16 GiB | 80 GiB boot **+ 100 GiB data** |
 
 5 vCPU on 4 threads is a 1.25× overcommit — normal, because idle control planes use very little.
 **No HA claim**: one physical host means host loss is cluster loss. Provisional until the lab measures
 real usage. The worker's data disk is explained in §3.4.
+
+The control plane was 2 GiB until the lab measured it (2026-10-21): 2 GiB thrashed, and 3 GiB with 2 vCPU
+still crash-looped MetalLB on a cold boot. It runs every DaemonSet as well as the API server and etcd. 4 GiB
+costs little on a 46 GiB host (`docs/lab.md`).
 
 ### 3.2 — All VM disks live on `local-lvm` (the host SSD) — *decided*
 
@@ -156,6 +165,29 @@ the NAS in §4.3. The +100 GiB still fits the host SSD's `local-lvm` (360 GiB) a
 
 **Replaces:** the implicit §3.1 assumption that each VM has exactly one disk (boot only).
 
+### 3.5 — Untrusted CI build jobs run in Kata microVMs; one Talos schematic for every node — *decided 2026-10-21*
+
+The future Forgejo runner (SPEC §12.7) executes repository code it does not trust. Build pods use
+`runtimeClassName: kata` (`kubernetes/infrastructure/runtime-classes`): each pod gets its own guest kernel in
+a microVM, so a build escape lands in a VM, not on the node. The handlers (`kata` = Cloud Hypervisor,
+`kata-qemu` = QEMU) come from the Talos `siderolabs/kata-containers` extension, which needs no machine-config
+patch. Builds stay on the worker (the control plane is tainted).
+
+**Schematic:** `talos/schematic.yaml` is the single schematic for production (`nocloud`) and the lab (`metal`);
+only the installer platform differs. It holds `siderolabs/kata-containers` and `siderolabs/qemu-guest-agent`
+(id in `talos/inputs.env`; it must equal `talos_image_schematic_id` in the Proxmox environment). The agent
+extension waits forever for the virtio channel, so with this image `talos_qemu_guest_agent_enabled` (Proxmox)
+and the libvirt `org.qemu.guest_agent.0` channel (lab) must be on.
+
+**Nested virtualisation is required:** the Talos VMs use CPU type `host` (`talos_cpu_type`, which blocks live
+migration; this is a single host) **and** nested KVM must be enabled on the PVE host. The latter is
+owner-gated at cutover.
+
+**Build storage** follows §3.4, §4.2 and §4.3. Workspaces and caches are ephemeral: an `emptyDir` or a
+`local-path` PVC on the worker's data disk, thrown away with the job. NFS (`nas-nfs`) is only for what must
+persist. Build pods get no `hostPath` and no container-runtime socket; images are built rootless
+(for example `buildkit` rootless inside the Kata pod), never with a privileged Docker-in-Docker.
+
 ## 4. Storage
 
 ### 4.1 — Tiered dataset hierarchy with per-dataset recursive snapshot policies — *decided*
@@ -163,7 +195,7 @@ the NAS in §4.3. The +100 GiB still fits the host SSD's `local-lvm` (360 GiB) a
 | Dataset | Protocol | Snapshots | Offsite |
 |---|---|---|---|
 | `main/tier1/{arthur,jolien,dunia}` | SMB | hourly / 30 d | yes |
-| `main/apps/{immich,audiobookshelf,nextcloud}` | NFS | hourly / 14 d | yes |
+| `main/apps/{immich,audiobookshelf,seafile}` | NFS | hourly / 14 d | yes |
 | `main/k8s` (PVC backing) | NFS export | daily / 14 d | yes |
 | `main/media` (Tier-3) | SMB/NFS | weekly / 4 w | no |
 | `main/scratch` (Tier-4) | — | none | no |
@@ -243,7 +275,8 @@ same parent as the git mirror (`git.lab.ardw.be`). Technitium serves those names
 resolvable from the internet.
 
 Certificates come from **Let's Encrypt via DNS-01 through Cloudflare**, with a token scoped to `Zone → DNS →
-Edit` on the `lab.ardw.be` zone only.
+Edit` on the `ardw.be` zone only. Cloudflare hosts `ardw.be`, not a separate `lab.ardw.be` zone, and a token
+can only be scoped to a zone it hosts; the issuers' solver selector still limits challenges to `lab.ardw.be`.
 
 **DNS-01 is forced, not preferred:** nothing here is reachable from the internet (§5.2 — no inbound ports, no
 DMZ), so HTTP-01 has no path by which the ACME server could reach the host.
@@ -259,6 +292,21 @@ another certificate or widening the token.
 **Fallback, not default:** the internal CA (`internal-ca`, already scaffolded) remains available for anything
 that must not depend on Cloudflare. It is not the default because every household device would need our root
 certificate installed or it shows warnings — exactly the friction this project refuses to create (§2.6).
+
+### 5.8 — Private cloud: Seafile, not Nextcloud — *decided 2026-10-21*
+
+The private cloud slot in the application order is **Seafile**, chosen by the owner. The job is file sync
+and sharing, which is what Seafile does; Nextcloud's groupware suite is not wanted and would be more to
+patch and back up.
+
+What follows from it:
+
+- Its data lives on `main/apps/seafile` over NFS (§4.1). Seafile stores libraries as content-addressed
+  blocks, not plain files, so that dataset is not browsable over SMB. A restore goes through Seafile.
+- Its database follows §4.3 (node-local, with a logical dump to the NAS like Immich and Authentik). A
+  restore needs both the dump and the data dataset from the same point in time.
+- Web sign-in at `seafile.lab.ardw.be` (§5.7) goes through Authentik. The desktop and mobile
+  clients keep their own tokens.
 
 ## 6. Findings that changed the plan
 

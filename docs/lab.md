@@ -47,13 +47,24 @@ exact `virsh`/`qemu-img`/`talosctl` commands and generated XML, creates nothing)
 
 | Guest | Kind | vCPU | RAM | Disk | Address |
 |---|---|---|---|---|---|
-| `lab-talos-cp` | Talos metal ISO | 2 | 2 GiB | 20 GiB | `10.99.100.11` |
-| `lab-talos-wk` | Talos metal ISO | 3 | 4 GiB | 40 GiB | `10.99.100.12` |
+| `lab-talos-cp` | Talos metal ISO | 3 | 4 GiB | 20 GiB | `10.99.100.11` |
+| `lab-talos-wk` | Talos metal ISO | 3 | 6 GiB | 40 GiB | `10.99.100.12` |
 | `lab-nas` | Debian cloud image | 2 | 2 GiB | 50 GiB | `10.99.100.10` |
 
+Sizing: the control plane needs 4 GiB and 3 vCPU. The lab stack puts DaemonSets and `csi-nfs-controller` on it
+(MetalLB `frr-k8s` and speaker, Cilium and `cilium-envoy`, `csi-nfs-node`). At 2 GiB the guest thrashed in
+reclaim (memory pressure about 72%, CPU pressure about 94%), `kube-controller-manager` and `kube-scheduler`
+kept losing leader election, EndpointSlices were never populated, and Flux got *no route to host* to
+`source-controller` and the Git server (Cilium rejects services with no endpoints). At 3 GiB and 2 vCPU it was
+fine warm, but after a cold boot (2026-10-21) the load hit 20 to 45 and the MetalLB speaker crash-looped on
+liveness timeouts; at 4 GiB and 3 vCPU it starts clean. Production now sizes `talos-cp-1` at 4 GiB
+(`docs/decisions.md` §3.1).
+
 ```sh
-just lab-virt-up --only lab-talos-cp      # boot, apply-config, bootstrap the control plane
+just lab-virt-up --only lab-talos-cp      # boot, apply-config, bootstrap, kubeconfig, Cilium
 just lab-virt-up --only lab-talos-wk      # joins the existing cluster
+just lab-virt-up --only lab-nas           # NFS/SMB stand-in
+just lab-virt-flux                        # Flux + this working tree (re-run = sync)
 just lab-virt-down                        # remove everything the harness created
 ```
 
@@ -71,14 +82,47 @@ How it is built:
   are defined with `virsh define` because `virt-install` is broken on this host (`ModuleNotFoundError: gi`).
 - **Talos** boots the `metal-amd64.iso` pinned in `versions.yaml`. `up.sh` follows
   `docs/runbooks/talos-bootstrap.md`: wait for the maintenance-mode lease, `apply-config --insecure`, wait for
-  the node, `bootstrap` once. Configs come from `scripts/talos/gen-configs.sh` with `talos/inputs.lab.env`
-  (`INSTALL_DISK=/dev/vda`) into the gitignored `talos/out/lab`. The CNI is Cilium with kube-proxy replacement
-  (`docs/decisions.md` §3.3), installed by Flux, so a bootstrapped node stays `NotReady` until Cilium is up.
+  the node to boot from its installed disk (`talos_wait_installed`: the `STATE` volume turns `ready`; the
+  machine stage says nothing useful here), `bootstrap` once, retried while Talos answers *not available
+  yet*. The installer is the Image Factory one (`factory.talos.dev/metal-installer/<schematic>`), because
+  `ghcr.io/siderolabs/installer` is not published for v1.14. Configs come from `scripts/talos/gen-configs.sh`
+  with `talos/inputs.lab.env` (`INSTALL_DISK=/dev/vda`) into the gitignored `talos/out/lab`; `up.sh` refuses a
+  stale `worker.yaml` that still carries the user volume the lab inputs drop. `talos/patches/common.yaml`
+  narrows the service CIDR to `10.96.0.0/16` (pods `10.244.0.0/16`): the `10.96.0.0/12` default overlaps the
+  lab network and the storage link.
+- **Per-node config**: `up.sh` patches each role config into `talos/out/lab/<guest>.yaml` with the guest's
+  hostname and, by default (`STATIC_NET=1`), a static address, default route and resolver from `guests.tsv`,
+  matched to the NIC by MAC (`LinkAliasConfig`), so the install does not depend on DHCP delivering a route.
+  `--dhcp` (`STATIC_NET=0`) uses DHCP only, as production does.
+- **CNI**: Cilium with kube-proxy replacement (`docs/decisions.md` §3.3). Flux owns it, but Flux's own pods need
+  a CNI, so `scripts/talos/install-cni.sh` installs the same chart, version and values as the same Helm
+  release once, and Flux adopts it. Until then the nodes stay `NotReady`. `up.sh` fetches the kubeconfig
+  into `talos/out/lab/kubeconfig` and runs it right after the bootstrap (`--no-cni` skips both).
+- **Flux** (`flux-up.sh`): the kind lab loads a baked Git server image, which a Talos node cannot, so the Git
+  server here is `scripts/lab/gitserver/k8s-runtime.yaml` (stock `alpine`, packages installed at start;
+  namespace `lab-git`). The script bakes the working tree exactly as the kind lab does (git-visible files
+  only), streams the bare repo into the pod with `kubectl exec ... tar`, then runs the same Flux wiring as
+  the kind lab (`scripts/lab/lab-flux.sh`): `flux install`, the `sops-age` Secret from
+  `~/.config/homelab/lab-age.key`, and the real `kubernetes/clusters/lab` Kustomizations. It refuses a
+  kubeconfig whose API server is not on `10.99.100.0/24`. A restarted Git server pod comes back empty until
+  the next `just lab-virt-flux`.
   The generated `talosconfig` has `endpoints: []`; the harness passes `--endpoints` and lists both node
   addresses in `ADDITIONAL_SANS`.
-- **`lab-nas`** is a Debian cloud image (cloud-init NoCloud seed ISO) exporting NFS at the production share path
-  `/mnt/main/k8s` (so the `nas-nfs` StorageClass works unchanged) and SMB at `/srv/lab/smb`, with
-  no authentication (lab only). Deliberately not nested TrueNAS: ZFS-in-ZFS burns RAM and tests the wrong layer.
+- **Kata Containers**: the Talos image (`talos/schematic.yaml`) carries `kata-containers` and
+  `qemu-guest-agent`. Guests use `host-passthrough` CPU, so nested KVM gives the Kata microVMs `/dev/kvm`. The
+  agent extension's Talos service waits for `/dev/virtio-ports/org.qemu.guest_agent.0`, so each guest's domain
+  XML carries that virtio channel; a guest defined before the channel existed shows the service `Waiting`
+  and `talosctl health` reports the node as still booting until the guest is power-cycled with the new XML
+  (`just lab-virt-up --only <guest>` redefines it). Existing nodes move to the schematic with
+  `talosctl upgrade --image factory.talos.dev/metal-installer/<id>:<talos>`, one node at a time.
+- **Disks** use `cache='unsafe'` (`LAB_DISK_CACHE`): the guest's flushes are ignored. With `cache='none'`, etcd's
+  fsyncs queued behind other IO on the workstation's NVMe and the API server dropped out mid-install. The
+  guests are disposable, so a host crash costing their disks is acceptable; `LAB_DISK_CACHE=none` restores
+  durable writes.
+- **`lab-nas`** is a Debian cloud image (cloud-init NoCloud seed, attached as a read-only virtio disk: the
+  genericcloud kernel does not see a SATA CD-ROM, so a seed ISO there leaves the guest unconfigured and
+  without DHCP) exporting NFS at the production share path `/mnt/main/k8s` (so the `nas-nfs` StorageClass
+  works unchanged) and SMB at `/srv/lab/smb`, with no authentication (lab only). Deliberately not nested TrueNAS: ZFS-in-ZFS burns RAM and tests the wrong layer. The seed gets a generated lab-only key (`/var/tmp/homelab-lab-virt/ssh/lab_ed25519`, never committed) for the `debian` user with passwordless sudo: `just lab-nas-ssh`. The cloud-init instance-id is derived from the seed content, so a changed seed is applied on the guest's next boot (power-cycle it; a warm reboot keeps the old ISO).
 - **Files** live in `/var/tmp/homelab-lab-virt` (`LAB_VIRT_DIR`); the qemu user must be able to traverse the
   path, so `$HOME` does not work. systemd-tmpfiles may prune idle images; they are re-downloaded.
 - **Teardown** (`down.sh`) removes only the `lab-`-prefixed domains named in `guests.tsv`, the two networks, the
@@ -87,28 +131,142 @@ How it is built:
 
 The 10 GbE link's MTU 9000 is not simulated; measure it at cutover (`docs/decisions.md` §2.2).
 
+## UniFi fixture
+
+`just lab-unifi up` starts a pinned, self-hosted UniFi Network Application (`lab-unifi`, with `lab-unifi-mongo`) in
+Docker, bound to `127.0.0.1:18443` only (`LAB_UNIFI_PORT`), capped at 1.5 GiB and 512 MiB. Images are pinned by
+digest in `versions.yaml` (`lab_fixture_images`). The first run creates a random local admin non-interactively and
+writes the credentials to `talos/out/lab-unifi/` (gitignored). `status`, `stop` (keeps data) and `down` (removes
+containers, volumes and credentials) are also available.
+
+`just lab-unifi-plan` copies `infrastructure/environments/homelab/unifi` into `talos/out/lab-unifi/tofu/`, runs
+`init -backend=false`, `validate`, `plan`, `apply`, checks the network on the controller, then re-plans and requires
+no changes. It refuses any endpoint that is not `https://127.0.0.1:<port>` or `https://localhost:<port>`, and drops
+`UNIFI_*` and `TF_VAR_unifi_*` from the calling shell. `--plan` stops after the plan. There is no `destroy` step
+(the network has `prevent_destroy`); `just lab-unifi down` discards the fixture.
+
+Limits: a self-hosted controller has no API keys (a UniFi OS feature), so the fixture authenticates with the local
+admin and passes an empty `unifi_api_key`; the API-key path is not exercised. It has no gateway, so gateway-dependent
+behaviour of the real UDM Pro is not covered.
+
+## Proxmox fixture
+
+`just lab-pve` (`scripts/lab/pve-fixture.sh up`) installs a real Proxmox VE as a nested libvirt guest, `lab-pve`, on
+`homelab-lab` at `10.99.100.20` (static, set by the installer; the network definition is not touched). It is not in
+`guests.tsv`: `just lab-virt-up` never creates it and `down.sh` never removes it. The install is unattended: the
+pinned ISO (`proxmox-ve_8.4-1.iso`, sha256 pinned in `versions.yaml` `lab_fixture_images`, taken from
+`enterprise.proxmox.com`) is rewritten by `proxmox-auto-install-assistant prepare-iso` (run in a throwaway
+`debian:bookworm-slim` container) to carry an answer file. The guest has `host-passthrough` CPU for nested KVM, 4 GiB
+RAM (refused above 5 GiB), 2 vCPUs and a 40 GiB qcow2 in `LAB_VIRT_DIR` (`cache=unsafe`). Random credentials (root
+password, ssh key, API token) go to `talos/out/lab-pve/` (gitignored, mode 700). After the first boot the script
+makes `vmbr0` VLAN-aware and creates `terraform@pve`, a role and the token `terraform@pve!tofu`. Memory permitting
+(it needs 4 GiB plus headroom free), the first run takes about 5 minutes. `status`, `stop` (clean shutdown, keeps the
+disk; `just lab-pve` starts it again) and `down` (removes the domain, disk and credentials; `--purge` also the ISOs)
+are also available.
+
+`just lab-pve-plan` copies `infrastructure/environments/homelab/proxmox` and `modules/talos-vm` into
+`talos/out/lab-pve/tofu/`, runs `init -backend=false`, `validate`, `plan`, `apply`, checks the two VMs and the Talos
+image on the fixture, re-plans and requires no changes, then destroys and checks nothing is left. It refuses any
+endpoint that is not `https://10.99.100.<n>:8006` (lookalikes such as `10.99.100.20.evil` are rejected), drops
+`PROXMOX_VE_*`, `PM_*` and `TF_VAR_proxmox*` from the calling shell, and gives the provider's SSH step a private
+ssh-agent holding only the fixture key. `--plan` stops after the plan; `--keep` skips the destroy.
+
+Proven (2026-10-21): 3 to add (image download plus two VMs), apply, second plan "No changes", destroy 3.
+
+OS-upgrade proof (2026-10-21): with VMs 110/111 applied at Talos v1.14.4, bumping the pin to v1.14.3 in the scratch
+`versions.yaml` (never the tracked file) planned "1 to add, 0 to change, 1 to destroy": only `proxmox_download_file.talos`
+is replaced, neither VM resource appears. Applying it left both VMs' `efidisk0` and `scsi0` identical (same `local-lvm`
+volumes, 10G), and the next plan was "No changes". So a normal apply never upgrades a running node's OS.
+
+Deviations from the real host (poseidon, PVE 8.4.11): the ISO is 8.4-1 (same 8.4 line); a single 40 GiB virtual disk
+with ext4 root and LVM-thin `local-lvm`, not the host's SSD layout; 4 GiB RAM and 2 vCPUs, so the Talos VMs are
+created stopped (`talos_vm_started = false`, 2 GiB each, 10 GiB disks, no data disk, via the root's sizing variables;
+their defaults are production's); the lab's flat bridge means `k8s_vlan_id = null` (the bridge is VLAN-aware, but a
+VLAN tag is not exercised); the token is a `terraform@pve` role with a privilege list chosen for the provider, not
+the real host's token; the node is named `lab-pve`. The `local` storage must hold the 4.4 GiB decompressed Talos
+image, so a 40 GiB disk is the practical minimum. Unproven: booting the Talos VMs under Proxmox, the real host's
+datastore and bridge names, and the token's privileges on poseidon.
+
+## TrueNAS fixture
+
+An L1 fixture for `infrastructure/environments/homelab/truenas`. The provider (`truenas/truenas` 1.5.14) needs
+TrueNAS SCALE 25.04 or newer, and hercules-nas runs 24.10, so the root could never be planned. The fixture is a
+libvirt guest, `lab-truenas`, on `homelab-lab` at `10.99.100.21` (MAC `52:54:00:99:10:21`, not in `guests.tsv`).
+It is never the real NAS.
+
+```bash
+just lab-truenas up          # download and verify the ISO, install unattended, create pool main and an API key
+just lab-truenas-plan        # init, validate, plan, apply, verify, second plan
+just lab-truenas stop|status
+just lab-truenas down [--purge]
+```
+
+**Built.** `scripts/lab/truenas-fixture.sh` pins TrueNAS SCALE 25.10.7 (`versions.yaml`, `lab_fixture_images`,
+sha256 checked after download). The installer is unattended: the live ISO serves a JSON-RPC API
+(`truenas_installer --server`), and `scripts/lab/virt/truenas-rpc.py` calls `adopt` then `install` on it with a
+static `10.99.100.21/24` address and a random admin password. After the reboot the script creates the stripe pool
+`main` on the data disk and an API key `tofu` over `wss://10.99.100.21/api/current`. Credentials are in
+`talos/out/lab-truenas/fixture.env` (directory 700, files 600, gitignored). Disks carry serials, because
+TrueNAS ignores virtio disks without one. Defaults: 6 GiB RAM (`LAB_TRUENAS_MEM_MIB`, refused unless that much
+plus 1 GiB is available), 20 GiB boot disk, 10 GiB data disk.
+
+**Proven.** `scripts/lab/truenas-fixture-plan.sh` accepts only `wss://10.99.100.<n>/api/current` (14 lookalike
+inputs are refused), strips `TRUENAS_*`, `TF_VAR_truenas*` and `TF_CLI_ARGS*`, and works on a copy of the root in
+`talos/out/lab-truenas/tofu` with local state. It writes a pre-aligned `fixture.auto.tfvars`, so
+`tofu fmt -check` stays clean. Result on 25.10.7: plan `3 to add`, apply `3 added`, the dataset
+`main/k8s`, NFS share `/mnt/main/k8s` and snapshot task read back correctly through the API, and a second plan
+reports `No changes`. No production code needed a fix.
+
+**Deviations from the real NAS.** Version 25.10.7 instead of 24.10.2.4 (the point: the provider needs it). A
+single-disk stripe pool, not the real layout. `k8s_nfs_allowed_networks` is overridden to `10.99.100.0/24`
+for the fixture only, the production default is unchanged. The NFS service is not enabled or exercised.
+
+**Unproven.** There is no destroy step: `truenas_dataset.k8s` and the share have `prevent_destroy`, so a destroy
+would fail by design; `down` discards the VM instead. NFS mounts from Talos nodes, the 25.04 release the vendor
+never tested, and behaviour on the upgraded hercules-nas are all unproven.
+
 ## Status and known issues
 
-Verified (2026-10-16, `--only lab-talos-cp`): both networks, DHCP reservations and the nwfilter work, DHCP
-completes through the filter, the node reaches Talos v1.14.4 maintenance mode and answers ICMP and `tcp/50000`,
-and `down.sh` removes only harness resources.
+Verified (2026-10-20): the Talos install completes (`apply-config`, then the `STATE` volume turns `ready`) and
+`bootstrap` succeeds on the control plane; the worker joins; both nodes are `Ready` on Talos v1.14.4 /
+Kubernetes v1.37.1. `lab-nas` serves NFS (`2049`, `/mnt/main/k8s`) and SMB (`445`). `lab-virt-flux` runs: Flux
+adopted the bootstrap Cilium release (`UpgradeSucceeded`), and the Git server pod reaches the internet.
+At revision `clean-slate@f61c006` all three Kustomizations (`infrastructure`, `infrastructure-configs`, `apps`)
+and all 11 HelmReleases are Ready, and every pod is Running or Completed. A throwaway `nas-nfs` PVC bound over
+CSI to `10.99.100.10:/mnt/main/k8s` and a pod wrote and read a file; the audiobookshelf-library, immich-library
+and authentik-db-backups PVCs are Bound. MetalLB pool `default` is `10.99.100.100-199`: Traefik got
+`10.99.100.100`, `technitium-dns` `10.99.100.101`. Technitium answers DNS on `10.99.100.101` (forward lookup
+and reverse for `1.1.1.1`), its API endpoint responds in-cluster, and the zone-bootstrap CronJob created
+`lab.ardw.be` with its apex and wildcard records pointing at Traefik. `internal-ca` and `selfsigned-bootstrap`
+are Ready. Authentik, Immich and Audiobookshelf are Ready. Not verifiable here: the ACME issuers, the
+Technitium API login (no admin password in the lab), and the export inspected on `lab-nas` directly.
+Earlier (2026-10-16, `--only lab-talos-cp`): both networks, DHCP reservations and the nwfilter work, and
+`down.sh` removes only harness resources.
 
 Known issues:
 
-- **Talos install does not complete.** `apply-config` is accepted and the authenticated API answers, but
-  `bootstrap` is refused (*bootstrap is not available yet*). The guest cannot install its default route
-  (*network is unreachable* via `10.99.100.1`), so it has no DNS and cannot pull
-  `ghcr.io/siderolabs/installer`; the installer then fails with `error flushing meta: file does not exist`.
-  The libvirt network XML, DHCP config and nwfilter do not explain it (ICMP and the Talos API work), so the cause
-  is probably Talos-side. Next steps: `talosctl get addresses,routes,links` against the node, a VNC screenshot
-  (below), and trying a lab-only static network patch (address `/24`, default route via `10.99.100.1`,
-  resolver `10.99.100.1`) passed to `apply-config`.
-- The worker, the NAS (NFS/SMB) path and the Proxmox/UniFi fixtures are unverified.
+- `letsencrypt-staging` and `letsencrypt-production` are not Ready in the lab (`secret "cloudflare-api-token"
+  not found`). Expected: it is an out-of-band production credential and an isolated lab has no ACME.
+- local-path needs a lab patch: with no Talos user volume, `/var/mnt/local-path-provisioner` sits on a
+  read-only filesystem and every local-path PVC stayed Pending.
+  `kubernetes/overlays/lab/infrastructure/kustomization.yaml` points `nodePathMap` at
+  `/var/local-path-provisioner` on EPHEMERAL. A second disk is not an option: production's volume is 90 GiB and
+  the lab worker disk is 40 GiB.
+- `source-controller` storage is an `emptyDir`, so after a node restart every HelmRelease is briefly
+  `SourceNotReady` until the artifacts are fetched again (benign).
+- Flux's default for HelmRelease install/upgrade remediation is 0 retries, so a failed install never retried;
+  all 11 HelmReleases now set `retries: 3` (`kubernetes/README.md`).
+- The UniFi, Proxmox, worker, NAS and Flux paths are verified (above and in the fixture sections).
 - The lab worker gets no local-path user volume: `talos/inputs.lab.env` sets `WORKER_PATCH=""` because the
   90 GiB volume cannot fit its 40 GiB disk. local-path PVs land on the EPHEMERAL partition in the lab.
-- The lab Proxmox fixture (nested PVE, `tofu` against its API only) and the UniFi fixture (self-hosted
-  controller; the real UDM Pro cannot be virtualised and is not written to before cutover, decision 1.2) are
-  still to build.
+- The Proxmox fixture is built and proven (above). The UniFi fixture is
+  built and proven (2026-10-20): plan 1 add, apply, second plan "No changes", provider 0.59.0, against a
+  self-hosted Network Application 10.6.106. Unproven: the API-key path, UDM gateway/zone behaviour and the
+  real VLAN 20 conflict gate (the real UDM Pro cannot be virtualised and is not written to before cutover,
+  decision 1.2).
+- Backups were proven in the lab (2026-10-20): both DB dumps restored into a throwaway postgres, restic
+  backup, check and restore-diff, and both size-anomaly guards fired (`scripts/backup/README.md`). The real
+  offsite target, installed systemd units and the SMTP mail path are unproven.
 
 Looking at a headless guest: domains have no graphics and `<video><model type='none'/>`, and libvirt's
 `-nodefaults` suppresses firmware serial output, so a silent guest is not necessarily broken. Define a
