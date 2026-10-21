@@ -256,8 +256,9 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
 ### Phase 10: Disaster recovery validation, ⛔ GATE 10 = exit
 
 - [x] DR runbooks for the spec's scenarios (`docs/disaster-recovery.md`)
-- [ ] Non-destructive restore tests (offsite files, config, DB consistency) *(`db-restore-test.sh` and
-      `restic-restore-diff.sh` exist and ran in the lab; still to run on real hardware)*
+- [ ] Non-destructive restore tests (offsite files, config, DB consistency) *(`db-restore-test.sh` (Immich and
+      Authentik PostgreSQL, Seafile MariaDB) and `restic-restore-diff.sh` exist and ran in the lab; still to run
+      on real hardware)*
 - [ ] Recovery verified without Kubernetes; final checklist
 
 ---

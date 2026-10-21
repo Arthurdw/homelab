@@ -8,7 +8,7 @@
 | `restic-backup.sh` | `restic backup` of `BACKUP_PATHS`, then `forget --prune` with the `KEEP_*` retention. |
 | `restic-check.sh` | `restic check --read-data-subset`, plus an optional sample restore into a scratch directory. |
 | `restic-restore-diff.sh` | Restores the newest snapshot into a scratch directory and `diff -r`s it against the live `BACKUP_PATHS`. The non-destructive restore test. |
-| `db-restore-test.sh` | Restores the newest Immich or Authentik `pg_dump` into a throwaway postgres pod in a scratch namespace, compares table counts, and deletes the namespace. |
+| `db-restore-test.sh` | Restores the newest Immich or Authentik `pg_dump` into a throwaway postgres pod, or the newest Seafile `mariadb-dump` into a throwaway mariadb pod (also checks the gzip stream, the three databases, accounts and migrations), in a scratch namespace, compares table counts, and deletes the namespace. |
 | `backup-alert.sh` | Emails "unit X failed on host Y" plus its last 50 journal lines over SMTP (`curl`), per `docs/decisions.md` §5.1. |
 | `backup-freshness.sh` | Fails when the last fully successful backup is older than `BACKUP_MAX_AGE_HOURS` (default 36). |
 | `env.example` | The environment the backup scripts read. Copy it outside the repo; never commit real values. |
@@ -51,6 +51,7 @@
 # Databases (kubectl context of the cluster; restores into a scratch namespace, then deletes it):
 scripts/backup/db-restore-test.sh immich
 scripts/backup/db-restore-test.sh authentik
+scripts/backup/db-restore-test.sh seafile
 
 # Restic (same environment as the backup): restore into a temp dir and diff against the source.
 set -a; . /etc/homelab/backup.env; set +a

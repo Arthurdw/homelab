@@ -15,7 +15,7 @@ Legend: **T** = tier · **Irrep.** = irreplaceable? · **Snap** = local snapshot
 | `main/ix-apps/...` (app data, 490 G s3 export) | TBD | TBD | app | **none today** ⚠️ | TBD | TBD | TBD | TBD | yes | TBD | TBD |
 | `main/backups/timemachine/jolien` | 2 | no (copy of the Mac) | Mac | daily / 7 d | no | Time Machine over SMB, encrypted on the Mac | hourly while the Mac is on | Time Machine's own thinning | yes (client) | `runbooks/household-backups.md` (a) | TBD |
 | `main/backups/kopia` | 2 | yes (only copy of the Windows and Linux backups) | repo | daily / 14 d | yes (deferred, §5.5) | Kopia client to the repository server, client-side encryption | daily per client | per policy: 14 daily / 8 weekly / 12 monthly | yes (client) | `runbooks/household-backups.md` (b); `kopia` CLI works without the cluster | TBD |
-| `main/apps/seafile` | TBD | yes | app | hourly / 14 d | yes (deferred, §5.5) | ZFS snapshots + DB dump | hourly | 14 d | TBD | restore needs the dump and this dataset from the same time (§5.8) | TBD |
+| `main/apps/seafile` | TBD | yes | app | hourly / 14 d | yes (deferred, §5.5) | ZFS snapshots + DB dump | hourly | 14 d | TBD | restore needs the dump and this dataset from the same time (§5.8); `scripts/backup/db-restore-test.sh seafile` proves the dump (lab: 195 tables, 3 databases) | TBD |
 | `main/proxmox` (incl. 3 TB VM disk) | TBD | TBD | VM | **TBD** | TBD | TBD | TBD | TBD | yes | TBD | TBD |
 
 ## Workloads / configuration
