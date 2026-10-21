@@ -5,7 +5,7 @@ Manages Proxmox VE resources for the homelab — currently the two Talos node VM
 
 **Status:** VM provisioning authored; **nothing applied to the real host**. Provider pinned; state
 backend still TBD (`docs/secrets-and-state.md` §5). Proven against the L1 Proxmox fixture (a real
-nested Proxmox VE 8.4, `just lab-pve-plan`): plan, apply, a clean second plan and destroy. The VMs
+nested Proxmox VE 9.2, `just lab-pve-plan`): plan, apply, a clean second plan and destroy. The VMs
 there are created stopped and small; the real host's storage, bridge, VLAN and token are unproven
 (see Verification below).
 

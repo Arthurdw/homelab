@@ -159,12 +159,14 @@ behaviour of the real UDM Pro is not covered.
 `just lab-pve` (`scripts/lab/pve-fixture.sh up`) installs a real Proxmox VE as a nested libvirt guest, `lab-pve`, on
 `homelab-lab` at `10.99.100.20` (static, set by the installer; the network definition is not touched). It is not in
 `guests.tsv`: `just lab-virt-up` never creates it and `down.sh` never removes it. The install is unattended: the
-pinned ISO (`proxmox-ve_8.4-1.iso`, sha256 pinned in `versions.yaml` `lab_fixture_images`, taken from
+pinned ISO (`proxmox-ve_9.2-1.iso`, sha256 pinned in `versions.yaml` `lab_fixture_images`, taken from
 `enterprise.proxmox.com`) is rewritten by `proxmox-auto-install-assistant prepare-iso` (run in a throwaway
-`debian:bookworm-slim` container) to carry an answer file. The guest has `host-passthrough` CPU for nested KVM, 4 GiB
+`debian:trixie-slim` container) to carry an answer file. The guest has `host-passthrough` CPU for nested KVM, 4 GiB
 RAM (refused above 5 GiB), 2 vCPUs and a 40 GiB qcow2 in `LAB_VIRT_DIR` (`cache=unsafe`). Random credentials (root
 password, ssh key, API token) go to `talos/out/lab-pve/` (gitignored, mode 700). After the first boot the script
-makes `vmbr0` VLAN-aware and creates `terraform@pve`, a role and the token `terraform@pve!tofu`. Memory permitting
+makes `vmbr0` VLAN-aware and creates `terraform@pve`, a role and the token `terraform@pve!tofu` (PVE 9 removed the
+`VM.Monitor` privilege, so the role does not list it; the script also drops a stale `known_hosts` entry for the reused
+fixture IP, which the provider's SSH step would otherwise refuse). Memory permitting
 (it needs 4 GiB plus headroom free), the first run takes about 5 minutes. `status`, `stop` (clean shutdown, keeps the
 disk; `just lab-pve` starts it again) and `down` (removes the domain, disk and credentials; `--purge` also the ISOs)
 are also available.
@@ -176,14 +178,14 @@ endpoint that is not `https://10.99.100.<n>:8006` (lookalikes such as `10.99.100
 `PROXMOX_VE_*`, `PM_*` and `TF_VAR_proxmox*` from the calling shell, and gives the provider's SSH step a private
 ssh-agent holding only the fixture key. `--plan` stops after the plan; `--keep` skips the destroy.
 
-Proven (2026-10-21): 3 to add (image download plus two VMs), apply, second plan "No changes", destroy 3.
+Proven (2026-10-21, first on PVE 8.4, again on the PVE 9.2.2 fixture, kernel 7.0.2-6-pve, bpg/proxmox 0.116.1): 3 to add (image download plus two VMs), apply, second plan "No changes", destroy 3.
 
-OS-upgrade proof (2026-10-21): with VMs 110/111 applied at Talos v1.14.4, bumping the pin to v1.14.3 in the scratch
+OS-upgrade proof (2026-10-21, run on the PVE 8.4 fixture; not re-run on PVE 9): with VMs 110/111 applied at Talos v1.14.4, bumping the pin to v1.14.3 in the scratch
 `versions.yaml` (never the tracked file) planned "1 to add, 0 to change, 1 to destroy": only `proxmox_download_file.talos`
 is replaced, neither VM resource appears. Applying it left both VMs' `efidisk0` and `scsi0` identical (same `local-lvm`
 volumes, 10G), and the next plan was "No changes". So a normal apply never upgrades a running node's OS.
 
-Deviations from the real host (poseidon, PVE 8.4.11): the ISO is 8.4-1 (same 8.4 line); a single 40 GiB virtual disk
+Deviations from the real host (poseidon, PVE 9.2.2): the ISO is 9.2-1 (same 9.2 line); a single 40 GiB virtual disk
 with ext4 root and LVM-thin `local-lvm`, not the host's SSD layout; 4 GiB RAM and 2 vCPUs, so the Talos VMs are
 created stopped (`talos_vm_started = false`, 2 GiB each, 10 GiB disks, no data disk, via the root's sizing variables;
 their defaults are production's); the lab's flat bridge means `k8s_vlan_id = null` (the bridge is VLAN-aware, but a
@@ -195,7 +197,7 @@ datastore and bridge names, and the token's privileges on poseidon.
 ## TrueNAS fixture
 
 An L1 fixture for `infrastructure/environments/homelab/truenas`. The provider (`truenas/truenas` 1.5.14) needs
-TrueNAS SCALE 25.04 or newer, and hercules-nas runs 24.10, so the root could never be planned. The fixture is a
+TrueNAS SCALE 25.04 or newer. hercules-nas ran 24.10 when this fixture was built (the owner reinstalled it on 25.10.7 on 2026-10-21, the fixture version), so the root had to be proven here first. The fixture is a
 libvirt guest, `lab-truenas`, on `homelab-lab` at `10.99.100.21` (MAC `52:54:00:99:10:21`, not in `guests.tsv`).
 It is never the real NAS.
 
@@ -222,7 +224,7 @@ inputs are refused), strips `TRUENAS_*`, `TF_VAR_truenas*` and `TF_CLI_ARGS*`, a
 `main/k8s`, NFS share `/mnt/main/k8s` and snapshot task read back correctly through the API, and a second plan
 reports `No changes`. No production code needed a fix.
 
-**Deviations from the real NAS.** Version 25.10.7 instead of 24.10.2.4 (the point: the provider needs it). A
+**Deviations from the real NAS.** Version 25.10.7, the same as the real NAS since its 2026-10-21 reinstall (it was 24.10.2.4 before). A
 single-disk stripe pool, not the real layout. `k8s_nfs_allowed_networks` is overridden to `10.99.100.0/24`
 for the fixture only, the production default is unchanged. The NFS service is not enabled or exercised.
 

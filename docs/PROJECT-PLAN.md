@@ -140,8 +140,8 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
 - [x] L1 UniFi fixture: self-hosted Network Application 10.6.106, provider 0.59.0; plan 1 add, apply, second plan
       "No changes" (`just lab-unifi-plan`, `docs/lab.md`). Unproven: the API-key path, UDM gateway/zone
       behaviour, the real VLAN 20 conflict gate
-- [x] L1 Proxmox fixture: nested Proxmox VE 8.4, provider bpg/proxmox 0.116.1; plan 3 to add, apply, second plan
-      "No changes", destroy 3, run twice on 2026-10-21 (`just lab-pve-plan`, `docs/lab.md`). Unproven: booting the
+- [x] L1 Proxmox fixture: nested Proxmox VE 9.2.2 (poseidon was reinstalled on PVE 9), provider bpg/proxmox 0.116.1; plan 3 to add, apply, second plan
+      "No changes", destroy 3, run twice on 2026-10-21 on PVE 8.4 and again on PVE 9.2.2 (`just lab-pve-plan`, `docs/lab.md`). Unproven: booting the
       Talos VMs under Proxmox, the real host's datastore, bridge, VLAN tag and token privileges
 
 ### Phase 2: TrueNAS inventory and backup design, ⛔ GATE 2
@@ -155,7 +155,7 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
 - [ ] Choose the mechanism (ZFS replication vs restic) once the offsite target exists *(deferred, decisions §5.5)*
 - [x] Verify the `truenas/truenas` provider: 1.5.14 against an L1 TrueNAS SCALE 25.10.7 fixture (2026-10-21,
       `just lab-truenas-plan`): plan 3 to add, apply, API check, second plan "No changes". It needs SCALE ≥ 25.04
-      (its WebSocket API) and hercules-nas runs 24.10, so a real plan waits on the owner's upgrade
+      (its WebSocket API) and hercules-nas was reinstalled on 25.10.7, so only the owner-gated live apply remains
 - [ ] Local snapshot policy *(all §4.1 tasks are authored: `truenas/k8s.tf`, `backups.tf`, `tiers.tf`. The `tiers.tf`
       tasks (tier1 recursive hourly at :10, 30 DAY; media Sundays 01:00, 4 WEEK) were applied on the L1 fixture
       on 2026-10-21 and read back over the API, re-plan "No changes". Nothing runs on the real NAS: that apply
@@ -263,7 +263,7 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
 
 - [x] Upgrade runbook (`docs/runbooks/upgrades.md`): Talos, K8s, charts, one at a time with verification
 - [ ] Resolve the open compatibility checks in `versions.yaml` *(UniFi provider: done, 0.59.0. Helm 4: partly.
-      Flux on K8s 1.37: running on the lab, 1.37.1; the full tree is Ready. TrueNAS provider: proven on a 25.10 fixture; the real NAS is blocked on its version)*
+      Flux on K8s 1.37: running on the lab, 1.37.1; the full tree is Ready. TrueNAS provider: proven on a 25.10 fixture; the real NAS now runs 25.10.7, live apply owner-gated. bpg/proxmox on PVE 9: no documented break, proven on a PVE 9.2.2 fixture)*
 - [x] Prove that normal applies never trigger OS upgrades: on the L1 Proxmox fixture (2026-10-21), bumping
       `versions.yaml` v1.14.4 to v1.14.3 planned "1 to add, 0 to change, 1 to destroy" (only
       `proxmox_download_file.talos`); after apply the VM disks were unchanged and a re-plan was clean. Reasoning in
@@ -354,7 +354,7 @@ Hard rules:
 | 2026-10-20 | 3,6,7,8 | Built the open buildable items: LE DNS-01 issuers and the wildcard, Traefik redirect/default cert/dashboard, Technitium persistence and zone bootstrap, monitoring persistence, break-glass runbook, Authentik with a DB dump, generic dump alerts, restic failure and freshness alerts, lab SOPS overlays, UniFi VLAN 20 on 0.59.0, TrueNAS `main/k8s` (blocked on NAS ≥ 25.04), dormant plan-preview workflow. Fixed `infrastructure-configs` stalling `apps`. Nothing applied. |
 | 2026-10-20 | 1,5,6 | Local libvirt lab run: Talos CP + worker installed and Ready (v1.14.4 / K8s v1.37.1), NAS NFS/SMB serving, Flux adopted Cilium and the whole tree is Ready (3 Kustomizations, 11 HelmReleases, `clean-slate@f61c006`). Fixes: NAS seed as a virtio disk, Image Factory installer, static node network, service CIDR /16, CP 3 GiB and worker 6 GiB, `cache='unsafe'`, HelmRelease remediation retries, a lab local-path path, the Prometheus data-dir chown, and the Authentik Secret rename (`authentik-credentials`) (`docs/runbooks/phase-reports/phase-lab-virt-2026-10-20.md`). |
 | 2026-10-20 | 2,5 | Lab proofs: UniFi L1 fixture (plan, apply, clean re-plan on provider 0.59.0; fixed `setting_preference = "manual"` on the network) and the backup/restore proof (dumps, restic, restore tests, size anomalies). Production bugs fixed: Immich dump `securityContext`, partial dumps, `restic-check.sh` deleting a non-empty directory, a `maxdepth` listing. Real offsite target and real hardware still pending (`docs/runbooks/phase-reports/phase-lab-virt-2026-10-20.md`). |
-| 2026-10-21 | 2,3,5,9 | L1 fixtures for every OpenTofu root: nested Proxmox VE 8.4 (`just lab-pve-plan`; plan, apply, clean re-plan, destroy, run twice) and TrueNAS SCALE 25.10.7 (`just lab-truenas-plan`; plan 3 to add, apply, API check, clean re-plan). OS-upgrade proof: a Talos version bump on the PVE fixture replaced only the image download, not the VMs (`ignore_changes` in `talos-vm`). Technitium chart 1.13.5 (15.6.2) fixes the auth.config loss and the start-up crash. Lab re-verified: dumps, restore tests, NFS, MetalLB, DNS. Backup alert mail proven against local SMTP sinks and the units verified (`just backup-selftest`, in CI); the `To:` header is now comma-separated. `DatabaseBackupJobFailed` fired in the lab and Alertmanager mailed firing and resolved to a sink. The backup units ran on `lab-nas` (backup, check, freshness, failure mails, a timer firing); restic now gets a cache dir under systemd (`docs/runbooks/phase-reports/phase-lab-virt-2026-10-20.md`). |
+| 2026-10-21 | 2,3,5,9 | Owner reinstalled poseidon (PVE 9.2.2) and hercules-nas (SCALE 25.10.7); the PVE fixture now runs PVE 9.2.2 and passes plan, apply, clean re-plan, destroy (role without `VM.Monitor`). L1 fixtures for every OpenTofu root: nested Proxmox VE 8.4 (`just lab-pve-plan`; plan, apply, clean re-plan, destroy, run twice) and TrueNAS SCALE 25.10.7 (`just lab-truenas-plan`; plan 3 to add, apply, API check, clean re-plan). OS-upgrade proof: a Talos version bump on the PVE fixture replaced only the image download, not the VMs (`ignore_changes` in `talos-vm`). Technitium chart 1.13.5 (15.6.2) fixes the auth.config loss and the start-up crash. Lab re-verified: dumps, restore tests, NFS, MetalLB, DNS. Backup alert mail proven against local SMTP sinks and the units verified (`just backup-selftest`, in CI); the `To:` header is now comma-separated. `DatabaseBackupJobFailed` fired in the lab and Alertmanager mailed firing and resolved to a sink. The backup units ran on `lab-nas` (backup, check, freshness, failure mails, a timer firing); restic now gets a cache dir under systemd (`docs/runbooks/phase-reports/phase-lab-virt-2026-10-20.md`). |
 | 2026-10-21 | 3,7,8 | Mail: the relay `mail.a-line.be:465` (implicit TLS) with one login and a From per app (decisions §5.1); Alertmanager and Authentik config verified rendered in the lab; ACME contact `dev@arthurdw.com`. TrueNAS `backups.tf`: Time Machine share (quota, Apple extensions), Kopia and Seafile datasets and exports, snapshot tasks, proven on the fixture (apply, clean re-plan). Seafile 14.0.9 and the Kopia 0.23.1 server in the lab: Seahub login and API token, a Kopia client snapshot through Traefik (gRPC needs HTTPS to the backend), the Seafile dump job ran. The lab worker (6 GiB) is at 97% of memory requests. |
 
 ## 10. Definition of done
