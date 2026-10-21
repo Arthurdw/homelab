@@ -148,14 +148,18 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
 
 - [x] Backup policy and matrix drafted (`docs/backup-policy.md`, `docs/backup-matrix.md`); tiered dataset design
       (decisions §4.1)
-- [ ] Classify every dataset into a tier *(the tier datasets themselves are authored in `truenas/tiers.tf` on
-      the empty rebuilt pool; deciding which of the owner's future data goes in which tier needs owner input)*
+- [ ] Classify every dataset into a tier *(the tier datasets themselves are authored in `truenas/tiers.tf` and
+      applied on the L1 fixture (2026-10-21: `main/tier1` with arthur, jolien and dunia, `main/media`,
+      `main/scratch`; re-plan "No changes"). Not yet on the real NAS, and deciding which of the owner's future
+      data goes in which tier needs owner input)*
 - [ ] Choose the mechanism (ZFS replication vs restic) once the offsite target exists *(deferred, decisions §5.5)*
 - [x] Verify the `truenas/truenas` provider: 1.5.14 against an L1 TrueNAS SCALE 25.10.7 fixture (2026-10-21,
       `just lab-truenas-plan`): plan 3 to add, apply, API check, second plan "No changes". It needs SCALE ≥ 25.04
       (its WebSocket API) and hercules-nas runs 24.10, so a real plan waits on the owner's upgrade
-- [ ] Local snapshot policy *(all §4.1 tasks are authored: `truenas/k8s.tf`, `backups.tf`, `tiers.tf`. Validated
-      only; the `tiers.tf` tasks are not yet applied on the L1 fixture, and nothing runs on the real NAS)*
+- [ ] Local snapshot policy *(all §4.1 tasks are authored: `truenas/k8s.tf`, `backups.tf`, `tiers.tf`. The `tiers.tf`
+      tasks (tier1 recursive hourly at :10, 30 DAY; media Sundays 01:00, 4 WEEK) were applied on the L1 fixture
+      on 2026-10-21 and read back over the API, re-plan "No changes". Nothing runs on the real NAS: that apply
+      is owner-gated)*
 
 ### Phase 3: Infrastructure IaC (greenfield: build, don't import), ⛔ GATE 3 before any live apply
 
