@@ -268,7 +268,15 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
 - [ ] Non-destructive restore tests (offsite files, config, DB consistency) *(`db-restore-test.sh` (Immich and
       Authentik PostgreSQL, Seafile MariaDB) and `restic-restore-diff.sh` exist and ran in the lab; still to run
       on real hardware)*
-- [ ] Recovery verified without Kubernetes; final checklist
+- [ ] Recovery verified without Kubernetes; final checklist *(lab, 2026-10-21: no Kubernetes API used. Kopia
+      repository opened read-only with `kopia` and the password decrypted from the SOPS tree, a snapshot of the
+      real Authentik and Seafile dumps restored with an empty `diff -r`, `kopia snapshot verify` clean. The
+      newest Authentik dump restored into a fresh postgres (230 tables, 777 migrations) and the Seafile dump
+      into a fresh MariaDB (195 tables, 1 account, 83 migrations). Doc defects fixed in `disaster-recovery.md`
+      §6: placeholder restic sketch, no Kopia or DB steps, no password retrieval, kopia needs `--all` and
+      `USER`/`HOME`/cache env as non-root. Checklist: §7 of that file. Still open: the same run on real
+      hardware, the offsite restic restore (no target), the Immich dump without Kubernetes, and a restore
+      against a rebuilt cluster)*
 
 ---
 
