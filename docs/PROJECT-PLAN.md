@@ -160,8 +160,9 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
 
 - [x] OpenTofu roots per state boundary; providers pinned; lock files committed; `tofu validate` clean
 - [x] Proxmox: the `talos-vm` module and the decided topology (1 CP + 1 worker with a data disk)
-- [ ] TrueNAS resources *(the `main/k8s` dataset, its NFS share and snapshot task are authored in
-      `truenas/k8s.tf` and proven on the L1 fixture. **Blocked** on the real NAS: ≥ 25.04, see Phase 2)*
+- [ ] TrueNAS resources *(the `main/k8s` dataset, its NFS share and snapshot task (`truenas/k8s.tf`), and the
+      household backup datasets, Time Machine share, Kopia and Seafile exports (`truenas/backups.tf`) are
+      authored and proven on the L1 fixture. **Blocked** on the real NAS: ≥ 25.04, see Phase 2)*
 - [ ] UniFi resources: K8s VLAN 20 and storage link, additive only *(the `hl-k8s` network, VLAN 20, is
       authored on provider 0.59.0 with `prevent_destroy` and validates. Open: the `TODO(GATE 4)` values,
       the storage link, and a plan against the export)*
@@ -217,14 +218,20 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
       `<app>.lab.ardw.be`
 - [x] `immich-db` Secret (SOPS) before first deploy; app certificates come from the wildcard *(lab Secret
       generated; the production one waits on the key ceremony, `kubernetes/overlays/homelab/README.md`)*
-- [ ] Authentik SSO *(Authentik is deployed at `auth.lab.ardw.be` with a daily database dump; SMTP and wiring
-      apps to it are still to do)*
-- [ ] Seafile (decisions §5.8), Stremio local-only, Forgejo mirror later (decisions §5.4)
+- [ ] Authentik SSO *(Authentik is deployed at `auth.lab.ardw.be` with a daily database dump and mails through
+      the relay as `auth@lab.ardw.be`; wiring apps to it is still to do)*
+- [x] Seafile (decisions §5.8) at `seafile.lab.ardw.be`, MariaDB with a daily dump *(proven in the lab
+      2026-10-21: login page, admin API token. Authentik OIDC is a `TODO(authentik)`)*
+- [x] Household device backups (decisions §5.9): Time Machine share for jolien, Kopia server at
+      `kopia.lab.ardw.be` for dunia and arthur *(Kopia: a client snapshot through Traefik in the lab;
+      Time Machine: the share on the TrueNAS fixture. Runbook: `docs/runbooks/household-backups.md`)*
+- [ ] Stremio/debrid: no workload chosen; if one is added it stays local-only (SPEC §12.6)
+- [ ] Forgejo mirror *(deferred until production, `docs/future-work.md`; decisions §5.4, §5.6)*
 
 ### Phase 8: Backup automation and verification, ⛔ GATE 8 after a successful restore test
 
 - [x] restic backup/check scripts and systemd units (`scripts/backup/`; dormant until a target exists)
-- [x] Database dump jobs for Immich and Authentik (`kubernetes/apps/*/backup.yaml`), with staleness,
+- [x] Database dump jobs for Immich, Authentik and Seafile (`kubernetes/apps/*/backup.yaml`), with staleness,
       never-succeeded and failure alerts for every `<app>-db-dump` CronJob
 - [ ] Offsite target purchased and built (decisions §5.5, deferred; `docs/future-work.md`)
 - [x] Wire the backup failure alerts (`OnFailure=` mails the unit and its journal tail; `scripts/backup/README.md`)
@@ -292,7 +299,10 @@ Hard rules:
 - **Flux on K8s 1.37.1:** the whole tree is Ready on the lab at 1.37.1; keep it.
 - **Small calls:** the Traefik dashboard is reachable in-cluster on 8080 (`api.insecure`); Technitium forwards
   over plain UDP (DoT/DoH is an option); whether the `nas-nfs` export accepts the PostgreSQL dump jobs'
-  uid 999; Authentik SMTP.
+  uid 999.
+- **Household backups (decisions §5.9):** the Mac's disk size (sets `timemachine_jolien_quota_gib`); on the
+  real NAS, create the `jolien` SMB user and enable the Apple SMB2/3 extensions (SMB service settings) before
+  the TrueNAS apply (`infrastructure/environments/homelab/truenas/README.md`).
 - **Tier 1:** the directory list, at cutover prep.
 - **Redaction policy:** `docs/SPEC.md` replaces private addresses with placeholders. `docs/network-plan.md`
   and `docs/decisions.md` show the planned RFC 1918 addresses. Pick one convention.
@@ -320,6 +330,7 @@ Hard rules:
 | 2026-10-20 | 1,5,6 | Local libvirt lab run: Talos CP + worker installed and Ready (v1.14.4 / K8s v1.37.1), NAS NFS/SMB serving, Flux adopted Cilium and the whole tree is Ready (3 Kustomizations, 11 HelmReleases, `clean-slate@f61c006`). Fixes: NAS seed as a virtio disk, Image Factory installer, static node network, service CIDR /16, CP 3 GiB and worker 6 GiB, `cache='unsafe'`, HelmRelease remediation retries, a lab local-path path, the Prometheus data-dir chown, and the Authentik Secret rename (`authentik-credentials`) (`docs/runbooks/phase-reports/phase-lab-virt-2026-10-20.md`). |
 | 2026-10-20 | 2,5 | Lab proofs: UniFi L1 fixture (plan, apply, clean re-plan on provider 0.59.0; fixed `setting_preference = "manual"` on the network) and the backup/restore proof (dumps, restic, restore tests, size anomalies). Production bugs fixed: Immich dump `securityContext`, partial dumps, `restic-check.sh` deleting a non-empty directory, a `maxdepth` listing. Real offsite target and real hardware still pending (`docs/runbooks/phase-reports/phase-lab-virt-2026-10-20.md`). |
 | 2026-10-21 | 2,3,5,9 | L1 fixtures for every OpenTofu root: nested Proxmox VE 8.4 (`just lab-pve-plan`; plan, apply, clean re-plan, destroy, run twice) and TrueNAS SCALE 25.10.7 (`just lab-truenas-plan`; plan 3 to add, apply, API check, clean re-plan). OS-upgrade proof: a Talos version bump on the PVE fixture replaced only the image download, not the VMs (`ignore_changes` in `talos-vm`). Technitium chart 1.13.5 (15.6.2) fixes the auth.config loss and the start-up crash. Lab re-verified: dumps, restore tests, NFS, MetalLB, DNS. Backup alert mail proven against local SMTP sinks and the units verified (`just backup-selftest`, in CI); the `To:` header is now comma-separated. `DatabaseBackupJobFailed` fired in the lab and Alertmanager mailed firing and resolved to a sink. The backup units ran on `lab-nas` (backup, check, freshness, failure mails, a timer firing); restic now gets a cache dir under systemd (`docs/runbooks/phase-reports/phase-lab-virt-2026-10-20.md`). |
+| 2026-10-21 | 3,7,8 | Mail: the relay `mail.a-line.be:465` (implicit TLS) with one login and a From per app (decisions §5.1); Alertmanager and Authentik config verified rendered in the lab; ACME contact `dev@arthurdw.com`. TrueNAS `backups.tf`: Time Machine share (quota, Apple extensions), Kopia and Seafile datasets and exports, snapshot tasks, proven on the fixture (apply, clean re-plan). Seafile 14.0.9 and the Kopia 0.23.1 server in the lab: Seahub login and API token, a Kopia client snapshot through Traefik (gRPC needs HTTPS to the backend), the Seafile dump job ran. The lab worker (6 GiB) is at 97% of memory requests. |
 
 ## 10. Definition of done
 
@@ -332,4 +343,4 @@ Hard rules:
 - [ ] Every live-facing config proven in the lab first *(K8s/Flux layer yes; Talos guests yes, Flux on them
       yes; PVE, UniFi and TrueNAS fixtures yes; the alert mail against local SMTP sinks and `systemd-analyze verify`
       of the units yes; a backup rule firing through Alertmanager to a sink yes; the units installed and run by their
-      timers on `lab-nas`, failure mails included, yes. Open: a real SMTP provider)*
+      timers on `lab-nas`, failure mails included, yes. Open: a real send through the relay, once its password is set)*
