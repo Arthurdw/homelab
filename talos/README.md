@@ -59,8 +59,6 @@ is a gated live operation: follow `docs/runbooks/talos-bootstrap.md`. The guarde
 
 ## Values set at cutover (`TODO(GATE 4)`)
 
-- `CLUSTER_ENDPOINT`: the control-plane address from the node range (decisions §2.1). The placeholder is an
-  RFC 5737 documentation address.
 - `ADDITIONAL_SANS`: an API DNS name, if one is created.
 - `INSTALL_IMAGE`: derived from `TALOS_PLATFORM` and `TALOS_SCHEMATIC` as the Image Factory installer
   (`factory.talos.dev/nocloud-installer/<schematic>:<talos>`). `ghcr.io/siderolabs/installer` is no longer

@@ -75,6 +75,15 @@ The provider also uses SSH for a few operations (uploading images and snippets).
 agent so no key file is referenced: `eval "$(ssh-agent)"; ssh-add ~/.ssh/<your key>`, and check
 `ssh root@10.10.1.1 true` works.
 
+**Tag colours (optional, once).** Proxmox derives a tag's colour from a hash of its name, and `homelab` and
+`kubernetes` land on the same one. The provider cannot set the datacenter tag style, so pin the colours by
+hand on the node (or Datacenter → Options → Tag Style → Color Overrides). This replaces the whole tag-style
+setting, so check `pvesh get /cluster/options` first and keep any `shape` or `ordering` already there:
+
+```sh
+pvesh set /cluster/options --tag-style 'color-map=homelab:6e7781;kubernetes:326ce5;talos:ff7300;controlplane:2da44e;worker:d29922'
+```
+
 **TrueNAS API key.** In the web UI at `https://10.10.1.10`: top-right user menu, **API Keys**, **Add**, name it
 `opentofu`, create it, copy the key shown once. Then:
 
