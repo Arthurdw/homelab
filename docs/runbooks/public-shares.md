@@ -26,6 +26,21 @@ harmless.
 
 The order matters: the Secret needs the tunnel, and Immich's links should point at the proxy only once it serves.
 
+0. **LAN DNS, before the first push of the §5.13 commit.** That push makes `files.ardw.be` Seafile's only host
+   and redirects `seafile.lab.ardw.be` there. Until the UDM forwards `files.ardw.be` to Technitium, LAN clients
+   resolve the public Cloudflare record instead: no answer before step 2, and only the share-link allowlist
+   after it, so login and sync break. The forward is additive (`unifi_dns_record.files`) and harmless early,
+   because nothing uses the name before the push:
+
+   ```sh
+   just plan-unifi
+   just apply-unifi
+   ```
+
+   After the push, Technitium's zone CronJob creates the `files.ardw.be` zone within 15 minutes; until then the
+   name does not resolve on the LAN. Check with `dig +short files.ardw.be` (the Traefik IP) before using it.
+   `photos.ardw.be` needs no forward: the proxy is its only origin, so the LAN uses the tunnel as well.
+
 1. **Cloudflare token and IDs.** Create the dedicated API token and fill in
    `infrastructure/environments/homelab/cloudflare/terraform.tfvars` and `~/.config/homelab/cloudflare.env` as in
    that root's `README.md`. Never reuse cert-manager's DNS-01 token.
@@ -67,17 +82,7 @@ The order matters: the Secret needs the tunnel, and Immich's links should point 
    and mobile sync clients do not follow redirects reliably. Change each client's server URL to
    `https://files.ardw.be`. Authentik keeps the old redirect URI as well, so logins keep working meanwhile.
 
-7. **LAN DNS.** Apply the UniFi root so the UDM forwards `files.ardw.be` to Technitium
-   (`unifi_dns_record.files`, additive):
-
-   ```sh
-   just plan-unifi
-   just apply-unifi
-   ```
-
-   `photos.ardw.be` needs no forward: the proxy is its only origin, so the LAN uses the tunnel as well.
-
-8. **Immich share links.** Make Immich generate `https://photos.ardw.be/share/...` links. Needs an admin API key
+7. **Immich share links.** Make Immich generate `https://photos.ardw.be/share/...` links. Needs an admin API key
    with `systemConfig.read` and `systemConfig.update`:
 
    ```sh
@@ -85,7 +90,7 @@ The order matters: the Secret needs the tunnel, and Immich's links should point 
    just immich-external-domain
    ```
 
-9. **Optional, Cloudflare dashboard:**
+8. **Optional, Cloudflare dashboard:**
    - A cache rule *Bypass cache* for `photos.ardw.be/share/video/*`, or shared videos may not play (IPP docs).
    - A rate-limiting rule on `files.ardw.be` for `POST` to `/f/*` and `/d/*` (for example 10 requests per minute
      per IP). Seafile does not throttle share-link password guesses itself.
