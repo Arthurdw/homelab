@@ -48,7 +48,7 @@ If the age key and restic password exist and the offsite data is intact, the hom
 ## 4. Scenario: Proxmox host lost
 
 1. Reinstall PVE to a known state.
-2. Restore `/etc/pve` + VM configs (Tier 2); recreate GPU passthrough config for the `portainer` VM.
+2. Restore `/etc/pve` + VM configs (Tier 2); the GPU mapping and passthrough come back with `tofu apply` (`gpu.tf`).
 3. Restore/rebuild VMs: VM disks that lived on the NAS come back with the NAS; local disks come from backup.
 4. Confirm the storage link and CIFS mounts before starting VMs.
 

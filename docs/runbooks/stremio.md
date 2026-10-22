@@ -47,8 +47,8 @@ it cannot tell household devices apart. **Never add a tunnel route or a public r
   `emptyDir` ceiling is 12Gi; past it Kubernetes evicts the pod, which comes back empty.
 - **Upgrade:** Renovate opens a PR for the digest-pinned image (`versions.yaml`, `app_images.stremio`); no
   automerge.
-- **Transcoding on a GPU:** not used. If the NVIDIA T400 is later passed through for Immich, it could be shared
-  with this pod; that is a separate change.
+- **Transcoding on a GPU:** not used. The Tesla P4 on `talos-wk-1` serves Immich ML; sharing it with this pod
+  needs device-plugin time-slicing (`docs/apps/immich.md` §GPU) and is a separate change.
 
 ## Rollback
 

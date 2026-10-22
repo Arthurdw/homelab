@@ -114,7 +114,11 @@
     // ---- grouping -------------------------------------------------------------------------------
     {
       // The chart does not follow Immich releases on its own; move chart and app together.
-      matchDepNames: ['ghcr.io/immich-app/immich-charts/immich', 'ghcr.io/immich-app/immich-server'],
+      matchDepNames: [
+        'ghcr.io/immich-app/immich-charts/immich',
+        'ghcr.io/immich-app/immich-server',
+        'ghcr.io/immich-app/immich-machine-learning',
+      ],
       groupName: 'immich',
     },
     {
@@ -229,6 +233,7 @@
         'authentik',
         'ghcr.io/immich-app/immich-charts/immich',
         'ghcr.io/immich-app/immich-server',
+        'ghcr.io/immich-app/immich-machine-learning',
         'ghcr.io/immich-app/postgres',
         'docker.io/library/postgres',
         'docker.io/seafileltd/seafile-mc',

@@ -86,6 +86,9 @@ helm_charts:
   # >= 0.0.36 is required (CVE-2026-44543 / GO-2026-5218).
   # renovate: datasource=docker depName=ghcr.io/rancher/local-path-provisioner/charts/local-path-provisioner
   local_path_provisioner: "0.0.37"  # oci://ghcr.io/rancher/local-path-provisioner/charts/local-path-provisioner
+  # GPU device plugin for the Tesla P4 (kubernetes/infrastructure/nvidia-device-plugin). Latest as of 2026-10-22.
+  # renovate: datasource=helm depName=nvidia-device-plugin registryUrl=https://nvidia.github.io/k8s-device-plugin
+  nvidia_device_plugin: "0.20.1"  # https://nvidia.github.io/k8s-device-plugin
 
 app_images:
   # Container images pinned in kubernetes/apps/** (not Helm charts). Pinned by tag@digest where the

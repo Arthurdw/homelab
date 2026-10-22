@@ -35,3 +35,13 @@ apiVersion: v1alpha1
 kind: SysctlConfig
 params:
   net.core.bpf_jit_harden: "1"
+---
+# Schedules the NVIDIA device plugin here: its chart's default node affinity accepts this label as the
+# "force a GPU node" switch (kubernetes/infrastructure/nvidia-device-plugin/release.yaml), so no Node
+# Feature Discovery is needed. Nodes without this patch (the control plane, the lab) run no plugin pod.
+# Talos merges this into the worker's KubeNodeConfig from network-worker.yaml. The nvidia.com prefix is
+# not one NodeRestriction reserves, so the kubelet may set it.
+apiVersion: v1alpha1
+kind: KubeNodeConfig
+labels:
+  nvidia.com/gpu.present: "true"

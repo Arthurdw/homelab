@@ -13,7 +13,7 @@
 | RAM | 46 GiB usable | currently ~42 GiB consumed by one VM |
 | Boot/root disk | 1× Crucial CT525MX300 SSD (~489 GiB) | **SPOF** — no mirror |
 | Root layout | LVM: `pve-root` 96 G ext4 (7 % used), `pve-data` 360 G lvmthin (0 % used), 8 G swap | no ZFS on the host |
-| GPU | 1× NVIDIA Tesla P4 (`GP104GL`, `10de:1bb3`) | **already passed through to a VM**; IOMMU on (`intel_iommu=on iommu=pt`); in IOMMU group 2 with its root port |
+| GPU | 1× NVIDIA Tesla P4 (`GP104GL`, `10de:1bb3`) | for `talos-wk-1` (OpenTofu mapping `tesla-p4`, `gpu.tf`; Immich ML, `docs/apps/immich.md`), until applied still held by the hand-made passthrough to the `portainer` VM (R14); IOMMU on (`intel_iommu=on iommu=pt`); in IOMMU group 2 with its root port |
 | NIC 1 | 1 GbE (`nic0`; `enp0s31f6` before the PVE 9 reinstall) | management VLAN bridge `vmbr0` (`vmbr0.4` up) |
 | NIC 2 | dual-port 10 GbE X520 (`nic1`, `nic2`; were `enp2s0f0`/`enp2s0f1`) | storage fibre to the NAS is on `nic2` (carrier seen 2026-10-21); `nic1` unused; storage bridge `vmbr1` on `nic2` is managed by the Proxmox root (`storage-link.tf`), fixture-proven only; not applied or measured on the real host |
 | Pending updates | **185 packages** | patch policy needed |
@@ -47,6 +47,6 @@
 | Tooling present | tofu, kubectl, talosctl, helm, ansible, nix, docker (124 images) | at audit time; `just lab-tools` now installs kind, flux, etc. |
 
 ## Open hardware questions
-- Is the Tesla P4 passthrough stable under load, and which driver/VM combo is used?
+- Is the Tesla P4 passthrough stable under load? Planned combo: `talos-wk-1`, Talos nonfree production driver (`talos/schematic.yaml`).
 - Any spare disks/NVMe available to reduce the workstation disk pressure for the lab?
 - Is there a second machine available to host lab fixtures (so labs don't contend with prod)?

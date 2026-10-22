@@ -12,7 +12,8 @@ transcoding, smart search) plus a machine-learning worker.
 | Component | Pin | Where | Verified |
 |---|---|---|---|
 | Helm chart | `0.13.4` (`appVersion v3.2.0`) | `source.yaml` (`ref.tag`), `release.yaml` | `helm show chart` (OCI), 2026-10-16 |
-| Immich server / ML image | `v3.2.0` | `release.yaml` (`controllers…image.tag`) | chart `values.yaml` default / README requires the tag |
+| Immich server image | `v3.2.0` | `release.yaml` (`controllers…image.tag`) | chart `values.yaml` default / README requires the tag |
+| Immich ML image | `v3.2.0-cuda` | `release.yaml` (`machine-learning…image.tag`) | Immich's CUDA build of the same release; Renovate groups it with the server |
 | PostgreSQL image | `14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf6335…` | `postgres.yaml`, `backup.yaml` | exact tag@digest from Immich `docker/docker-compose.yml` |
 | Valkey image | chart default (`9.1.2-alpine@sha256:48332…`) | `release.yaml` (`valkey.enabled`) | chart `values.yaml` |
 
@@ -73,9 +74,28 @@ Single worker, 3 vCPU / 16 GiB, no HA — requests are deliberately modest.
 | Workload | Requests | Limits |
 |---|---|---|
 | `immich-server` | 250m / 512Mi | 1 / 2Gi |
-| `immich-machine-learning` | 500m / 1Gi | 2 / 4Gi |
+| `immich-machine-learning` | 500m / 1Gi | 2 / 4Gi, `nvidia.com/gpu: 1` |
 | `immich-valkey` | 50m / 64Mi | 250m / 256Mi |
 | `immich-postgres` | 250m / 512Mi | 1 / 2Gi |
+
+## GPU
+
+Machine learning (face detection and recognition, smart search) runs on the Tesla P4 (`docs/hardware.md`):
+
+- **Path:** OpenTofu passes the card to `talos-wk-1` (`infrastructure/environments/homelab/proxmox/gpu.tf`);
+  Talos loads the proprietary NVIDIA driver (the P4 is Pascal; `talos/schematic.yaml`,
+  `talos/patches/gpu-worker.yaml`); the device plugin (`kubernetes/infrastructure/nvidia-device-plugin`)
+  advertises `nvidia.com/gpu`; the ML pod asks for one and runs under the `nvidia` RuntimeClass with the
+  `-cuda` image.
+- **Lab:** no GPU. `kubernetes/overlays/lab/apps` removes the RuntimeClass and the GPU limit; the CUDA
+  image falls back to the CPU.
+- **Sharing:** the plugin hands out the whole card, so only one pod can hold it. To share it with another
+  pod (Stremio transcoding, a second ML user), enable time-slicing in the plugin's config
+  (`sharing.timeSlicing`, replicas N): every pod then sees the full 8 GB with no memory isolation.
+- **Verify:** `kubectl get node talos-wk-1 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}'` returns
+  `1`, and the ML logs list `CUDAExecutionProvider` when a model loads.
+- **If the GPU is missing** (passthrough off, driver not loaded), the ML pod stays Pending on
+  `nvidia.com/gpu`. Fall back by deleting the RuntimeClass and GPU limit from `release.yaml`.
 
 ## Backup & restore
 

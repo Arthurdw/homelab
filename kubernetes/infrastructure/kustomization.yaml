@@ -12,3 +12,4 @@ resources:
   - storage
   - local-path
   - runtime-classes
+  - nvidia-device-plugin

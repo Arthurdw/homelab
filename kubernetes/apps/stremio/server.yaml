@@ -23,8 +23,8 @@
 # server-settings.json under APP_PATH.
 #
 # GPU: hardware transcoding is not used (the server probes for VAAPI/NVENC at start, finds none and falls back
-# to software). If the cluster later gets the NVIDIA T400 for Immich, it could serve transcoding too; this
-# manifest does not depend on it.
+# to software). The Tesla P4 on the worker serves Immich ML; sharing it here needs device-plugin time-slicing
+# (docs/apps/immich.md §GPU). This manifest does not depend on it.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

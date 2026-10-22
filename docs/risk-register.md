@@ -18,7 +18,7 @@
 | R11 | **Single physical host** for all Kubernetes nodes | No real HA; host loss = cluster loss | High (by design) | Do not claim HA; keep control-plane count low; document recovery | Accepted (constraint) |
 | R12 | **185 pending OS updates** on Proxmox | Unpatched vulnerabilities | Medium | Define patch policy; patch windows with reboot plan | Open |
 | R13 | Secrets/state recovery not yet proven end to end | Leakage or unrecoverable state | Medium | SOPS+age in place (`.sops.yaml`, `scripts/secrets/`); state backend + off-system key backup still to prove (`docs/secrets-and-state.md`) | Mitigating |
-| R14 | GPU passthrough in use by a temporary VM | Reproducibility/conflict when other workloads need the P4 | Low | Document passthrough config; decide intended GPU consumer | Open |
+| R14 | GPU passthrough in use by a temporary VM | Reproducibility/conflict when other workloads need the P4 | Low | Consumer chosen: `talos-wk-1` via the OpenTofu mapping (`gpu.tf`), shared by pods through the device plugin; remove the hand-made `portainer` passthrough before the first apply | Mitigating |
 | R15 | **Offsite destination undecided** (`docs/decisions.md` §5.5) | No independent copy for Tier-1 data | Medium | Keep the design target-agnostic (restic-shaped); choose a target before cutover | Open |
 | R16 | Workstation is disk/RAM constrained for a lab | Limited local TDD capacity | Medium | Clean up disk; add NVMe; or dedicate a lab host | Open |
 | R17 | Unknowns in the audit (UniFi config, ACLs, tags) | Wrong assumptions in design | Medium | Finish capture; verify before depending on any value | Open |

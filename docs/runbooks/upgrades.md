@@ -54,7 +54,8 @@ apt full-upgrade -y        # or the documented `pve` upgrade sequence between ma
 
 - Back up `/etc/pve` and VM configs first.
 - **Snapshot or back up VMs** before upgrading, or ensure they are restorable.
-- After reboot, verify VMs start (respecting the GPU passthrough on the `portainer` VM).
+- After reboot, verify VMs start, `talos-wk-1` with its Tesla P4 passthrough (`gpu.tf`), and that the node
+  still reports allocatable `nvidia.com/gpu`.
 - Rollback: restore the VM/host from backup; there is no supported downgrade for a major PVE version.
 
 ## 5. Talos

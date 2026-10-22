@@ -104,11 +104,20 @@ spec:
     # --------------------------------------------------------------------------------------------
     # machine-learning — face/object detection + smart search. The memory-hungry component.
     # --------------------------------------------------------------------------------------------
+    # Runs on the Tesla P4 (docs/apps/immich.md §GPU): the CUDA build, the `nvidia` RuntimeClass and one
+    # `nvidia.com/gpu` from the device plugin (kubernetes/infrastructure). The lab has no GPU and removes
+    # the RuntimeClass and the GPU limit (overlays/lab/apps); the CUDA image then falls back to the CPU.
     machine-learning:
       controllers:
         main:
+          pod:
+            runtimeClassName: nvidia
           containers:
             main:
+              image:
+                # Keep in step with the server tag above (same Immich release, `-cuda` suffix).
+                # renovate: datasource=docker depName=ghcr.io/immich-app/immich-machine-learning
+                tag: v3.2.0-cuda
               resources:
                 requests:
                   cpu: 500m
@@ -116,6 +125,7 @@ spec:
                 limits:
                   cpu: "2"
                   memory: 4Gi
+                  nvidia.com/gpu: 1
       persistence:
         # Persist the downloaded ML models so a restart does not re-download them. Disposable cache →
         # node SSD (`local-path`), not the NAS.

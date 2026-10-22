@@ -1,0 +1,9 @@
+---
+# Pod Security: the Talos default enforces baseline; the device plugin mounts host paths
+# (/var/lib/kubelet/device-plugins, /var/run/cdi), which baseline forbids.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nvidia-device-plugin
+  labels:
+    pod-security.kubernetes.io/enforce: privileged

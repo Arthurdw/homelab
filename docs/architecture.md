@@ -49,8 +49,7 @@ Verified: i5-7400 (4c/4t), 46 GiB RAM, single 489 GiB SSD (SPOF), no ZFS on host
 | Guest | vCPU | RAM | Disk (local-lvm) |
 |---|---|---|---|
 | `talos-cp-1` | 2 | 2 GiB | 20 GiB |
-| `talos-wk-1` | 3 | 16 GiB | 80 GiB boot + 100 GiB data (`local-path`, decisions §3.4) |
-| (later) app/GPU VM | — | — | — |
+| `talos-wk-1` | 3 | 16 GiB | 80 GiB boot + 100 GiB data (`local-path`, decisions §3.4); Tesla P4 passthrough (`gpu.tf`) |
 
 ## 4. Storage plan (TrueNAS)
 
@@ -112,7 +111,7 @@ Order: ingress+certs → DNS → identity → monitoring → Immich → Audioboo
 - **Traefik** + **cert-manager** (Cloudflare DNS-01, narrowly scoped creds); management UIs never public.
 - **Authentik** for web SSO; never required to recover infrastructure; break-glass creds kept independently.
 - **Immich:** media on TrueNAS; DB backed up consistently; media+DB treated as a related recovery set.
-  The P4 GPU passthrough is proven on this host; its consumer is not yet chosen.
+  Immich ML runs on the Tesla P4, passed through to `talos-wk-1` and handed to pods by the NVIDIA device plugin.
 
 ## 9. Backup & DR (summary — `docs/backup-policy.md`, `docs/backup-matrix.md`)
 

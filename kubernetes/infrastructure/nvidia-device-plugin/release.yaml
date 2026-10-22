@@ -1,0 +1,39 @@
+---
+# NVIDIA device plugin: advertises the Tesla P4 on the production worker as the `nvidia.com/gpu` resource, so a
+# pod that asks for `nvidia.com/gpu: 1` (Immich machine-learning) is scheduled there and gets the card.
+#   Chart:  nvidia-device-plugin 0.20.1 from https://nvidia.github.io/k8s-device-plugin (../sources.yaml)
+#   Setup:  the Talos extension's README, which asks for runtimeClassName=nvidia:
+#           https://github.com/siderolabs/extensions/blob/v1.14.4/nvidia-gpu/nvidia-container-toolkit/README.md
+#
+# Placement: the chart's default node affinity is kept. It needs Node Feature Discovery labels or the
+# `nvidia.com/gpu.present=true` node label, and Talos sets that label on the GPU worker only
+# (talos/patches/gpu-worker.yaml). No NFD or GPU feature discovery runs here (both default to off). The control
+# plane and the lab nodes get no plugin pod, and the MPS control daemon the chart also renders schedules nowhere.
+#
+# The plugin runs under the `nvidia` RuntimeClass (../runtime-classes/nvidia.yaml) so the container toolkit
+# gives it the driver libraries (NVML) it uses to find the card.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: nvidia-device-plugin
+  namespace: nvidia-device-plugin
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: nvidia-device-plugin
+      version: 0.20.1
+      sourceRef:
+        kind: HelmRepository
+        name: nvidia-device-plugin
+        namespace: flux-system
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  values:
+    runtimeClassName: nvidia
