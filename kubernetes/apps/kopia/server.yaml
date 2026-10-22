@@ -10,8 +10,9 @@
 #   1. add a key to `kopia-users` in the secrets store (scripts/secrets/gen-lab-secrets.sh for the lab,
 #      kubernetes/overlays/homelab/README.md for homelab), e.g. `dunia_dunia-pc`;
 #   2. let Flux roll the Deployment (restart it if only the Secret changed);
-#   3. on the device: `kopia repository connect server --url https://kopia.lab.ardw.be
-#      --override-username=dunia --override-hostname=dunia-pc`, then `kopia snapshot create <dir>`.
+#   3. on the device: `kopia repository connect server --url https://kopia.lab.ardw.be:443
+#      --override-username=dunia --override-hostname=dunia-pc`, then `kopia snapshot create <dir>`. The explicit
+#      :443 is needed: without a port the client dials "kopia.lab.ardw.be:" and fails.
 #
 # STORAGE: the repository is on the NAS over NFS (StorageClass `nas-nfs`). TODO(storage): the decision puts it on
 # the dataset `main/backups/kopia`, but `nas-nfs` serves one export (`main/k8s`) with a per-PVC subdirectory. To

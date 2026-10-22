@@ -57,9 +57,12 @@ clients never see.
 2. Connect. The `*.lab.ardw.be` certificate is from a public CA, so no fingerprint is needed:
 
    ```sh
-   kopia repository connect server --url https://kopia.lab.ardw.be \
+   kopia repository connect server --url https://kopia.lab.ardw.be:443 \
      --override-username <user> --override-hostname <machine>
    ```
+
+   Keep the `:443`: without a port the client dials `kopia.lab.ardw.be:` and fails with `missing port after
+   port-separator colon`. The same URL goes into KopiaUI.
 
    It asks for the account password; for an unattended connect, set it in `KOPIA_PASSWORD` instead (the
    `--password` flag doesn't reach the repository open). On the lab, whose certificate comes from the
