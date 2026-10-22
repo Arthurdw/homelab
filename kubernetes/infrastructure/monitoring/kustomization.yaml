@@ -4,3 +4,20 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - release.yaml
+# Flux dashboards for Grafana's sidecar, which loads every ConfigMap labelled grafana_dashboard=1 in this
+# namespace. The JSON is fluxcd/flux2-monitoring-example's monitoring/configs/dashboards at
+# 14129216b7e43db91c49bf0cd6b588360e4aa953, unchanged. It uses Grafana template variables written as `$`
+# followed by `{`, so the substitute label keeps Flux's postBuild substitution off this ConfigMap.
+# The metrics behind it come from the kube-state-metrics values in release.yaml and the PodMonitor in
+# infrastructure/configs/flux-podmonitor.yaml.
+configMapGenerator:
+  - name: flux-grafana-dashboards
+    namespace: monitoring
+    files:
+      - dashboards/flux-cluster.json
+      - dashboards/flux-control-plane.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+        kustomize.toolkit.fluxcd.io/substitute: disabled

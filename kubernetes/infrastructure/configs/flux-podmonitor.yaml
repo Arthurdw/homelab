@@ -1,0 +1,32 @@
+---
+# Scrapes the Flux controllers' own metrics (reconcile durations, work queues), which feed the
+# "Flux Control Plane" Grafana dashboard (infrastructure/monitoring/kustomization.yaml). Adapted from
+# fluxcd/flux2-monitoring-example's monitoring/configs/podmonitor.yaml, limited to the four
+# controllers this cluster runs (no image automation).
+#
+# The `release` label is what Prometheus selects PodMonitors by (the chart's default
+# podMonitorSelector). Lives under infrastructure/configs: the PodMonitor CRD comes from the
+# kube-prometheus-stack HelmRelease, reconciled before this Kustomization.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: flux-system
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/part-of: flux
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - flux-system
+  selector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - helm-controller
+          - source-controller
+          - kustomize-controller
+          - notification-controller
+  podMetricsEndpoints:
+    - port: http-prom

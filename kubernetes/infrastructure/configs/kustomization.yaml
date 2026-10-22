@@ -5,3 +5,4 @@ resources:
   - metallb-pool.yaml
   - cert-manager-issuers.yaml
   - wildcard-certificate.yaml
+  - flux-podmonitor.yaml
