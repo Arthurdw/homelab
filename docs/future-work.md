@@ -32,6 +32,7 @@ added Alertmanager receiver.
 
 ## Forgejo mirror and CI runner
 
-**Blocked on:** the platform reaching production. Forgejo is a read-only mirror of GitHub (§5.4, §5.6). Its
-runner executes untrusted build jobs in Kata microVMs (§3.5); the Talos image already carries the
-`kata-containers` extension and the `kata` RuntimeClass exists.
+**Blocked on:** nothing since production went live (2026-10-22); it waits for the owner to start it, and for
+CPU headroom (the host runs at about 92%). Forgejo is a read-only mirror of GitHub (§5.4, §5.6). Its runner
+executes untrusted build jobs in Kata microVMs (§3.5); the Talos image already carries the `kata-containers`
+extension and the `kata` RuntimeClass exists.

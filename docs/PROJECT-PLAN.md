@@ -1,7 +1,9 @@
 # Homelab — Project Plan
 
-**Status (2026-10-20):** the platform is built and validated **offline**. The Flux tree reconciles in the kind
-lab. Nothing has been applied to a real cluster or to the physical hosts.
+**Status (2026-10-22):** production is live. The Talos cluster (1 control plane, 2 workers) runs on the
+reinstalled `poseidon`, and Flux has every layer Ready. The household apps are in use, and the public share links
+go through the Cloudflare Tunnel. Still open: the Tesla P4 (the node isn't advertising the GPU yet), the offsite
+backup target, and running the restore drills on real hardware.
 **Owner:** Arthur
 **Mode:** greenfield rebuild, proven on local VMs first (`docs/decisions.md` §1.1). The physical hosts
 (`poseidon` Proxmox, `hercules-nas` TrueNAS) stay read-only until the owner wipes and reinstalls them from ISO.
@@ -116,7 +118,8 @@ scripts/             check.sh, ci/, lab/ (kind + virt/), secrets/, talos/, backu
 
 ## 6. Phases
 
-Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled against the repo on **2026-10-20**.
+Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled against the repo and the live
+cluster on **2026-10-22**.
 
 ### Phase 0: Audit and architecture (complete; GATE 0 answered 2026-10-16)
 
@@ -215,10 +218,11 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
       (MetalLB pool, NFS server) substituted at build time
 - [x] Cilium, MetalLB, Traefik, cert-manager, Technitium, kube-prometheus-stack (SMTP alerts), csi-driver-nfs
       (`nas-nfs`), local-path; all render; the kind lab installed cert-manager, MetalLB and Traefik
-- [ ] Real Flux bootstrap against a Talos cluster *(lab Talos: done, the full tree is Ready. Real cluster: not started)*
+- [x] Real Flux bootstrap against a Talos cluster *(production, 2026-10-22: 3 nodes Ready; `flux-system`,
+      `infrastructure`, `infrastructure-configs` and `apps` Ready at `0833eac`)*
 - [x] Let's Encrypt DNS-01 ClusterIssuers (staging, production) via Cloudflare, and a `*.lab.ardw.be` wildcard
-      Certificate whose issuer is per cluster (`CLUSTER_ISSUER`: `internal-ca` on the lab). Issuing for real
-      needs the Cloudflare token and an ACME email (§8)
+      Certificate whose issuer is per cluster (`CLUSTER_ISSUER`: `internal-ca` on the lab) *(production: the
+      wildcard and `files.ardw.be` are issued by `letsencrypt-production`)*
 - [x] Traefik: HTTP→HTTPS redirect, the wildcard as default certificate (TLSStore), dashboard internal only
 - [x] Technitium: persistence, forwarders, a fixed LoadBalancer IP for DNS only, web UI ClusterIP; a CronJob that
       creates the `lab.ardw.be` zone with its apex and wildcard records pointing at Traefik
@@ -232,29 +236,34 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
 
 - [x] Immich and Audiobookshelf specified, rendering, with per-app notes (`docs/apps/`); hosts are
       `<app>.lab.ardw.be`
-- [x] `immich-db` Secret (SOPS) before first deploy; app certificates come from the wildcard *(lab Secret
-      generated; the production one waits on the key ceremony, `kubernetes/overlays/homelab/README.md`)*
+- [x] `immich-db` Secret (SOPS) before first deploy; app certificates come from the wildcard *(lab and
+      production Secrets in place, `kubernetes/overlays/homelab/README.md`)*
 - [x] Authentik SSO *(Authentik is deployed at `auth.lab.ardw.be` with a daily database dump and mails through
       the relay as `auth@lab.ardw.be`; Seafile signs in through it, declared by a blueprint. Proven in the lab
       2026-10-21: the OIDC discovery document is served for `seafile`, and Seafile's `/oauth/login/` answers 302
       to Authentik's authorize endpoint with `client_id=seafile`; the full login, driven with curl and a throwaway
       user, worked end to end (Seahub user created, uid = hashed `sub`, contact email set), after fixing the
-      provider's grant types and, lab only, in-cluster DNS and CA trust for Seahub. Production still needs a
-      check that the Seafile pod can reach `auth.ardw.be`, runbook household-backups (c). Other
-      apps are still to be wired)*
+      provider's grant types and, lab only, in-cluster DNS and CA trust for Seahub. Production: blueprints
+      also cover Grafana, Immich, Audiobookshelf, Proxmox, Technitium, Homepage, Kopia, TrueNAS, UniFi, and
+      forward-auth for Alertmanager and Prometheus (`kubernetes/apps/authentik/blueprints.yaml`))*
 - [x] Seafile (decisions §5.8) at `seafile.lab.ardw.be`, MariaDB with a daily dump *(proven in the lab
       2026-10-21: login page, admin API token. Authentik OIDC sign-in added the same day)*
 - [x] Household device backups (decisions §5.9): Time Machine share for jolien, Kopia server at
       `kopia.lab.ardw.be` for dunia and arthur *(Kopia: a client snapshot through Traefik in the lab;
       Time Machine: the share on the TrueNAS fixture. Runbook: `docs/runbooks/household-backups.md`)*
-- [x] Stremio streaming server (decisions §5.15) at `stremio.lab.ardw.be`, local-only (SPEC §12.6) *(manifests
-      written, not yet applied or tried with the Stremio apps. Runbook: `docs/runbooks/stremio.md`. Debrid keys
+- [x] Stremio streaming server (decisions §5.15) at `stremio.lab.ardw.be`, local-only (SPEC §12.6) *(running in
+      production. Runbook: `docs/runbooks/stremio.md`. Debrid keys
       stay in the user's Stremio account; no debrid service runs in the cluster)*
-- [ ] Public share links (decisions §5.13): Seafile at `files.ardw.be` and Immich through immich-public-proxy at
-      `photos.ardw.be`, via a Cloudflare Tunnel with a path allowlist *(manifests, OpenTofu root and runbook
-      written and validated offline; not applied. Owner steps and outside verification:
-      `docs/runbooks/public-shares.md`)*
-- [ ] Forgejo mirror *(deferred until production, `docs/future-work.md`; decisions §5.4, §5.6)*
+- [x] Public share links (decisions §5.13): Seafile at `files.ardw.be` and Immich through immich-public-proxy at
+      `photos.ardw.be`, via a Cloudflare Tunnel with a path allowlist *(live 2026-10-22, reviewed and confirmed
+      working by the owner; cloudflared runs 2 replicas. Runbook: `docs/runbooks/public-shares.md`)*
+- [ ] Forgejo mirror *(unblocked now that production is live; not started, `docs/future-work.md`; decisions
+      §5.4, §5.6)*
+- [ ] Immich machine learning on the Tesla P4 *(the CUDA image, the `nvidia` RuntimeClass and the device plugin
+      are in the repo. talos-wk-1 runs the LTS NVIDIA extensions but doesn't have the `nvidia.com/gpu.present`
+      label or the GPU taint yet, so the device plugin schedules no pod and the GPU pod can't start. The
+      `immich` HelmRelease rolls back and stalls, which also holds back the server's 4Gi memory fix. Owner
+      step: apply the regenerated wk-1 machine config and taint the node (`talos/patches/gpu-worker.yaml`))*
 
 ### Phase 8: Backup automation and verification, ⛔ GATE 8 after a successful restore test
 
@@ -324,16 +333,11 @@ The ordered go-live checklist, with each open input and the step it blocks, is `
 - **UniFi:** the API key handover and a config export. The management VLAN is 4 (owner, 2026-10-21); the
   uplink port behind the unmanaged switch needs VLANs 4 and 20 tagged (`docs/runbooks/host-network-bootstrap.md`).
 - **Offsite:** hardware to purchase or build (decisions §5.5).
-- **Cloudflare:** a DNS-01 token scoped to `Zone → DNS → Edit` on `ardw.be` (the zone Cloudflare hosts,
-  confirmed 2026-10-21; decisions §5.7), kept by the owner until the key ceremony. No `*` record on the zone
-  (owner, 2026-10-21). The ACME account email is `dev@arthurdw.com`.
-- **SMTP:** the relay password (into the SMTP Secrets at the key ceremony), the relay allowing
-  `homelab@lab.ardw.be` to send as each per-app From address, and the alert recipients (decisions §5.1).
-- **Production key ceremony:** the age key, then the production Secrets
-  (`kubernetes/overlays/homelab/README.md`). Until then production `infrastructure` can't become Ready.
+- **GPU node:** apply the wk-1 machine config and taint the node, so the device plugin advertises the
+  Tesla P4 and the `immich` HelmRelease can upgrade (Phase 7).
 - **Production LoadBalancer IPs:** `cluster-settings` proposes `10.20.0.100` (Traefik) and `10.20.0.101`
   (Technitium); not yet in `docs/decisions.md`.
-- **Flux on K8s 1.37.1:** the whole tree is Ready on the lab at 1.37.1; keep it.
+- **Flux on K8s 1.37.1:** the whole tree is Ready on the lab and in production at 1.37.1; keep it.
 - **Small calls:** the Traefik dashboard is reachable in-cluster on 8080 (`api.insecure`); Technitium forwards
   over plain UDP (DoT/DoH is an option); whether the `nas-nfs` export accepts the PostgreSQL dump jobs'
   uid 999.
@@ -369,6 +373,8 @@ The ordered go-live checklist, with each open input and the step it blocks, is `
 | 2026-10-20 | 2,5 | Lab proofs: UniFi L1 fixture (plan, apply, clean re-plan on provider 0.59.0; fixed `setting_preference = "manual"` on the network) and the backup/restore proof (dumps, restic, restore tests, size anomalies). Production bugs fixed: Immich dump `securityContext`, partial dumps, `restic-check.sh` deleting a non-empty directory, a `maxdepth` listing. Real offsite target and real hardware still pending (`docs/runbooks/phase-reports/phase-lab-virt-2026-10-20.md`). |
 | 2026-10-21 | 2,3,5,9 | Owner reinstalled poseidon (PVE 9.2.2) and hercules-nas (SCALE 25.10.7); the PVE fixture now runs PVE 9.2.2 and passes plan, apply, clean re-plan, destroy (role without `VM.Monitor`). L1 fixtures for every OpenTofu root: nested Proxmox VE 8.4 (`just lab-pve-plan`; plan, apply, clean re-plan, destroy, run twice) and TrueNAS SCALE 25.10.7 (`just lab-truenas-plan`; plan 3 to add, apply, API check, clean re-plan). OS-upgrade proof: a Talos version bump on the PVE fixture replaced only the image download, not the VMs (`ignore_changes` in `talos-vm`). Technitium chart 1.13.5 (15.6.2) fixes the auth.config loss and the start-up crash. Lab re-verified: dumps, restore tests, NFS, MetalLB, DNS. Backup alert mail proven against local SMTP sinks and the units verified (`just backup-selftest`, in CI); the `To:` header is now comma-separated. `DatabaseBackupJobFailed` fired in the lab and Alertmanager mailed firing and resolved to a sink. The backup units ran on `lab-nas` (backup, check, freshness, failure mails, a timer firing); restic now gets a cache dir under systemd (`docs/runbooks/phase-reports/phase-lab-virt-2026-10-20.md`). |
 | 2026-10-21 | 3,7,8 | Mail: the relay `mail.a-line.be:465` (implicit TLS) with one login and a From per app (decisions §5.1); Alertmanager and Authentik config verified rendered in the lab; ACME contact `dev@arthurdw.com`. TrueNAS `backups.tf`: Time Machine share (quota, Apple extensions), Kopia and Seafile datasets and exports, snapshot tasks, proven on the fixture (apply, clean re-plan). Seafile 14.0.9 and the Kopia 0.23.1 server in the lab: Seahub login and API token, a Kopia client snapshot through Traefik (gRPC needs HTTPS to the backend), the Seafile dump job ran. The lab worker (6 GiB) is at 97% of memory requests. |
+| 2026-10-21 | 4,5 | Docs: SLOG without PLP accepted and no HDD spin-down (decisions §4.4, §4.5); go-live checklist for the real hosts (`docs/runbooks/launch.md`). Nothing applied to the real hosts. |
+| 2026-10-22 | 5,6,7 | Production live: Talos cluster on `poseidon` (3 nodes), production age key and Secrets, Let's Encrypt certificates, every Flux layer Ready. Public shares (`files.ardw.be`, `photos.ardw.be`) live through the Cloudflare Tunnel, confirmed by the owner. Added Flux Grafana dashboards and the `FluxReconciliationFailure` alert, and Homepage tiles for Alertmanager and Prometheus. The Immich server was OOMKilled under upload load; the 4Gi limit and longer probe timeouts (`0833eac`) are held back by the stalled GPU rollout (Phase 7). |
 
 ## 10. Definition of done
 
@@ -382,4 +388,3 @@ The ordered go-live checklist, with each open input and the step it blocks, is `
       yes; PVE, UniFi and TrueNAS fixtures yes; the alert mail against local SMTP sinks and `systemd-analyze verify`
       of the units yes; a backup rule firing through Alertmanager to a sink yes; the units installed and run by their
       timers on `lab-nas`, failure mails included, yes. Open: a real send through the relay, once its password is set)*
-| 2026-10-21 | 4,5 | Docs: SLOG without PLP accepted and no HDD spin-down (decisions §4.4, §4.5); go-live checklist for the real hosts (`docs/runbooks/launch.md`). Nothing applied to the real hosts. |

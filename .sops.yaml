@@ -16,8 +16,8 @@ creation_rules:
     age: >-
       age1x3eaxap6flcq64ujtc0lks04pa70n6ju43y0dv7x2a2tj262s90qlf82q5
 
-  # PRODUCTION: placeholder until the offline key ceremony (docs/runbooks/secrets.md).
-  # sops rejects the placeholder, so encrypting a production secret fails closed.
+  # PRODUCTION: the recipient from the offline key ceremony (docs/runbooks/secrets.md). The private key is
+  # never in the repo.
   - path_regex: '\.sops\.(ya?ml|json)$'
     encrypted_regex: '^(data|stringData)$'
     age: >-

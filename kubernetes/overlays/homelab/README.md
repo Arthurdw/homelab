@@ -1,8 +1,7 @@
 # Production Secrets (`homelab`)
 
-**Blocked on the age key ceremony** (`docs/runbooks/secrets.md` §2). Until the production recipient replaces
-the placeholder in `.sops.yaml`, encrypting any file under this directory fails, so no Secret can land here by
-accident.
+The age key ceremony is done (`docs/runbooks/secrets.md` §2): `.sops.yaml` carries the production recipient,
+and the Secrets below are encrypted to it and live in the cluster.
 
 The cluster needs these Secrets. Each one becomes `<layer>/<name>.sops.yaml` and is added to that layer's
 `kustomization.yaml`, the same way `scripts/secrets/gen-lab-secrets.sh` builds the lab overlay. Unlike the lab,
