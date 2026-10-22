@@ -21,3 +21,5 @@ resources:
   - kopia-repository.sops.yaml
   - kopia-server.sops.yaml
   - kopia-users.sops.yaml
+  - authentik-proxmox-oidc.sops.yaml
+  - authentik-technitium-oidc.sops.yaml
