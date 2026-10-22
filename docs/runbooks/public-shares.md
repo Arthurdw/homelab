@@ -75,7 +75,7 @@ The order matters: the Secret needs the tunnel, and Immich's links should point 
 
 5. **Seafile settings in the database.** The share-link rules (password required, 12 characters, strength 2,
    expiry 1/7/90 days) are set in `seahub_settings.py`, but values saved on Seafile's *System Admin > Settings*
-   page live in the database and win. Open that page once as admin at `https://files.ardw.be/sys/settings/`
+   page live in the database and win. Open that page once as admin at `https://files.ardw.be/sys/web-settings/`
    from the LAN and check nothing there overrides them.
 
 6. **Re-point Seafile clients.** `seafile.lab.ardw.be` now redirects to `files.ardw.be` in browsers, but desktop
