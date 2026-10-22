@@ -27,3 +27,4 @@ resources:
   - authentik-proxmox-oidc.sops.yaml
   - authentik-technitium-oidc.sops.yaml
   - cloudflared-tunnel.sops.yaml
+  - authentik-users.sops.yaml
