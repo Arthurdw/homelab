@@ -431,6 +431,17 @@ The list and the reasons are in `docs/runbooks/upgrades.md` §8.
 upstreams time to yank broken releases, and it matches the rule already used for Homepage in
 `versions.yaml`.
 
+### 5.11 — No overcommit alerts: the cluster cannot survive a node loss anyway — *decided 2026-10-22*
+
+kube-prometheus-stack's **`KubeCPUOvercommit` and `KubeMemoryOvercommit` are off**
+(`kubernetes/infrastructure/monitoring/release.yaml`, `defaultRules.disabled`). They fire when the pods' requests
+would not fit on the cluster minus its largest node. Here that is the worker alone or the control plane alone
+(§3.1): one physical host, no HA claim, so losing a node is an outage whatever the requests say. The alerts would
+fire permanently and teach everyone to ignore mail from Alertmanager (§5.1).
+
+What stays on: `KubeQuotaOvercommit` and the per-node pressure and pod-scheduling alerts, which catch a node that
+is really full. Revisit if the cluster ever gets a second host.
+
 ## 6. Findings that changed the plan
 
 ### 6.1 — The NAS has pointed at a dead resolver — *found 2026-10-16, read-only*

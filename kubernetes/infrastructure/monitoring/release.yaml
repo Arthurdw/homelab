@@ -267,6 +267,11 @@ spec:
         kubeSchedulerRecording: false
         kubeControllerManager: false
         kubeProxy: false
+      # Overcommit alerts assume a cluster that must survive losing a node. Two nodes on one host with no HA
+      # (docs/decisions.md §3.1, §5.11) can't, so they would fire permanently. Quota overcommit stays on.
+      disabled:
+        KubeCPUOvercommit: true
+        KubeMemoryOvercommit: true
 
     # Starter alerts on top of the chart's default rules (spec §7.8).
     additionalPrometheusRulesMap:
