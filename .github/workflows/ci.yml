@@ -18,8 +18,12 @@ concurrency:
 # scripts/ci/install-ci-tools.sh. The node/python tools are pinned here because they come
 # from their package registries. Bump these deliberately, in one place.
 env:
+  # renovate: datasource=npm depName=markdownlint-cli2
   MARKDOWNLINT_CLI2_VERSION: "0.23.3"
+  # renovate: datasource=pypi depName=yamllint
   YAMLLINT_VERSION: "1.38.0"
+  # renovate: datasource=npm depName=renovate
+  RENOVATE_VERSION: "44.176.2"
 
 jobs:
   # GitHub-only: gitleaks-action can't be cloned anonymously, so `act` skips it.
@@ -114,13 +118,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          # renovate needs node ^24.11 (the config validator step below).
+          node-version: "24"
       - name: install binary linters (pinned)
         run: scripts/ci/install-ci-tools.sh actionlint shellcheck
       - name: install markdownlint-cli2 (pinned)
         run: npm install -g "markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION}"
       - name: actionlint
         run: actionlint
+      - name: renovate config (pinned validator)
+        run: npx --yes --package "renovate@${RENOVATE_VERSION}" renovate-config-validator --strict
       - name: markdownlint
         run: markdownlint-cli2 "**/*.md"
       - name: yamllint (pinned, isolated venv)

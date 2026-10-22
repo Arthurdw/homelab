@@ -109,7 +109,7 @@ infrastructure/      OpenTofu: modules/talos-vm, environments/homelab/{proxmox,t
 talos/               Talos inputs (prod + lab) and machine-config patches; out/ is gitignored
 kubernetes/          Flux: clusters/{homelab,lab}, infrastructure/ (controllers + configs), apps/
 scripts/             check.sh, ci/, lab/ (kind + virt/), secrets/, talos/, backup/
-.github/             CI workflow, dependabot
+.github/             CI workflows (dependency updates: renovate.json5)
 ```
 
 ---

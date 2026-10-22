@@ -414,6 +414,23 @@ Consequences:
 - Kopia and Time Machine protect devices; neither is a file-sharing tier. Documents that more than one
   person needs live in Seafile (§5.8) or `main/tier1` (§4.1).
 
+### 5.10 — Dependency updates: Renovate, automerge only where a merge applies nothing — *decided 2026-10-22*
+
+**Renovate replaces Dependabot.** Dependabot cannot read Flux HelmReleases, OCIRepositories or the pins in
+`versions.yaml`, which is where most of the versions in this repo live. Renovate reads all of them
+(`renovate.json5`). It also groups each `versions.yaml` pin with its manifest, so the two never drift apart.
+
+**Automerge is narrow.** A merge to `main` is a deploy: Flux applies it within minutes. There are no
+pre-upgrade snapshots, and the databases are node-local with nightly dumps only. So automerge covers
+changes whose merge touches nothing live: GitHub Actions, CI and workstation tools, and OpenTofu providers,
+because the owner runs `tofu` by hand. It also covers patch releases of the stateless infrastructure
+charts. Majors, stateful apps, the CNI, DNS, SSO, Flux and Talos/Kubernetes always wait for the owner.
+The list and the reasons are in `docs/runbooks/upgrades.md` §8.
+
+**14-day minimum release age.** No update is proposed until the release is two weeks old. That gives
+upstreams time to yank broken releases, and it matches the rule already used for Homepage in
+`versions.yaml`.
+
 ## 6. Findings that changed the plan
 
 ### 6.1 — The NAS has pointed at a dead resolver — *found 2026-10-16, read-only*

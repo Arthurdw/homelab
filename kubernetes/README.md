@@ -62,7 +62,7 @@ Every chart version below was verified against its upstream index or registry on
 | Audiobookshelf | `audiobookshelf` | 2.5.1 | `https://charts.christianhuth.de` |
 | Authentik | `authentik` | 2026.8.4 | `https://charts.goauthentik.io` |
 
-Renovate/Dependabot should keep these current (see `.github/dependabot.yml` and `docs/PROJECT-PLAN.md`).
+Renovate keeps these current (`renovate.json5`; what it automerges and why: `docs/runbooks/upgrades.md` §8).
 
 ## Environments and per-cluster settings
 

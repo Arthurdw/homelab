@@ -22,14 +22,21 @@
 set -euo pipefail
 
 # Pinned versions.
+# renovate: datasource=github-releases depName=helm/helm extractVersion=^v(?<version>.+)$
 HELM_VERSION="${HELM_VERSION:-4.3.1}"          # versions.yaml: ci_tools.helm
+# renovate: datasource=github-releases depName=mikefarah/yq
 YQ_VERSION="${YQ_VERSION:-v4.47.2}"
+# renovate: datasource=github-releases depName=rhysd/actionlint extractVersion=^v(?<version>.+)$
 ACTIONLINT_VERSION="${ACTIONLINT_VERSION:-1.7.12}"
+# renovate: datasource=github-releases depName=koalaman/shellcheck extractVersion=^v(?<version>.+)$
 SHELLCHECK_VERSION="${SHELLCHECK_VERSION:-0.11.0}"
+# renovate: datasource=github-releases depName=yannh/kubeconform extractVersion=^v(?<version>.+)$
 KUBECONFORM_VERSION="${KUBECONFORM_VERSION:-0.8.0}"   # versions.yaml: ci_tools.kubeconform
+# renovate: datasource=github-releases depName=kubernetes-sigs/kustomize extractVersion=^kustomize/v(?<version>.+)$
 KUSTOMIZE_VERSION="${KUSTOMIZE_VERSION:-5.8.3}"       # versions.yaml: ci_tools.kustomize
 # sops is needed by scripts/secrets/check.sh (the L0 SOPS gate). Pinned to the same
 # version scripts/lab/install-tools.sh already verifies, so lab and CI agree.
+# renovate: datasource=github-releases depName=getsops/sops extractVersion=^v(?<version>.+)$
 SOPS_VERSION="${SOPS_VERSION:-3.13.3}"
 
 BIN_DIR="${BIN_DIR:-/usr/local/bin}"

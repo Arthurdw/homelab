@@ -1,0 +1,262 @@
+// Renovate configuration (the Renovate GitHub App reads this file from the default branch).
+//
+// Policy, in short (the why is in docs/decisions.md §5.10 and docs/runbooks/upgrades.md §8):
+// - A merge to main is applied to the live cluster by Flux within minutes, there are no pre-upgrade
+//   snapshots, and the databases are node-local with nightly dumps only. So automerge is limited to
+//   things whose merge applies nothing (CI tools, GitHub Actions, OpenTofu providers: the owner runs
+//   tofu) and to patch releases of stateless infrastructure charts.
+// - Every major, every stateful app, the CNI, DNS, SSO, Flux itself and Talos/Kubernetes wait for
+//   the owner.
+// - A release must be 14 days old before Renovate proposes it (versions.yaml: homepage v2.5.0 was
+//   skipped for being "under two weeks old"), which also keeps yanked releases out.
+//
+// versions.yaml duplicates many manifest pins. Its `# renovate:` comments use the same depName as the
+// native manager reports for the manifest, so both land in the same branch and PR and never drift.
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: ['config:recommended'],
+  timezone: 'Europe/Brussels',
+  dependencyDashboard: true,
+  dependencyDashboardTitle: 'Dependency Dashboard',
+  // Conventional commits, like the rest of the history: `chore(deps): update cilium to v1.20.4`.
+  semanticCommits: 'enabled',
+  semanticCommitType: 'chore',
+  semanticCommitScope: 'deps',
+  minimumReleaseAge: '14 days',
+  // Releases without a timestamp stay pending; force one from the Dependency Dashboard if needed.
+  minimumReleaseAgeBehaviour: 'timestamp-required',
+  internalChecksFilter: 'strict',
+  // Automerge only ever goes through a PR whose required checks (.github/workflows/ci.yml) passed.
+  automergeType: 'pr',
+  platformAutomerge: false,
+  ignoreTests: false,
+  rebaseWhen: 'behind-base-branch',
+  labels: ['dependencies'],
+  enabledManagers: [
+    'flux',
+    'helm-values',
+    'kubernetes',
+    'terraform',
+    'github-actions',
+    'custom.regex',
+  ],
+
+  // ---------------------------------------------------------------------------------------------
+  // Managers. managerFilePatterns is appended to each manager's defaults (flux already covers
+  // gotk-components.yaml; terraform covers every *.tf and the .terraform.lock.hcl beside it;
+  // github-actions covers .github/workflows).
+  // ---------------------------------------------------------------------------------------------
+  flux: {
+    // HelmRelease, HelmRepository and OCIRepository (ref.tag) anywhere under kubernetes/.
+    managerFilePatterns: ['/^kubernetes/.+\\.ya?ml$/'],
+  },
+  'helm-values': {
+    // image.repository/tag blocks inside HelmRelease `values`.
+    managerFilePatterns: ['/^kubernetes/.+/release\\.ya?ml$/'],
+  },
+  kubernetes: {
+    // Plain manifests with `image:`; tag@sha256 pins keep their digest.
+    managerFilePatterns: ['/^kubernetes/.+\\.ya?ml$/'],
+  },
+  terraform: {
+    managerFilePatterns: ['/^infrastructure/.+\\.tf$/'],
+  },
+
+  customManagers: [
+    {
+      // `# renovate: datasource=… depName=… [packageName=…] [registryUrl=…] [extractVersion=…]` above a pin:
+      // - `key: "1.2.3"` / `key: v1.2.3` (versions.yaml, CI env, HelmRelease values tags)
+      // - `key: "repo:tag@sha256:…"` (versions.yaml app_images)
+      customType: 'regex',
+      description: 'Annotated pins in versions.yaml, workflows and HelmRelease values',
+      managerFilePatterns: [
+        '/^versions\\.yaml$/',
+        '/^\\.github/workflows/.+\\.ya?ml$/',
+        '/^kubernetes/.+\\.ya?ml$/',
+      ],
+      matchStrings: [
+        '#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+packageName=(?<packageName>\\S+))?(?:\\s+registryUrl=(?<registryUrl>\\S+))?(?:\\s+extractVersion=(?<extractVersion>\\S+))?\\s*\\n\\s*[\\w./-]+:\\s*"?(?<currentValue>[^"\\s:@]+)"?\\s',
+        '#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+packageName=(?<packageName>\\S+))?(?:\\s+registryUrl=(?<registryUrl>\\S+))?\\s*\\n\\s*[\\w./-]+:\\s*"[^"@]*:(?<currentValue>[^"@:]+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?"',
+      ],
+    },
+    {
+      // Shell scripts: `# renovate: …` above `NAME_VERSION="${NAME_VERSION:-1.2.3}"`.
+      customType: 'regex',
+      description: 'Annotated tool pins in scripts/ci and scripts/lab',
+      managerFilePatterns: ['/^scripts/(ci|lab)/[^/]+\\.sh$/'],
+      matchStrings: [
+        '#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+extractVersion=(?<extractVersion>\\S+))?\\s*\\n\\w+="\\$\\{\\w+:-(?<currentValue>[^}]+)\\}"',
+      ],
+    },
+  ],
+
+  packageRules: [
+    // ---- housekeeping ---------------------------------------------------------------------------
+    {
+      // gotk-components.yaml is regenerated as a whole by the flux manager (fluxcd/flux2); never
+      // bump its controller images one by one.
+      matchFileNames: ['kubernetes/clusters/*/flux-system/**'],
+      matchManagers: ['kubernetes', 'helm-values', 'custom.regex'],
+      enabled: false,
+    },
+    {
+      // `required_version = ">= 1.13.0"` is an OpenTofu floor, not a hashicorp/terraform pin.
+      matchManagers: ['terraform'],
+      matchDepTypes: ['required_version'],
+      enabled: false,
+    },
+    {
+      // The provider lock files record registry.opentofu.org; look providers up there too.
+      matchDatasources: ['terraform-provider'],
+      registryUrls: ['https://registry.opentofu.org'],
+    },
+
+    // ---- grouping -------------------------------------------------------------------------------
+    {
+      // The chart does not follow Immich releases on its own; move chart and app together.
+      matchDepNames: ['ghcr.io/immich-app/immich-charts/immich', 'ghcr.io/immich-app/immich-server'],
+      groupName: 'immich',
+    },
+    {
+      matchDepNames: ['fluxcd/flux2'],
+      groupName: 'flux',
+    },
+    {
+      matchManagers: ['github-actions'],
+      matchUpdateTypes: ['minor', 'patch', 'digest', 'pinDigest'],
+      groupName: 'github-actions',
+    },
+    {
+      matchDepNames: [
+        'opentofu',
+        'helm/helm',
+        'mikefarah/yq',
+        'rhysd/actionlint',
+        'koalaman/shellcheck',
+        'yannh/kubeconform',
+        'kubernetes-sigs/kustomize',
+        'kubernetes-sigs/kind',
+        'getsops/sops',
+        'FiloSottile/age',
+        'terraform-linters/tflint',
+        'aquasecurity/trivy',
+        'gitleaks/gitleaks',
+        'checkov',
+        'markdownlint-cli2',
+        'yamllint',
+        'renovate',
+      ],
+      matchUpdateTypes: ['minor', 'patch'],
+      groupName: 'ci tools',
+      schedule: ['* 0-6 * * 1'],
+    },
+
+    // ---- automerge: merging applies nothing to a live system ------------------------------------
+    {
+      description: 'GitHub Actions: CI only',
+      matchManagers: ['github-actions'],
+      matchUpdateTypes: ['minor', 'patch', 'digest', 'pinDigest'],
+      automerge: true,
+    },
+    {
+      description: 'CI and workstation tool versions',
+      matchDepNames: [
+        'opentofu',
+        'helm/helm',
+        'mikefarah/yq',
+        'rhysd/actionlint',
+        'koalaman/shellcheck',
+        'yannh/kubeconform',
+        'kubernetes-sigs/kustomize',
+        'kubernetes-sigs/kind',
+        'getsops/sops',
+        'FiloSottile/age',
+        'terraform-linters/tflint',
+        'aquasecurity/trivy',
+        'gitleaks/gitleaks',
+        'checkov',
+        'markdownlint-cli2',
+        'yamllint',
+        'renovate',
+      ],
+      matchUpdateTypes: ['minor', 'patch'],
+      automerge: true,
+    },
+    {
+      description: 'OpenTofu providers and lock files: the owner runs tofu plan/apply by hand',
+      matchDatasources: ['terraform-provider'],
+      matchUpdateTypes: ['minor', 'patch'],
+      automerge: true,
+    },
+
+    // ---- automerge: patch only, stateless infrastructure charts ---------------------------------
+    {
+      description: 'Stateless infrastructure charts: patch automerges, minor waits for review',
+      matchDepNames: [
+        'cert-manager',
+        'traefik',
+        'csi-driver-nfs',
+        'kube-prometheus-stack',
+        'ghcr.io/rancher/local-path-provisioner/charts/local-path-provisioner',
+      ],
+      separateMinorPatch: true,
+    },
+    {
+      matchDepNames: [
+        'cert-manager',
+        'traefik',
+        'csi-driver-nfs',
+        'kube-prometheus-stack',
+        'ghcr.io/rancher/local-path-provisioner/charts/local-path-provisioner',
+      ],
+      matchUpdateTypes: ['patch'],
+      automerge: true,
+    },
+
+    // ---- never automerge (last, so nothing above can override it) -------------------------------
+    {
+      description: 'Majors always wait for the owner',
+      matchUpdateTypes: ['major'],
+      automerge: false,
+      labels: ['dependencies', 'major'],
+    },
+    {
+      description: 'Stateful apps, CNI, DNS, SSO, database images: no snapshots, so no automerge',
+      matchDepNames: [
+        'cilium',
+        'metallb',
+        'technitium-dnsserver',
+        'authentik',
+        'ghcr.io/immich-app/immich-charts/immich',
+        'ghcr.io/immich-app/immich-server',
+        'ghcr.io/immich-app/postgres',
+        'docker.io/library/postgres',
+        'docker.io/seafileltd/seafile-mc',
+        'docker.io/library/mariadb',
+        'docker.io/library/memcached',
+        'audiobookshelf',
+        'docker.io/advplyr/audiobookshelf',
+        'docker.io/kopia/kopia',
+        'ghcr.io/gethomepage/homepage',
+        'fluxcd/flux2',
+      ],
+      automerge: false,
+    },
+    {
+      description: 'Seafile: the local_settings.py mount path in seafile.yaml embeds the version',
+      matchDepNames: ['docker.io/seafileltd/seafile-mc'],
+      prBodyNotes: [
+        '> [!IMPORTANT]\n> Bump the `local_settings.py` mount path in `kubernetes/apps/seafile/seafile.yaml` in this PR too.',
+      ],
+    },
+    {
+      description: 'Talos and Kubernetes: merging only moves the pin; the cluster needs talosctl',
+      matchDepNames: ['siderolabs/talos', 'kubernetes/kubernetes'],
+      automerge: false,
+      labels: ['dependencies', 'manual-upgrade'],
+      prBodyNotes: [
+        '> [!WARNING]\n> **Manual upgrade.** Merging changes only `versions.yaml`; it does not upgrade the cluster. Follow docs/runbooks/upgrades.md §5 (`talosctl upgrade` / `talosctl upgrade-k8s`, one minor at a time, check the Talos support matrix) and merge once the cluster runs the new version.',
+      ],
+    },
+  ],
+}

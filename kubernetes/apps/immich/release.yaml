@@ -40,6 +40,7 @@ spec:
           main:
             image:
               # The chart README requires this: it does not follow Immich releases on its own.
+              # renovate: datasource=docker depName=ghcr.io/immich-app/immich-server
               tag: v3.2.0
             env:
               TZ: Etc/UTC

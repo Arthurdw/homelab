@@ -22,7 +22,7 @@ Upgrade **bottom-up**, verifying each layer before the next:
 3. **Proxmox VE** (hypervisor) — see §4.
 4. **Talos** (Kubernetes OS) — see §5.
 5. **Kubernetes components** via Flux (controllers, then apps) — see §6.
-6. **Container images / app versions** — via Flux/Renovate PRs.
+6. **Container images / app versions** — via Renovate PRs that Flux applies on merge (see §8).
 
 ## 2. General rules
 
@@ -81,3 +81,39 @@ apt full-upgrade -y        # or the documented `pve` upgrade sequence between ma
 - [ ] Confirm backups still run and a restore test still passes.
 - [ ] Commit the version bump / record the new version in `versions.yaml`.
 - [ ] Note anything surprising for the next time.
+
+## 8. Renovate
+
+The Renovate GitHub App opens update PRs from `renovate.json5`. It watches the Flux HelmReleases,
+HelmRepositories and OCIRepositories, image tags in manifests and HelmRelease values, the OpenTofu providers
+and lock files, the GitHub Actions, and every pin with a `# renovate:` comment above it (`versions.yaml`, CI
+tool versions in `.github/workflows/ci.yml`, `scripts/ci/install-ci-tools.sh`, `scripts/lab/*.sh`). A
+`versions.yaml` pin uses the same dependency name as its manifest, so both change in the same PR.
+
+A release has to be **14 days old** before Renovate proposes it. Merging to `main` is a deploy (Flux applies
+it within minutes, §6), so automerge is limited to changes that apply nothing live, plus patch releases of
+stateless charts. Automerge only happens through a PR whose CI passed.
+
+| Automerges | Never automerges |
+| --- | --- |
+| GitHub Actions: minor, patch, digest | Any major |
+| CI and workstation tools (OpenTofu CLI, helm, kind, sops, linters…): minor, patch | Cilium, MetalLB, Technitium, Authentik |
+| OpenTofu providers and lock files: minor, patch (the owner runs `tofu plan/apply`) | Immich (chart, server, Postgres), Seafile, MariaDB, memcached, Postgres images |
+| cert-manager, Traefik, csi-driver-nfs, kube-prometheus-stack, local-path-provisioner: patch | Audiobookshelf, Kopia, Homepage, Flux (`fluxcd/flux2`, opened as one grouped PR) |
+| | Talos and Kubernetes: labelled `manual-upgrade` |
+
+- Minor releases of the stateless charts open a PR and wait for review.
+- **Talos and Kubernetes:** merging the PR only changes `versions.yaml`. Upgrade the cluster first
+  (§5), then merge.
+- **Seafile:** the `local_settings.py` mount path in `kubernetes/apps/seafile/seafile.yaml` contains the
+  version. Bump it in the same PR.
+- **Flux:** Renovate regenerates `gotk-components.yaml` as a whole with the new `flux` CLI. It never bumps
+  the controller images one by one. Read the Flux release notes before merging.
+- The **Dependency Dashboard** issue lists every pending, rate-limited or age-gated update. Tick a box to
+  create that PR now.
+- Not tracked: the gitleaks image in the `Justfile`, `TALOS_VERSION_DEFAULT` in `scripts/lab/virt/lib.sh`,
+  the BadgerOps provider pin and the app-version comments in `versions.yaml`. Bump them by hand.
+
+**Install (once):** go to <https://github.com/apps/renovate>, choose **Configure**, and grant **Only select
+repositories**: this one. Renovate finds `renovate.json5` and opens the Dependency Dashboard issue on its
+first run. Because Renovate merges its own PRs, branch protection on `main` must require the CI checks.

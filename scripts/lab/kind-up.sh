@@ -6,6 +6,7 @@
 set -euo pipefail
 
 CLUSTER="${CLUSTER:-homelab-lab}"
+# renovate: datasource=github-releases depName=kubernetes-sigs/kind
 KIND_VERSION="${KIND_VERSION:-v0.33.0}"
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 
