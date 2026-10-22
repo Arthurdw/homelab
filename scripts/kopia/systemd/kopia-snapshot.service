@@ -1,0 +1,12 @@
+[Unit]
+Description=Kopia snapshot of every source with a policy for this user@host
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# @KOPIA@ is replaced with the kopia path by scripts/kopia/client-timer.sh. Uses the repository connection and
+# saved password of the user running it (~/.config/kopia), so connect once from a terminal first.
+ExecStart=@KOPIA@ snapshot create --all
+Nice=10
+IOSchedulingClass=idle

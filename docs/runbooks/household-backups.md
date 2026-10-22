@@ -81,9 +81,12 @@ clients never see.
 
    Also exclude anything that is already elsewhere (VM images, game libraries, the Seafile folder if it
    syncs the same files). Keep photos, documents, dotfiles and keys.
-4. Take the first snapshot and schedule it: `kopia snapshot create ~`. KopiaUI runs the schedule
-   while it is open; on a headless Linux box use a systemd timer or cron running
-   `kopia snapshot create ~` daily.
+4. Take the first snapshot and schedule it. KopiaUI runs the schedule while it is open. With the CLI on
+   Linux, from this repo, `just kopia-timer --run-now` installs a daily systemd user timer
+   (`scripts/kopia/client-timer.sh`, units in `scripts/kopia/systemd/`) running `kopia snapshot create --all`
+   and starts the first snapshot right away. `just kopia-timer --status` shows the next run, the last result
+   and the snapshots; `journalctl --user -u kopia-snapshot` has the log. Elsewhere, `kopia snapshot create ~`
+   from cron or Task Scheduler does the same.
 
 Verify, and test a restore (do this once per machine, then after any change):
 

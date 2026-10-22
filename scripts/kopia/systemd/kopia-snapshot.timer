@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Kopia snapshot daily
+
+[Timer]
+# Daily with a random delay; Persistent catches up a run missed while the PC was off.
+OnCalendar=daily
+RandomizedDelaySec=30m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

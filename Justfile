@@ -288,6 +288,10 @@ technitium-sso *ARGS:
 immich-external-domain *ARGS:
   ./scripts/immich/external-domain.sh {{ARGS}}
 
+# On a Linux Kopia client: install the daily `kopia snapshot create --all` systemd user timer; `--run-now`, `--status`, `--uninstall`
+kopia-timer *ARGS:
+  ./scripts/kopia/client-timer.sh {{ARGS}}
+
 # Show lab prerequisites / resource requirements (no changes)
 lab-doctor:
   #!/usr/bin/env bash
