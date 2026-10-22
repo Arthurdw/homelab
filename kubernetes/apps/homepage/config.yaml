@@ -86,6 +86,19 @@ data:
             icon: grafana.png
             namespace: monitoring
             app: grafana
+        # Admin-only behind forward-auth (authentik blueprints.yaml); other household members get a denial.
+        - Alertmanager:
+            href: https://alertmanager.lab.ardw.be/
+            description: Firing alerts and silences
+            icon: alertmanager.png
+            namespace: monitoring
+            app: alertmanager
+        - Prometheus:
+            href: https://prometheus.lab.ardw.be/
+            description: Metrics and scrape targets
+            icon: prometheus.png
+            namespace: monitoring
+            app: prometheus
         - DNS:
             href: https://dns.lab.ardw.be/
             description: Technitium DNS
