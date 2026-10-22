@@ -462,6 +462,29 @@ through Authentik OIDC (the blueprint allows both the proxied and the `:8006` or
 finish. Not unlimited, so a trickling client still gets cut off eventually. Everything else stays at the
 chart defaults; no global Traefik setting (cross-namespace references, ExternalName Services) was needed.
 
+### 5.15 — Stremio streaming server: local-only, protected by DNS and routing rather than by a login — *decided 2026-10-22*
+
+**`stremio.lab.ardw.be` runs the official `stremio/server` image** (`kubernetes/apps/stremio/`), pinned by digest.
+Addons, library and debrid keys stay in the user's Stremio account; the pod holds no Secret and no debrid service
+runs in the cluster. SPEC §12.6 keeps it local-only, so there is no public DNS record and no Cloudflare tunnel
+route (the tunnel's ingress lists only `files.ardw.be` and `photos.ardw.be`).
+
+**No Authentik forward-auth.** The Stremio apps call the server cross-origin and without a browser session, so a
+login redirect would break them. The server has no login of its own.
+
+**The boundary is internal DNS plus no tunnel route.** A Traefik `ipAllowList` limits sources to RFC1918 and the
+Tailscale range, but it is defence in depth: Traefik's Service uses `externalTrafficPolicy: Cluster` (read from
+the live cluster), so a client may arrive SNATed to a node or pod address, and an in-cluster caller such as
+cloudflared would be a private address too. The list therefore only turns away a stray non-private source; it
+does not tell household devices apart. Switching the Service to `Local` would preserve client addresses but
+changes every app's path through MetalLB, so it is not done for one app.
+
+**Traefik terminates TLS and speaks plain HTTP to the pod.** web.stremio.com is an HTTPS page and refuses an
+`http://` server, so the HTTPS host is required; the image's own HTTPS port needs a stremio.com certificate and is
+unused. The pod runs as uid 1000 on a read-only root, with an `emptyDir` for the cache (`sizeLimit` 12Gi). The
+cache is disposable; settings reset on a restart. A self-hosted stremio-web was not added: web.stremio.com
+works against the HTTPS server.
+
 ## 6. Findings that changed the plan
 
 ### 6.1 — The NAS has pointed at a dead resolver — *found 2026-10-16, read-only*

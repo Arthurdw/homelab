@@ -247,7 +247,9 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
 - [x] Household device backups (decisions §5.9): Time Machine share for jolien, Kopia server at
       `kopia.lab.ardw.be` for dunia and arthur *(Kopia: a client snapshot through Traefik in the lab;
       Time Machine: the share on the TrueNAS fixture. Runbook: `docs/runbooks/household-backups.md`)*
-- [ ] Stremio/debrid: no workload chosen; if one is added it stays local-only (SPEC §12.6)
+- [x] Stremio streaming server (decisions §5.15) at `stremio.lab.ardw.be`, local-only (SPEC §12.6) *(manifests
+      written, not yet applied or tried with the Stremio apps. Runbook: `docs/runbooks/stremio.md`. Debrid keys
+      stay in the user's Stremio account; no debrid service runs in the cluster)*
 - [ ] Forgejo mirror *(deferred until production, `docs/future-work.md`; decisions §5.4, §5.6)*
 
 ### Phase 8: Backup automation and verification, ⛔ GATE 8 after a successful restore test

@@ -11,6 +11,7 @@ the system was built.
 - `secrets.md` — SOPS + age: key ceremony, add/rotate, recovery, CI.
 - `sso.md` — Authentik as the login portal: the OIDC values to paste into Immich and Audiobookshelf, Immich's SMTP.
 - `host-proxies.md` — Proxmox and TrueNAS UIs at `pve`/`nas.lab.ardw.be` through Traefik; refreshing the pinned certs.
+- `stremio.md` — pointing the Stremio apps at `stremio.lab.ardw.be`; why it is local-only.
 - `break-glass.md` — access by IP and local credentials when DNS, SSO, Traefik or MetalLB are down.
 - `household-backups.md` — Time Machine for the Mac, Kopia for Windows and Linux, Seafile client.
 - `phase-reports/` — historical build reports: `phase-01-10-scaffold.md`, `phase-lab-virt-2026-10-20.md`.

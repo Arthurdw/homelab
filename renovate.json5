@@ -237,6 +237,7 @@
         'audiobookshelf',
         'docker.io/advplyr/audiobookshelf',
         'docker.io/kopia/kopia',
+        'docker.io/stremio/server',
         'ghcr.io/gethomepage/homepage',
         'fluxcd/flux2',
       ],

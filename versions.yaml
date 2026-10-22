@@ -99,6 +99,9 @@ app_images:
   # Kopia repository server (kubernetes/apps/kopia); household PCs back up to it over HTTPS.
   # renovate: datasource=docker depName=docker.io/kopia/kopia
   kopia: "docker.io/kopia/kopia:0.23.1@sha256:89fd95ee2942880ca00eae964266958a394421ddbdf69bca62e38afc55f5900e"
+  # Stremio streaming server (kubernetes/apps/stremio); local-only, SPEC §12.6. v4.22.4 is from 2026-10-20.
+  # renovate: datasource=docker depName=docker.io/stremio/server
+  stremio: "docker.io/stremio/server:v4.22.4@sha256:bfce9268487bcf4b7baebc79e3504e14c2fac5a19aab2dbd722b151276f9db22"
   # Homepage dashboard (kubernetes/apps/homepage); v2.4.0 is from 2026-09-17; v2.5.0
   # (2026-10-10) was under two weeks old when this was pinned.
   # renovate: datasource=docker depName=ghcr.io/gethomepage/homepage

@@ -99,7 +99,7 @@ stateless charts. Automerge only happens through a PR whose CI passed.
 | GitHub Actions: minor, patch, digest | Any major |
 | CI and workstation tools (OpenTofu CLI, helm, kind, sops, linters…): minor, patch | Cilium, MetalLB, Technitium, Authentik |
 | OpenTofu providers and lock files: minor, patch (the owner runs `tofu plan/apply`) | Immich (chart, server, Postgres), Seafile, MariaDB, memcached, Postgres images |
-| cert-manager, Traefik, csi-driver-nfs, kube-prometheus-stack, local-path-provisioner: patch | Audiobookshelf, Kopia, Homepage, Flux (`fluxcd/flux2`, opened as one grouped PR) |
+| cert-manager, Traefik, csi-driver-nfs, kube-prometheus-stack, local-path-provisioner: patch | Audiobookshelf, Kopia, Stremio, Homepage, Flux (`fluxcd/flux2`, opened as one grouped PR) |
 | | Talos and Kubernetes: labelled `manual-upgrade` |
 
 - Minor releases of the stateless charts open a PR and wait for review.

@@ -1,0 +1,180 @@
+---
+# Stremio streaming server (docs/runbooks/stremio.md, decisions.md §5.15). The Stremio apps (web.stremio.com,
+# desktop, TV, mobile) point at https://stremio.lab.ardw.be as their streaming server; this pod does the torrent
+# and HTTP streaming and the ffmpeg work. Addons, library and debrid keys live in the user's Stremio account, not
+# here, so the pod holds no Secret.
+#
+# LOCAL ONLY (SPEC §12.6). The host is in the internal zone (Technitium's *.lab.ardw.be wildcard), is NOT in the
+# Cloudflare tunnel's ingress, has no public DNS and no Authentik forward-auth (the apps' API calls are
+# cross-origin and non-browser, and cannot follow a login redirect). The only gate is the ipAllowList below.
+#
+# TLS: Traefik terminates it with the *.lab.ardw.be wildcard (decisions.md §5.7) and talks plain HTTP to the pod
+# on 11470. The image's own HTTPS port (12470) needs a certificate for a stremio.com subdomain and is not used.
+# web.stremio.com is an HTTPS page and the browser refuses an http:// streaming server (mixed content), hence
+# the HTTPS host. Long streams: Traefik websecure has readTimeout 30m and no write timeout.
+#
+# STORAGE: nothing here is worth keeping. The torrent/stream cache and server-settings.json live in an emptyDir,
+# so a pod restart empties the cache and resets settings to defaults (cache 2 GB; re-pick it in the Stremio app
+# if you want another size). The emptyDir sizeLimit is the hard ceiling: past it the kubelet evicts the pod.
+#
+# Runs non-root: the image defaults to root with its data under /root/.stremio-server, but it runs fine as the
+# image's `node` user (uid 1000) on a read-only root filesystem when APP_PATH points at a writable mount.
+# Verified locally with docker (--user 1000 --read-only): it starts, serves /settings and writes
+# server-settings.json under APP_PATH.
+#
+# GPU: hardware transcoding is not used (the server probes for VAAPI/NVENC at start, finds none and falls back
+# to software). If the cluster later gets the NVIDIA T400 for Immich, it could serve transcoding too; this
+# manifest does not depend on it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stremio
+  namespace: stremio
+  labels:
+    app.kubernetes.io/name: stremio
+    app.kubernetes.io/part-of: stremio
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: stremio
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: stremio
+        app.kubernetes.io/part-of: stremio
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: stremio
+          # versions.yaml app_images.stremio
+          image: docker.io/stremio/server:v4.22.4@sha256:bfce9268487bcf4b7baebc79e3504e14c2fac5a19aab2dbd722b151276f9db22
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 11470
+          env:
+            # Cache, downloads and server-settings.json. The image default (/root/.stremio-server) is not writable.
+            - name: APP_PATH
+              value: /data
+            # Lets web.stremio.com (another origin) call the server.
+            - name: NO_CORS
+              value: "1"
+          startupProbe:
+            httpGet:
+              path: /settings
+              port: http
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet:
+              path: /settings
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /settings
+              port: http
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              # No CPU limit: software transcoding is bursty and a stream should not be throttled.
+              memory: 1536Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          emptyDir:
+            # Bounds cache growth: the app's cache defaults to 2 GB (10 GB at most in its menu), plus ffmpeg segments.
+            sizeLimit: 12Gi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stremio
+  namespace: stremio
+  labels:
+    app.kubernetes.io/name: stremio
+    app.kubernetes.io/part-of: stremio
+spec:
+  selector:
+    app.kubernetes.io/name: stremio
+  ports:
+    - name: http
+      port: 11470
+      targetPort: http
+---
+# Private source ranges only: RFC1918 (house LAN, server and cluster VLANs, pods) and 100.64.0.0/10 (Tailscale).
+# Generic ranges on purpose; the VLAN layout is in docs/network-plan.md. This is defence in depth, NOT the
+# boundary: Traefik's Service has externalTrafficPolicy Cluster, so Traefik may see a client SNATed to a node or
+# pod address, and in-cluster callers (cloudflared, if it ever pointed here) are private addresses too. The
+# boundary is: internal DNS only, no tunnel route, no public record (decisions.md §5.15).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: private-only
+  namespace: stremio
+  labels:
+    app.kubernetes.io/name: stremio
+    app.kubernetes.io/part-of: stremio
+spec:
+  ipAllowList:
+    sourceRange:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+      - 100.64.0.0/10
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: stremio
+  namespace: stremio
+  labels:
+    app.kubernetes.io/name: stremio
+    app.kubernetes.io/part-of: stremio
+  annotations:
+    # <namespace>-<name>@kubernetescrd. No Authentik forward-auth: see the header.
+    traefik.ingress.kubernetes.io/router.middlewares: stremio-private-only@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    # Internal zone <app>.lab.ardw.be (decisions.md §5.7), served by Technitium only.
+    - host: stremio.lab.ardw.be
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: stremio
+                port:
+                  name: http
+  # TLS on websecure with NO secretName: Traefik serves its default TLSStore certificate, the
+  # *.lab.ardw.be wildcard (decisions.md §5.7).
+  tls:
+    - hosts:
+        - stremio.lab.ardw.be

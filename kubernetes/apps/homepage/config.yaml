@@ -66,6 +66,12 @@ data:
             icon: kopia.png
             namespace: kopia
             app: kopia
+        - Stremio:
+            href: https://stremio.lab.ardw.be/
+            description: Streaming server for the Stremio apps
+            icon: stremio.png
+            namespace: stremio
+            app: stremio
     - Infrastructure:
         - Authentik:
             href: https://auth.lab.ardw.be/if/user/
