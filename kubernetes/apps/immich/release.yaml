@@ -53,13 +53,27 @@ spec:
         main:
           containers:
             main:
+              # The server container also runs the background workers (thumbnails, face detection, …). A
+              # face-detection burst took it past 2Gi and got it OOMKilled, so Immich answered 503 while it
+              # restarted. 4Gi leaves room for those bursts; talos-wk-1 has the headroom.
               resources:
                 requests:
                   cpu: 250m
-                  memory: 512Mi
+                  memory: 1Gi
                 limits:
                   cpu: "1"
-                  memory: 2Gi
+                  memory: 4Gi
+              # The chart's probes allow 1s per ping. With the CPU limit saturated by a job burst, a ping
+              # can take longer, and three misses restarted a healthy server. Only the keys set here
+              # override the chart; path, port and period stay as the chart defines them.
+              probes:
+                liveness:
+                  spec:
+                    timeoutSeconds: 5
+                    failureThreshold: 6
+                readiness:
+                  spec:
+                    timeoutSeconds: 5
               env:
                 # --- database connection ---------------------------------------------------------
                 # The database is NOT part of this chart (the upstream postgres subchart was removed);
