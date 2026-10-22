@@ -93,13 +93,18 @@ answers `isInit: true`), so the form will not show again: if nobody knows the pa
 1. In Audiobookshelf: *Settings -> API Keys* (or any admin API token), create a key for an admin user.
 2. `ABS_TOKEN=<key> just audiobookshelf-oauth --dry-run`, then without `--dry-run` (leave `ABS_TOKEN` unset for a
    silent prompt).
-3. Click *Login with Authentik* once: ABS creates a new user of type *user* for you. Sign in as `root` and raise
-   it to *admin* in *Settings -> Users* if you want it to manage the server. `root` stays the local break-glass
-   login.
+3. To keep an existing ABS account (progress, bookmarks), set its email in *Settings -> Users* to the email of
+   your Authentik user. Delete any ABS user an earlier Authentik login already created for you: ABS matches by
+   `sub` before email, so that user would keep winning.
+4. Click *Login with Authentik*: ABS links the account with the same email, or creates a new user of type *user*
+   when none has it (raise it to *admin* as `root` if needed). Leave `root` without an email: it stays the local
+   break-glass login.
 
-Existing ABS users are not matched: Authentik sends `email_verified: false`, which ABS refuses when matching by
-email ("Unauthorized" after the Authentik login), and email matching would let anyone who can change their
-Authentik email take over the ABS user with that address.
+Email matching needs `email_verified` not to be false, and authentik's default email mapping always sends false
+("Unauthorized" after the Authentik login). The Audiobookshelf provider therefore uses its own email mapping
+that sends `true` (`audiobookshelf.yaml` in the blueprints). Authentik users can change their own email, so
+someone could take an *unlinked* ABS user by setting their email to its address; once a user has logged in
+through Authentik, ABS refuses to link it to anyone else. Link every ABS account soon after giving it an email.
 
 The script reads the client secret from `authentik-audiobookshelf-oidc`, PATCHes `/api/auth-settings` and reads
 it back. It sets:
@@ -112,7 +117,7 @@ it back. It sets:
 | Client ID / secret | `audiobookshelf` / `authentik-audiobookshelf-oidc` |
 | Signing algorithm | `RS256` |
 | Button text | `Login with Authentik` |
-| Match existing users by | Do not match |
+| Match existing users by | Email |
 | Auto register | on |
 | Auto launch | off (keeps the local login reachable) |
 | Active methods | `local` and `openid` |

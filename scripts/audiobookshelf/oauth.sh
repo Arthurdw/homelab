@@ -105,9 +105,9 @@ view='(.serverSettings // .) | with_entries(select((.key | startswith("authOpenI
 
 # authOpenIDSubfolderForRedirectURLs prefixes the redirect_uri ABS sends; left unset, ABS sends the literal
 # "/undefined/auth/openid/callback". "" is the settings page's "None": ABS is served at the host root.
-# authOpenIDMatchExistingBy null is "Do not match": every Authentik user gets their own ABS user on first login.
-# Matching by email fails because Authentik sends email_verified false, and would let anyone who can set
-# their Authentik email take over the ABS user with that email.
+# authOpenIDMatchExistingBy "email" links an Authentik login to the existing ABS user with the same email. ABS
+# refuses that when email_verified is false, so the Authentik provider uses its own mapping that sends true
+# (kubernetes/apps/authentik/blueprints.yaml, audiobookshelf.yaml). Once linked, ABS matches by sub only.
 # BEGIN PATCH (kept as one filter so it can be tested offline)
 # shellcheck disable=SC2016 # jq variables, not shell ones
 PATCH='{
@@ -124,7 +124,7 @@ PATCH='{
   authOpenIDButtonText: "Login with Authentik",
   authOpenIDAutoLaunch: false,
   authOpenIDAutoRegister: true,
-  authOpenIDMatchExistingBy: null,
+  authOpenIDMatchExistingBy: "email",
   authOpenIDSubfolderForRedirectURLs: ""
 }'
 # END PATCH
@@ -148,11 +148,11 @@ api GET /api/auth-settings "$TMP/after.json"
 # ABS silently drops "openid" from the active methods when a required field is missing.
 if ! jq -e --arg issuer "$ISSUER" '(.serverSettings // .) as $s
     | $s.authOpenIDIssuerURL == $issuer and $s.authOpenIDSubfolderForRedirectURLs == ""
-      and $s.authOpenIDMatchExistingBy == null
+      and $s.authOpenIDMatchExistingBy == "email"
       and (($s.authActiveAuthMethods // []) | index("openid") != null)' \
     "$TMP/after.json" >/dev/null; then
   echo "PATCH sent but openid is not active with issuer $ISSUER; compare with --dry-run" >&2
   exit 1
 fi
 echo "Audiobookshelf OpenID on: \"Login with Authentik\" at $URL (issuer $ISSUER); local login still enabled."
-echo "Each Authentik user gets a new ABS user (type user) on first login; promote yours to admin as root."
+echo "Existing ABS users are matched by email: give each one the same email as their Authentik user first."

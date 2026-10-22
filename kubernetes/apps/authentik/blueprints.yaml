@@ -61,7 +61,7 @@ data:
           sub_mode: hashed_user_id
           property_mappings:
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
-            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
       - model: authentik_core.application
         id: seafile-app
@@ -102,7 +102,7 @@ data:
           sub_mode: hashed_user_id
           property_mappings:
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
-            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
       - model: authentik_core.application
         id: grafana-app
@@ -148,7 +148,7 @@ data:
           sub_mode: hashed_user_id
           property_mappings:
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
-            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
       - model: authentik_core.application
         id: immich-app
@@ -163,12 +163,27 @@ data:
   audiobookshelf.yaml: |
     # Audiobookshelf: its OpenID settings live in its own database (Settings -> Authentication,
     # docs/runbooks/sso.md). mobile-redirect is where the mobile apps' login lands before ABS hands it back.
+    # ABS matches existing users by email only when email_verified isn't false, and authentik's default email
+    # mapping always sends false, so ABS gets its own email mapping that sends true. Every other provider finds
+    # the default one by its managed identifier: a second scope_name=email mapping makes that lookup ambiguous.
     version: 1
     metadata:
       name: Audiobookshelf
       labels:
         blueprints.goauthentik.io/instantiate: "true"
     entries:
+      - model: authentik_providers_oauth2.scopemapping
+        id: audiobookshelf-email
+        identifiers:
+          name: "homelab OAuth Mapping: Audiobookshelf 'email' (verified)"
+        attrs:
+          scope_name: email
+          description: Email address
+          expression: |
+            return {
+                "email": request.user.email,
+                "email_verified": True,
+            }
       - model: authentik_providers_oauth2.oauth2provider
         id: audiobookshelf-provider
         identifiers:
@@ -191,7 +206,7 @@ data:
           sub_mode: hashed_user_id
           property_mappings:
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
-            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+            - !KeyOf audiobookshelf-email
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
       - model: authentik_core.application
         id: audiobookshelf-app
@@ -240,7 +255,7 @@ data:
           sub_mode: hashed_user_id
           property_mappings:
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
-            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
       - model: authentik_core.application
         id: proxmox-app
@@ -284,7 +299,7 @@ data:
           sub_mode: hashed_user_id
           property_mappings:
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
-            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
       - model: authentik_core.application
         id: technitium-app
