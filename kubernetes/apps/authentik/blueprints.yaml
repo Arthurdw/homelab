@@ -1,7 +1,7 @@
 ---
 # Authentik blueprints, mounted into the server and worker by the chart (`blueprints.configMaps` in
 # release.yaml) and applied by the worker. One file per app that signs in through Authentik (home.yaml is the
-# forward-auth one, with the embedded outpost), plus portal.yaml:
+# forward-auth one, with the embedded outpost), plus portal.yaml and recovery.yaml (password reset by email):
 # together they make the Authentik user dashboard (https://auth.lab.ardw.be/if/user/) the homelab portal.
 # Applications are grouped by `group`: "Apps" for household apps, "Infrastructure" for admin UIs.
 #
@@ -405,3 +405,169 @@ data:
           meta_launch_url: https://unifi.lab.ardw.be/
           meta_description: Network (own login)
           open_in_new_tab: true
+  recovery.yaml: |
+    # Password recovery by email (docs/runbooks/sso.md, "Add a household user"). Authentik ships this flow only as
+    # an example blueprint, which is never instantiated and so cannot be pulled in with metaapplyblueprint; this
+    # is the upstream `example/flows-recovery-email-verification.yaml` (2026.8) with a longer link lifetime. It
+    # sets the brand's recovery flow, which the admin "Send recovery link" action needs, and adds "Forgot username
+    # or password?" to the login page. Mail goes through the global SMTP settings (release.yaml `email`).
+    version: 1
+    metadata:
+      name: Homelab password recovery
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_flows.flow
+        id: flow
+        identifiers:
+          slug: default-recovery-flow
+        attrs:
+          name: Default recovery flow
+          title: Set your password
+          designation: recovery
+          authentication: require_unauthenticated
+      - model: authentik_stages_prompt.prompt
+        id: prompt-field-password
+        identifiers:
+          name: default-recovery-field-password
+        attrs:
+          field_key: password
+          label: Password
+          type: password
+          required: true
+          placeholder: Password
+          order: 0
+          placeholder_expression: false
+      - model: authentik_stages_prompt.prompt
+        id: prompt-field-password-repeat
+        identifiers:
+          name: default-recovery-field-password-repeat
+        attrs:
+          field_key: password_repeat
+          label: Password (repeat)
+          type: password
+          required: true
+          placeholder: Password (repeat)
+          order: 1
+          placeholder_expression: false
+      # A link made by an admin already names the user ("restored" plan), so the identification stage is skipped.
+      - model: authentik_policies_expression.expressionpolicy
+        id: default-recovery-skip-if-restored
+        identifiers:
+          name: default-recovery-skip-if-restored
+        attrs:
+          expression: |
+            return bool(request.context.get('is_restored', True))
+      - model: authentik_stages_email.emailstage
+        id: default-recovery-email
+        identifiers:
+          name: default-recovery-email
+        attrs:
+          use_global_settings: true
+          # A day rather than upstream's 30 minutes: the first link goes to a new user who may not open it at once.
+          token_expiry: hours=24
+          subject: Set your homelab password
+          template: email/password_reset.html
+          activate_user_on_success: true
+          recovery_max_attempts: 5
+          recovery_cache_timeout: minutes=5
+      - model: authentik_stages_user_write.userwritestage
+        id: default-recovery-user-write
+        identifiers:
+          name: default-recovery-user-write
+        attrs:
+          user_creation_mode: never_create
+      - model: authentik_stages_identification.identificationstage
+        id: default-recovery-identification
+        identifiers:
+          name: default-recovery-identification
+        attrs:
+          user_fields:
+            - email
+            - username
+      - model: authentik_stages_user_login.userloginstage
+        id: default-recovery-user-login
+        identifiers:
+          name: default-recovery-user-login
+      - model: authentik_stages_prompt.promptstage
+        id: stages-prompt-password
+        identifiers:
+          name: Change your password
+        attrs:
+          fields:
+            - !KeyOf prompt-field-password
+            - !KeyOf prompt-field-password-repeat
+          validation_policies: []
+      - model: authentik_flows.flowstagebinding
+        id: flow-binding-identification
+        identifiers:
+          target: !KeyOf flow
+          stage: !KeyOf default-recovery-identification
+          order: 10
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: true
+          policy_engine_mode: any
+          invalid_response_action: retry
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !KeyOf default-recovery-email
+          order: 20
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: true
+          policy_engine_mode: any
+          invalid_response_action: retry
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !KeyOf stages-prompt-password
+          order: 30
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          policy_engine_mode: any
+          invalid_response_action: retry
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !KeyOf default-recovery-user-write
+          order: 40
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          policy_engine_mode: any
+          invalid_response_action: retry
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !KeyOf default-recovery-user-login
+          order: 100
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          policy_engine_mode: any
+          invalid_response_action: retry
+      - model: authentik_policies.policybinding
+        identifiers:
+          policy: !KeyOf default-recovery-skip-if-restored
+          target: !KeyOf flow-binding-identification
+          order: 0
+        attrs:
+          negate: false
+          enabled: true
+          timeout: 30
+      # Only the recovery flow is set; the default brand's other flows stay as Authentik made them.
+      - model: authentik_brands.brand
+        state: present
+        identifiers:
+          domain: authentik-default
+        attrs:
+          flow_recovery: !KeyOf flow
+      - model: authentik_stages_identification.identificationstage
+        state: present
+        identifiers:
+          name: default-authentication-identification
+        attrs:
+          recovery_flow: !KeyOf flow

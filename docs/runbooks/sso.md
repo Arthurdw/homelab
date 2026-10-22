@@ -206,6 +206,26 @@ Users*. With no other admin, the owner scales the Deployment to zero, removes th
 `users` table of `absdatabase.sqlite` on the config PVC (for example with a throwaway pod running `sqlite3`),
 and scales it back up; the first-run form appears again. This is a write to a live app, so it is the owner's step.
 
+## Add a household user
+
+Users are not in the repo (their emails stay out of git): the owner creates them in the Authentik admin UI.
+Authentik sends nothing when a user is created; the user sets a password through a recovery link. The recovery
+flow, its email stage and the "Forgot username or password?" link on the login page come from `recovery.yaml` in
+the blueprints.
+
+1. *Directory → Users → Create*: username (e.g. `dunia`), name, email. Leave the user type *Internal* and set no
+   password.
+2. Open the user and pick **Send recovery link**, with the stage `default-recovery-email`. Authentik mails a
+   *Set your homelab password* link through the shared relay (`release.yaml`, `email`), valid for 24 hours.
+   Without working mail, **Create recovery link** gives the same link to copy and hand over yourself.
+3. The user opens the link, picks a password, and is signed in to the dashboard.
+
+Send the first link to your own user to prove the relay works; *Events → Logs* shows `email_sent` or the SMTP
+error. On first login the user gets an account in Seafile and Immich (auto-created); Audiobookshelf creates one
+too. Grafana gives them Viewer, Proxmox an account without permissions, and Technitium none (signup only for
+mapped groups). The dashboard shows them every tile, Infrastructure included, because no application has a
+policy binding.
+
 ## Forward-auth
 
 Hosts without a login of their own (now: Homepage) sit behind Authentik's **embedded outpost**, which runs inside
