@@ -28,8 +28,10 @@ it cannot tell household devices apart. **Never add a tunnel route or a public r
 
 1. Stremio desktop, Android/iOS, TV: Settings, Streaming, then **Streaming Server URL**, and enter
    `https://stremio.lab.ardw.be/`.
-2. web.stremio.com: open Settings, Streaming, and set the same URL. The HTTPS URL is required: the page is HTTPS
-   and the browser blocks an `http://` server.
+2. Browser: open `https://stremio.lab.ardw.be/`. Traefik redirects it to the Stremio web shell with the HTTPS
+   streaming server URL filled in (the `root-redirect` Middleware; the server's own redirect would pass
+   `http://`). Or set the same URL in Settings, Streaming. The HTTPS URL is required: the page is HTTPS and the
+   browser blocks an `http://` server.
 3. Devices must be on the home LAN, the lab VLANs or Tailscale; elsewhere the name does not resolve or the
    allowlist rejects it.
 

@@ -148,6 +148,24 @@ spec:
       - 192.168.0.0/16
       - 100.64.0.0/10
 ---
+# The server's own "/" redirects to the Stremio web shell with streamingServer=http://stremio.lab.ardw.be: it sees
+# Traefik's plain-HTTP hop, not the client's HTTPS. The shell then stores that http:// URL, which the HTTPS page
+# refuses (mixed content) and shows the server as "Error". Only the bare root is rewritten, to the same target with
+# the https:// URL; every API path still reaches the pod.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: root-redirect
+  namespace: stremio
+  labels:
+    app.kubernetes.io/name: stremio
+    app.kubernetes.io/part-of: stremio
+spec:
+  redirectRegex:
+    regex: ^https?://stremio\.lab\.ardw\.be/?$
+    replacement: https://app.strem.io/shell-v4.4/?streamingServer=https%3A%2F%2Fstremio.lab.ardw.be
+    permanent: false
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -157,8 +175,8 @@ metadata:
     app.kubernetes.io/name: stremio
     app.kubernetes.io/part-of: stremio
   annotations:
-    # <namespace>-<name>@kubernetescrd. No Authentik forward-auth: see the header.
-    traefik.ingress.kubernetes.io/router.middlewares: stremio-private-only@kubernetescrd
+    # <namespace>-<name>@kubernetescrd, applied in order. No Authentik forward-auth: see the header.
+    traefik.ingress.kubernetes.io/router.middlewares: stremio-private-only@kubernetescrd,stremio-root-redirect@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
