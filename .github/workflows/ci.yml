@@ -32,7 +32,7 @@ jobs:
     name: secret scan (gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: gitleaks
@@ -48,7 +48,7 @@ jobs:
     name: secrets (sops gate)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: install sops (pinned)
         run: scripts/ci/install-ci-tools.sh sops
       - name: sops check
@@ -58,7 +58,7 @@ jobs:
     name: opentofu (fmt / validate)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: opentofu/setup-opentofu@v1
         with:
           tofu_version: "1.13.1"
@@ -80,7 +80,7 @@ jobs:
     name: kubernetes manifests (kustomize + kubeconform + cluster settings)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: install validators (pinned)
         run: scripts/ci/install-ci-tools.sh kubeconform kustomize yq
       - name: cluster settings (post-build substitution guard)
@@ -105,7 +105,7 @@ jobs:
     name: helm render (abstract, no cluster)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: install helm + yq (pinned)
         run: scripts/ci/install-ci-tools.sh helm yq
       - name: render every HelmRelease
@@ -115,7 +115,7 @@ jobs:
     name: lint (workflows / docs / yaml / shell)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           # renovate needs node ^24.11 (the config validator step below).

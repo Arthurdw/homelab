@@ -51,7 +51,7 @@ jobs:
       TF_VAR_truenas_api_key: ${{ inputs.root == 'truenas' && secrets.TRUENAS_API_KEY || '' }}
       TF_VAR_truenas_endpoint: ${{ vars.TRUENAS_ENDPOINT }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: opentofu/setup-opentofu@v1
