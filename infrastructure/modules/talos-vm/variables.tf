@@ -298,6 +298,21 @@ variable "storage_network_device" {
   }
 }
 
+variable "hostpci" {
+  description = "PCI devices passed through to the VM (Proxmox hostpci0, hostpci1, ... in list order), each by the name of a Proxmox cluster resource mapping. A raw host address would need root@pam, which the API token is not. Proxmox starts the VM only while no other running VM holds the device, and the VM can no longer live-migrate. `pcie` needs the q35 machine type."
+  type = list(object({
+    mapping = string
+    pcie    = optional(bool, true)
+    rombar  = optional(bool, true)
+  }))
+  default = []
+
+  validation {
+    condition     = length(var.hostpci) <= 16
+    error_message = "Proxmox supports at most 16 hostpci devices."
+  }
+}
+
 variable "network_firewall" {
   description = "Enable the Proxmox firewall on this NIC. Off by default; the management segment stays private (docs/decisions.md §5.2)."
   type        = bool

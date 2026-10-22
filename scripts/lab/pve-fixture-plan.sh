@@ -113,6 +113,7 @@ talos_wk_disk_gb               = 10
 talos_wk_data_disk_gb          = null
 talos_vm_started               = false
 talos_vm_on_boot               = false
+gpu_passthrough                = null
 TFVARS
 
 AGENT_PID=""

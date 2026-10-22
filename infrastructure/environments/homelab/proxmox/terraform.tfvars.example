@@ -40,9 +40,10 @@ talos_disk_datastore_id  = "local-lvm"   # host SSD; never the NAS (docs/decisio
 talos_image_datastore_id = "local"       # needs 'iso' content enabled
 
 # --- Talos image (Image Factory) ---
-# talos/schematic.yaml: siderolabs/kata-containers + siderolabs/qemu-guest-agent (same id as TALOS_SCHEMATIC in
-# talos/inputs.env).
-talos_image_schematic_id = "2ed2e4794ba4c5fff3e18307516a15accd3c0d992408c0c9522d2d457a79429f"
+# talos/schematic.yaml: siderolabs/kata-containers, siderolabs/qemu-guest-agent and the NVIDIA pair
+# (nonfree-kmod-nvidia-production, nvidia-container-toolkit-production); same id as TALOS_SCHEMATIC in
+# talos/inputs.env.
+talos_image_schematic_id = "a31c606a63e512b77145a19a7441828049b1567936ab8335f24bf8d28e831736"
 talos_image_platform     = "nocloud"   # Proxmox uses the NoCloud datasource
 talos_image_compression  = "zst"
 
@@ -79,3 +80,13 @@ proxmox_host_memory_reserve_mb = 8192
 # storage_link_address = "10.99.0.1/29"
 # storage_link_mtu     = 9000
 # talos_storage_link_nic = true   # net1 on vmbr1 for each Talos VM; false where there is no link
+
+# The Tesla P4 as a cluster PCI resource mapping, passed to one Talos VM (gpu.tf; defaults shown). Check the
+# address and IOMMU group on the host first (docs/hardware.md). null = no mapping, e.g. a host without the card.
+# gpu_passthrough = {
+#   mapping_name = "tesla-p4"
+#   pci_path     = "0000:01:00.0"
+#   device_id    = "10de:1bb3"
+#   iommu_group  = 2
+#   vm           = "talos-wk-1"   # null keeps the mapping but gives the card to no Talos VM
+# }

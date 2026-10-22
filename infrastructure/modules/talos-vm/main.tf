@@ -37,6 +37,11 @@ resource "proxmox_virtual_environment_vm" "this" {
       condition     = (var.os_image_file_id != null) != (var.os_image_import_from != null)
       error_message = "Set exactly one of os_image_file_id (compressed/iso image) or os_image_import_from (uncompressed import image)."
     }
+
+    precondition {
+      condition     = alltrue([for d in var.hostpci : !d.pcie]) || startswith(var.machine_type, "q35")
+      error_message = "hostpci with pcie = true needs machine_type q35."
+    }
   }
 
   # OVMF (UEFI) needs an EFI vars disk or the boot entries are lost on every power cycle.
@@ -108,6 +113,18 @@ resource "proxmox_virtual_environment_vm" "this" {
       model    = var.network_model
       firewall = network_device.value.firewall
       mtu      = network_device.value.mtu
+    }
+  }
+
+  # PCI passthrough (e.g. the GPU) by cluster resource mapping name, so the device can move to
+  # another VM by changing which VM names the mapping. All guest memory is pinned while it runs.
+  dynamic "hostpci" {
+    for_each = var.hostpci
+    content {
+      device  = "hostpci${hostpci.key}"
+      mapping = hostpci.value.mapping
+      pcie    = hostpci.value.pcie
+      rombar  = hostpci.value.rombar
     }
   }
 

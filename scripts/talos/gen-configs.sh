@@ -73,7 +73,7 @@ INSTALL_IMAGE="${INSTALL_IMAGE:-}"
 # Image Factory coordinates for the derived installer. ghcr.io/siderolabs/installer is no longer
 # published (no tags); the installer must also match the platform the node booted (nocloud on Proxmox).
 TALOS_PLATFORM="${TALOS_PLATFORM:-nocloud}"
-TALOS_SCHEMATIC="${TALOS_SCHEMATIC:-2ed2e4794ba4c5fff3e18307516a15accd3c0d992408c0c9522d2d457a79429f}"
+TALOS_SCHEMATIC="${TALOS_SCHEMATIC:-a31c606a63e512b77145a19a7441828049b1567936ab8335f24bf8d28e831736}"
 ADDITIONAL_SANS="${ADDITIONAL_SANS:-}"
 # Worker patch (the local-path user volume). An inputs file may point this at another file, or at
 # an empty string to skip it, for environments whose worker has no dedicated data disk (the lab).
@@ -82,6 +82,9 @@ WORKER_PATCH="${WORKER_PATCH-$REPO_ROOT/talos/patches/worker.yaml}"
 # both to an empty string, the same way as WORKER_PATCH.
 CONTROLPLANE_NETWORK_PATCH="${CONTROLPLANE_NETWORK_PATCH-$REPO_ROOT/talos/patches/network-controlplane.yaml}"
 WORKER_NETWORK_PATCH="${WORKER_NETWORK_PATCH-$REPO_ROOT/talos/patches/network-worker.yaml}"
+# NVIDIA driver modules + sysctl for the passed-through Tesla P4 (talos/patches/gpu-worker.yaml).
+# Production only: the lab has no GPU, so its inputs set this to an empty string as well.
+GPU_WORKER_PATCH="${GPU_WORKER_PATCH-$REPO_ROOT/talos/patches/gpu-worker.yaml}"
 
 # --- authoritative versions (single source: versions.yaml) -----------------
 yaml_get() {
@@ -163,6 +166,7 @@ patch_args --config-patch-control-plane "$REPO_ROOT/talos/patches/controlplane.y
 patch_args --config-patch-worker        "$WORKER_PATCH"
 patch_args --config-patch-control-plane "$CONTROLPLANE_NETWORK_PATCH"
 patch_args --config-patch-worker        "$WORKER_NETWORK_PATCH"
+patch_args --config-patch-worker        "$GPU_WORKER_PATCH"
 
 if [ -n "$ADDITIONAL_SANS" ]; then
   IFS=',' read -ra sans <<<"$ADDITIONAL_SANS"

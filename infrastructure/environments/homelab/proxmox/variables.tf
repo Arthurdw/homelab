@@ -126,13 +126,14 @@ variable "talos_image_datastore_id" {
 
 variable "talos_image_schematic_id" {
   description = <<-EOT
-    Talos Image Factory schematic id. The default is talos/schematic.yaml (siderolabs/kata-containers +
-    siderolabs/qemu-guest-agent). To change extensions edit that file, POST it to
+    Talos Image Factory schematic id. The default is talos/schematic.yaml (siderolabs/kata-containers,
+    siderolabs/qemu-guest-agent, siderolabs/nonfree-kmod-nvidia-production and
+    siderolabs/nvidia-container-toolkit-production). To change extensions edit that file, POST it to
     https://factory.talos.dev/schematics and pass the new id here and as TALOS_SCHEMATIC.
     The URL built from this id was verified (curl -sI) for the pinned Talos version.
   EOT
   type        = string
-  default     = "2ed2e4794ba4c5fff3e18307516a15accd3c0d992408c0c9522d2d457a79429f"
+  default     = "a31c606a63e512b77145a19a7441828049b1567936ab8335f24bf8d28e831736"
 }
 
 variable "talos_image_platform" {
@@ -287,4 +288,42 @@ variable "talos_storage_link_nic" {
   description = "Give each Talos VM a second NIC (net1) on storage_link_bridge, untagged, at storage_link_mtu, with no cloud-init address: Talos machine config sets 10.99.0.3/.4 on it (decisions.md §2.2). Adding it to running VMs is an in-place hotplug. Set false for a lab or fixture without the link."
   type        = bool
   default     = true
+}
+
+# ---------------------------------------------------------------------------
+# GPU passthrough (gpu.tf) — the Tesla P4, docs/hardware.md
+# ---------------------------------------------------------------------------
+
+variable "gpu_passthrough" {
+  description = <<-EOT
+    The host GPU as a Proxmox cluster PCI resource mapping, and the Talos VM it is passed to.
+    `pci_path` and `device_id` (vendor:device) come from `lspci -nn -D` on the host; `iommu_group` from
+    /sys/bus/pci/devices/<pci_path>/iommu_group. `vm` is a key of local.talos_nodes, or null to keep the
+    mapping without giving the card to a Talos VM (e.g. while another VM uses it). Null for no mapping
+    at all (the L1 fixture has no GPU).
+  EOT
+  type = object({
+    mapping_name = optional(string, "tesla-p4")
+    pci_path     = string
+    device_id    = string
+    subsystem_id = optional(string)
+    iommu_group  = optional(number)
+    vm           = optional(string)
+  })
+  default = {
+    pci_path    = "0000:01:00.0"
+    device_id   = "10de:1bb3"
+    iommu_group = 2
+    vm          = "talos-wk-1"
+  }
+
+  validation {
+    condition     = var.gpu_passthrough == null || can(regex("^[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\\.[0-7]$", var.gpu_passthrough.pci_path))
+    error_message = "gpu_passthrough.pci_path must be a full PCI address such as 0000:01:00.0."
+  }
+
+  validation {
+    condition     = var.gpu_passthrough == null || can(regex("^[0-9a-f]{4}:[0-9a-f]{4}$", var.gpu_passthrough.device_id))
+    error_message = "gpu_passthrough.device_id must be vendor:device such as 10de:1bb3."
+  }
 }

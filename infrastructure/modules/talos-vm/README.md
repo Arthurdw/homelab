@@ -20,6 +20,7 @@ addresses), which keeps a whole cluster readable in one file.
 | Disable the Proxmox firewall on the K8s NIC; management stays private | `network_firewall` default `false` | `docs/decisions.md` §5.2 |
 | Talos VMs reach the NAS directly over the storage link, not routed | optional `storage_network_device` (net1, no `ip_config`) | `docs/decisions.md` §2.2 |
 | No RAM ballooning | `memory_floating_mb` default `0` | Talos docs, Proxmox guide |
+| PCI passthrough (the GPU) by cluster resource mapping, never by raw host address | optional `hostpci` (list of mapping names) | `docs/hardware.md` |
 
 It also follows the Talos Proxmox recommendations: UEFI (`ovmf`) + `q35` + a 4 MiB EFI
 disk, virtio NIC, and **not** the `virtio-scsi-single` disk controller (which hangs
@@ -148,6 +149,25 @@ Exactly one of the two must be set (a `precondition` enforces it):
 | `ip_address` | `string` | `null` | Static IPv4 in CIDR form, delivered via cloud-init `network-config`; `null` = DHCP. |
 | `ip_gateway` | `string` | `null` | Default gateway for `ip_address`. |
 
+### PCI passthrough (optional)
+
+`hostpci` passes host PCI devices (the Tesla P4) to the VM as `hostpci0`, `hostpci1`, … in list
+order. Each entry names a Proxmox **cluster resource mapping** (Datacenter → Resource Mappings),
+not a host address: a raw address needs `root@pam`, while a mapping works with the API token
+(privilege `Mapping.Use`). Moving the device to another VM means removing it here and naming the
+same mapping on the other VM. Proxmox refuses to start a VM whose device is held by another
+running VM, a passthrough VM cannot live-migrate, and all of its memory is pinned.
+
+| Name | Type | Default | Purpose |
+|---|---|---|---|
+| `hostpci` | `list(object({mapping, pcie, rombar}))` | `[]` | Passed-through devices. `[]` = none. |
+| `hostpci[*].mapping` | `string` | — (required) | Name of the cluster PCI resource mapping. |
+| `hostpci[*].pcie` | `bool` | `true` | Attach as PCIe (needs `machine_type` q35; a `precondition` enforces it). |
+| `hostpci[*].rombar` | `bool` | `true` | Expose the device ROM to the guest. |
+
+Adding or removing a device on an existing VM needs a VM restart: the provider may reboot the VM
+during `tofu apply`, or warns that a manual restart is needed. Drain the node first.
+
 ### Cloud-init disk
 
 | Name | Type | Default | Purpose |
@@ -237,8 +257,8 @@ Consequences:
    user-data, the documented manual flow) or the `metal` image with DHCP + `talosctl`.
 
 2. **The QEMU guest agent.** The repo schematic (`talos/schematic.yaml`, id
-   `2ed2e4794ba4c5fff3e18307516a15accd3c0d992408c0c9522d2d457a79429f`) includes
-   `siderolabs/qemu-guest-agent` (and `kata-containers`). The module still defaults
+   `a31c606a63e512b77145a19a7441828049b1567936ab8335f24bf8d28e831736`) includes
+   `siderolabs/qemu-guest-agent` (and `kata-containers` and the NVIDIA pair). The module still defaults
    `qemu_guest_agent_enabled` to `false`, because with an image *without* the extension Proxmox would wait for an
    agent that never starts. The Proxmox root sets it to `true` (`talos_qemu_guest_agent_enabled`), which the new
    image needs: the extension's Talos service waits for the virtio agent channel, which only exists when the VM

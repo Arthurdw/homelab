@@ -44,7 +44,7 @@ The OS image is the **Talos Image Factory `nocloud` disk**, fetched by Proxmox i
 `proxmox_download_file` and imported per VM:
 
 ```text
-https://factory.talos.dev/image/2ed2e4794ba4c5fff3e18307516a15accd3c0d992408c0c9522d2d457a79429f/<version>/nocloud-amd64.raw.zst
+https://factory.talos.dev/image/a31c606a63e512b77145a19a7441828049b1567936ab8335f24bf8d28e831736/<version>/nocloud-amd64.raw.zst
 ```
 
 - `<version>` is parsed from `versions.yaml` (`kubernetes.talos`), so the URL cannot drift

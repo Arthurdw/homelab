@@ -1,0 +1,37 @@
+# Applied to workers only via `--config-patch-worker` (GPU_WORKER_PATCH in gen-configs.sh). Never
+# apply it to the control plane, and the lab skips it (talos/inputs.lab.env).
+#
+# Loads the NVIDIA driver for the Tesla P4 that OpenTofu passes through to the worker
+# (infrastructure/environments/homelab/proxmox/gpu.tf, docs/hardware.md). The P4 is Pascal, which the
+# open kernel modules do not support, so the schematic carries the proprietary pair
+# siderolabs/nonfree-kmod-nvidia-production + siderolabs/nvidia-container-toolkit-production
+# (talos/schematic.yaml). Kubernetes side: the `nvidia` RuntimeClass and the device plugin
+# (kubernetes/infrastructure). This follows the extension's README at the pinned Talos version:
+# https://github.com/siderolabs/extensions/blob/v1.14.4/nvidia-gpu/nvidia-container-toolkit/README.md
+#
+# Every worker gets this patch. With one worker that is the GPU node. If a second worker without the
+# card is ever added, apply this patch to the GPU node only (a per-node patch), or the module load
+# fails on the other one.
+apiVersion: v1alpha1
+kind: KernelModuleConfig
+name: nvidia
+---
+apiVersion: v1alpha1
+kind: KernelModuleConfig
+name: nvidia_uvm
+---
+apiVersion: v1alpha1
+kind: KernelModuleConfig
+name: nvidia_drm
+---
+apiVersion: v1alpha1
+kind: KernelModuleConfig
+name: nvidia_modeset
+---
+# nvidia-container-cli loads BPF programs to set up each GPU container's device cgroup, which the
+# KSPP-recommended bpf_jit_harden=2 that Talos ships breaks (the README above). 1 still hardens the
+# JIT for unprivileged users, so only privileged BPF (the container runtime) runs unhardened.
+apiVersion: v1alpha1
+kind: SysctlConfig
+params:
+  net.core.bpf_jit_harden: "1"

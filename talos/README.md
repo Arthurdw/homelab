@@ -29,6 +29,7 @@ Upgrade the client to the pin before touching a live node.
 | `patches/worker.yaml` | yes | Workers: the `local-path-provisioner` user volume on the data disk (decisions §3.4). |
 | `patches/network-controlplane.yaml` | yes | Production control plane: storage-link NIC `10.99.0.3/29`, MTU 9000; kubelet node IP and etcd pinned to `10.20.0.0/24` (decisions §2.2). |
 | `patches/network-worker.yaml` | yes | Production worker: storage-link NIC `10.99.0.4/29`, MTU 9000; kubelet node IP pinned to `10.20.0.0/24`. |
+| `patches/gpu-worker.yaml` | yes | Production worker: NVIDIA driver modules and `net.core.bpf_jit_harden=1` for the passed-through Tesla P4. |
 | `out/` | **no** (gitignored) | Generated `controlplane.yaml`, `worker.yaml`, `talosconfig`, the `secrets.yaml` bundle, `--regen` backups. Contains secrets. |
 
 Patches are Talos 1.14 **multi-document** patches (matched by `apiVersion`/`kind`), not legacy
@@ -42,6 +43,10 @@ has no `/var/mnt/local-path-provisioner`.
 
 `CONTROLPLANE_NETWORK_PATCH` and `WORKER_NETWORK_PATCH` work the same way (defaults `talos/patches/network-*.yaml`).
 The lab sets both empty: its guests have one NIC and no storage link.
+
+`GPU_WORKER_PATCH` (default `talos/patches/gpu-worker.yaml`) loads the NVIDIA modules for the Tesla P4. The lab
+sets it empty: it has no GPU. Every node's image carries the NVIDIA extensions (one shared schematic), but
+without this patch nothing loads them.
 
 **Storage NIC selection.** The patches never name a MAC. A `LinkAliasConfig` called `storage0` matches
 `link.driver == "virtio_net" && link.bus_path.endsWith(":13.0")`: Proxmox puts `netN` on PCI slot `0x12+N`
@@ -74,8 +79,9 @@ is a gated live operation: follow `docs/runbooks/talos-bootstrap.md`. The guarde
 - `ADDITIONAL_SANS`: an API DNS name, if one is created.
 - `INSTALL_IMAGE`: derived from `TALOS_PLATFORM` and `TALOS_SCHEMATIC` as the Image Factory installer
   (`factory.talos.dev/nocloud-installer/<schematic>:<talos>`). `ghcr.io/siderolabs/installer` is no longer
-  published. The schematic is `talos/schematic.yaml` (`siderolabs/kata-containers`, `siderolabs/qemu-guest-agent`),
-  shared by production and the lab (only the platform differs), and must match `talos_image_schematic_id`
+  published. The schematic is `talos/schematic.yaml` (`siderolabs/kata-containers`, `siderolabs/qemu-guest-agent`,
+  `siderolabs/nonfree-kmod-nvidia-production`, `siderolabs/nvidia-container-toolkit-production`), shared by
+  production and the lab (only the platform differs), and must match `talos_image_schematic_id`
   in the Proxmox environment. To change it, edit the file, `curl -sX POST --data-binary @talos/schematic.yaml
   https://factory.talos.dev/schematics`, and update the id in `talos/inputs.env`, `scripts/talos/gen-configs.sh`
   and the Proxmox environment. Existing nodes pick it up with `talosctl upgrade --image`.

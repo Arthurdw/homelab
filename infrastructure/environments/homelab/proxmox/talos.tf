@@ -115,6 +115,11 @@ module "talos" {
     mtu    = var.storage_link_mtu
   } : null
 
+  # The GPU, by its cluster mapping (gpu.tf), on the one VM gpu_passthrough.vm names.
+  hostpci = var.gpu_passthrough != null && try(var.gpu_passthrough.vm, null) == each.key ? [{
+    mapping = proxmox_hardware_mapping_pci.gpu[0].name
+  }] : []
+
   ip_address = "${each.value.ipv4}/${var.k8s_prefix_length}"
   ip_gateway = var.k8s_gateway
 
