@@ -85,8 +85,10 @@ Send the test mail from that page.
 
 ## Audiobookshelf
 
-Audiobookshelf has no login until you create one: the first visit to `https://audiobookshelf.lab.ardw.be` asks
-for the `root` user (set its password there; neither the repo nor the cluster holds it). Then:
+Audiobookshelf's only login is the `root` user made on the first visit to `https://audiobookshelf.lab.ardw.be`;
+neither the repo nor the cluster holds its password. On homelab that first visit already happened (`/status`
+answers `isInit: true`), so the form will not show again: if nobody knows the password, follow the reset under
+"Where are my local logins" first. Then:
 
 1. In Audiobookshelf: *Settings -> API Keys* (or any admin API token), create a key for an admin user.
 2. Give your ABS user the same email as your Authentik user (*Settings -> Users*): existing users are matched by
