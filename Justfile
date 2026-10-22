@@ -274,6 +274,14 @@ apply-proxmox *args: (apply "proxmox" args)
 immich-oauth *ARGS:
   ./scripts/immich/oauth.sh {{ARGS}}
 
+# Turn on Audiobookshelf's Authentik login through its API (ABS_TOKEN or prompt); `--dry-run` shows the diff only
+audiobookshelf-oauth *ARGS:
+  ./scripts/audiobookshelf/oauth.sh {{ARGS}}
+
+# Turn on Technitium's Authentik SSO through its API (admin password read from the cluster); `--dry-run` shows the diff only
+technitium-sso *ARGS:
+  ./scripts/technitium/sso.sh {{ARGS}}
+
 # Show lab prerequisites / resource requirements (no changes)
 lab-doctor:
   #!/usr/bin/env bash

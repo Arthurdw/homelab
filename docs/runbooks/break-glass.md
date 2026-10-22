@@ -99,7 +99,9 @@ Port-forwarding goes through the API server, not through MetalLB or Traefik, and
 | UI | Command | Then open | Local credential |
 |---|---|---|---|
 | Grafana | `kubectl -n monitoring port-forward svc/kube-prometheus-stack-grafana 3000:80` | `http://127.0.0.1:3000` | Secret `grafana-admin` (`monitoring`), keys `admin-user`/`admin-password` |
-| Technitium | `kubectl -n technitium port-forward svc/technitium 5380:5380` | `http://127.0.0.1:5380` | Technitium local admin (password manager) |
+| Technitium | `kubectl -n technitium port-forward svc/technitium 5380:5380` | `http://127.0.0.1:5380` | Secret `technitium-admin` (`technitium`), key `password`; user `admin` |
+| Kopia | `kubectl -n kopia port-forward svc/kopia 51515:51515` | `https://127.0.0.1:51515` (self-signed) | Secret `kopia-server` (`kopia`), keys `username`/`password` |
+| Audiobookshelf | `kubectl -n audiobookshelf port-forward svc/audiobookshelf 8080:8080` | `http://127.0.0.1:8080` | `root`, password chosen at the first visit (`sso.md`) |
 | Authentik | `kubectl -n authentik port-forward svc/authentik-server 9000:80` | `http://127.0.0.1:9000` | `akadmin` / local recovery (below) |
 
 Read a local admin password from its Secret only when you need it, and never into shell history or logs:

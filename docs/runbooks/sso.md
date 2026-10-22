@@ -9,19 +9,21 @@ declared in `kubernetes/apps/authentik/blueprints.yaml`; nothing is clicked toge
 | Seafile | OIDC, client `seafile` | Git: `kubernetes/apps/seafile/seafile.yaml` (`OAUTH_*`) |
 | Grafana | OIDC, client `grafana` | Git: `kubernetes/infrastructure/monitoring/release.yaml` (`grafana.ini`) |
 | Immich | OIDC, client `immich` | Immich's admin UI, once (below) |
-| Audiobookshelf | OIDC, client `audiobookshelf` | Audiobookshelf's admin UI, once (below) |
+| Audiobookshelf | OIDC, client `audiobookshelf` | `just audiobookshelf-oauth`, once (below) |
 | Proxmox | OIDC, client `proxmox` (realm `authentik`) | Proxmox, once with `pveum` (below) |
-| Technitium | OIDC, client `technitium` | Technitium's admin UI, once (below) |
+| Technitium | OIDC, client `technitium` | `just technitium-sso`, once (below) |
 | Homepage | Forward-auth (embedded outpost) | Git: `kubernetes/apps/authentik/forward-auth.yaml`, `blueprints.yaml` (`home.yaml`) |
-| Kopia, TrueNAS, UniFi | Own login, link only: no generic OIDC login | n/a |
+| Kopia, TrueNAS, UniFi | Own login, link only: no generic OIDC login. Kopia keeps its basic auth, see [Kopia](#kopia) | n/a |
 
 Immich, Audiobookshelf, Proxmox and Technitium keep their OIDC settings in their own configuration. Immich
 *can* read a config file, but then every system setting is locked in its UI, so it isn't used. Only the
-Authentik side (provider, client secret, redirect URIs) is in git.
+Authentik side (provider, client secret, redirect URIs) is in the repo. Immich, Audiobookshelf and Technitium
+are switched on by a script that reads the client secret from the cluster and calls the app's API; Proxmox takes
+one `pveum` command.
 
 Local logins stay as the fallback when Authentik is down: Grafana's `grafana-admin`, Immich's and
-Audiobookshelf's first admin, Seafile's `seafile-admin`, Proxmox's `root@pam`, Technitium's `admin`
-(`break-glass.md`). Homepage has no local login: with Authentik down it is unreachable, and every app it links
+Audiobookshelf's first admin, Seafile's `seafile-admin`, Proxmox's `root@pam`, Technitium's `admin`, Kopia's
+basic-auth user (`break-glass.md`, and "Where are my local logins" below). Homepage has no local login: with Authentik down it is unreachable, and every app it links
 still answers directly.
 
 ## Pre-checks
@@ -83,23 +85,36 @@ Send the test mail from that page.
 
 ## Audiobookshelf
 
-*Settings → Authentication*, enable **OpenID Connect Authentication**:
+Audiobookshelf has no login until you create one: the first visit to `https://audiobookshelf.lab.ardw.be` asks
+for the `root` user (set its password there; neither the repo nor the cluster holds it). Then:
+
+1. In Audiobookshelf: *Settings -> API Keys* (or any admin API token), create a key for an admin user.
+2. Give your ABS user the same email as your Authentik user (*Settings -> Users*): existing users are matched by
+   email, and Authentik must have the email verified.
+3. `ABS_TOKEN=<key> just audiobookshelf-oauth --dry-run`, then without `--dry-run` (leave `ABS_TOKEN` unset for a
+   silent prompt).
+
+The script reads the client secret from `authentik-audiobookshelf-oidc`, PATCHes `/api/auth-settings` and reads
+it back. It sets:
 
 | Field | Value |
 |---|---|
-| Issuer URL | `https://auth.lab.ardw.be/application/o/audiobookshelf/`, then **Auto-populate** (fills the authorize, token, userinfo, JWKS and logout URLs) |
-| Client ID | `audiobookshelf` |
-| Client Secret | `authentik-audiobookshelf-oidc` (above) |
+| Issuer URL | `https://auth.lab.ardw.be/application/o/audiobookshelf/` |
+| Authorize / token / userinfo | `https://auth.lab.ardw.be/application/o/{authorize,token,userinfo}/` |
+| JWKS / logout | `<issuer>jwks/` and `<issuer>end-session/` |
+| Client ID / secret | `audiobookshelf` / `authentik-audiobookshelf-oidc` |
 | Signing algorithm | `RS256` |
-| Allowed mobile redirect URIs | keep the default `audiobookshelf://oauth` |
-| Subfolder for redirect URLs | none |
 | Button text | `Login with Authentik` |
-| Match existing users by | `Email` |
+| Match existing users by | `email` |
 | Auto register | on |
 | Auto launch | off (keeps the local login reachable) |
+| Active methods | `local` and `openid` |
+| Mobile redirect URIs | untouched (default `audiobookshelf://oauth`) |
 
 Authentik allows the callbacks `https://audiobookshelf.lab.ardw.be/auth/openid/callback` and
-`.../auth/openid/mobile-redirect`; nothing else to set.
+`.../auth/openid/mobile-redirect`; nothing else to set. Fallback: the same fields by hand in *Settings ->
+Authentication*. If the script reports that openid is not active, ABS dropped it because a required field is
+missing; compare with `--dry-run`.
 
 ## Proxmox
 
@@ -123,19 +138,61 @@ with and without a trailing slash. Roll back with `pveum realm delete authentik`
 
 ## Technitium
 
-*Administration → SSO* (Technitium 15.x). The `DNS_SERVER_SSO_*` env vars only apply on a first start without a
-config, so set it here:
+`just technitium-sso --dry-run`, then `just technitium-sso`. The script logs in as the local `admin` with the
+password from the Secret `technitium/technitium-admin`, reads `authentik-technitium-oidc`, calls
+`/api/admin/sso/set` and logs out. Technitium restarts its web service afterwards (a few seconds). It sets:
 
 | Field | Value |
 |---|---|
 | Authority / Issuer | `https://auth.lab.ardw.be/application/o/technitium/` |
-| Client ID | `technitium` |
-| Client Secret | `authentik-technitium-oidc` (above) |
+| Client ID / secret | `technitium` / `authentik-technitium-oidc` |
 | Scopes | `openid email profile` |
 | Callback | fixed at `https://dns.lab.ardw.be/sso/callback`, already allowed in the blueprint |
-| Group Map | Authentik group `authentik Admins` → Technitium group `Administrators` |
+| Group Map | Authentik group `authentik Admins` -> Technitium group `Administrators` (synced at each login) |
+| Allow signup | on, only for users in a mapped group |
 
-Keep the local `admin` login enabled as the fallback.
+The `DNS_SERVER_SSO_*` env vars only apply on a first start without a config, so the API is used instead.
+The local `admin` stays as the fallback. Authentik's integration page says the map's remote group is an
+entitlement name; Technitium's code reads the `groups` claim, which the default scope mapping fills with group
+names. If an `authentik Admins` member signs in but is refused or lands without admin rights, check the claims
+in Authentik and adjust the map in *Administration -> SSO*.
+
+## Kopia
+
+Kopia has no OIDC; the UI and the API share one HTTP basic-auth check (`kopia-server` Secret), and client devices
+authenticate to the same server as per-device users (`kopia-users`) over gRPC on the same host. Forward-auth in
+front of the UI was evaluated and **not** done:
+
+- Kopia serves its gRPC client protocol and its UI/API (`/api/v1/...`, the static UI) from one listener behind
+  one authenticator. Splitting them needs an IngressRoute that routes by path and keeps the gRPC prefix away
+  from the Authentik Middleware. Any path missed there breaks backups with a redirect to a login page, and the
+  split could not be tested against the live server here.
+- Forward-auth only gets the browser to the page; Kopia would still ask for basic credentials. Authentik's proxy
+  provider can inject `Authorization: Basic` (`basic_auth_enabled`), but the password must live in Authentik
+  (a blueprint `!Env` plus a new mounted Secret, or a per-user attribute set by hand) and be passed through a
+  second Middleware with `Authorization` in `authResponseHeaders`. That is a second copy of the credential in
+  Authentik and one more moving part next to the backups' path.
+- Kopia's login is already per-user over TLS on the LAN only (`decisions.md` 5.7, 5.9).
+
+So Kopia keeps its basic auth; Authentik's dashboard has a link-only tile for it (`portal.yaml`).
+
+## Where are my local logins
+
+Read-only commands; they print the value, so run them where nobody is watching and never into a log or chat.
+Use `--context lab` for the lab.
+
+| App | Where the login comes from | Read it |
+|---|---|---|
+| Technitium | user `admin`, password from the Secret | `kubectl --context homelab -n technitium get secret technitium-admin -o jsonpath='{.data.password}' \| base64 -d; echo` |
+| Kopia UI | user and password from the Secret | `kubectl --context homelab -n kopia get secret kopia-server -o jsonpath='{.data.username}' \| base64 -d; echo`, and the same with `{.data.password}` |
+| Kopia devices | one key per `<user>_<host>` | key names only: `kubectl --context homelab -n kopia get secret kopia-users -o json \| jq '.data \| keys'` |
+| Audiobookshelf | `root`, password set by you at the first visit; not in the cluster | n/a |
+| Grafana | `grafana-admin` | `break-glass.md` |
+
+Audiobookshelf reset (forgot the root password, SSO down): sign in as another admin and change it in *Settings ->
+Users*. With no other admin, the owner scales the Deployment to zero, removes the `root` user row from the
+`users` table of `absdatabase.sqlite` on the config PVC (for example with a throwaway pod running `sqlite3`),
+and scales it back up; the first-run form appears again. This is a write to a live app, so it is the owner's step.
 
 ## Forward-auth
 
@@ -158,7 +215,7 @@ outpost Ingress is missing the host. If it answers 500, the Middleware can't rea
 
 ## Verification
 
-- Open the app in a private window, click **Login with Authentik**, sign in: you land in the app as your user.
+- Open the app in a private window, click **Login with Authentik** (Technitium: the SSO button), sign in: you land in the app as your user.
 - Authentik's dashboard shows the tile and it opens the app.
 - Homepage: `https://home.lab.ardw.be` in a private window asks for the Authentik login first.
 - Grafana: members of the Authentik group `authentik Admins` are Grafana org Admins, everyone else a Viewer.
@@ -175,5 +232,5 @@ delete its entries from `blueprints.yaml` (and the env var in `release.yaml`, th
   the lab's internal CA to be trusted; until then, Grafana's OIDC login fails in the lab and the local admin
   login still works. Immich and Audiobookshelf have the same server-side calls.
 - Rotate a client secret by following `secrets.md` (add/rotate). The gen scripts' `--force` regenerates every
-  non-immutable Secret, not one pair. After a rotation paste the new value into Immich/Audiobookshelf; Grafana and
+  non-immutable Secret, not one pair. After a rotation re-run `just audiobookshelf-oauth` / `just technitium-sso` and paste the new value into Immich; Grafana and
   Seafile read theirs from their own Secret, which must get the same value as Authentik's.

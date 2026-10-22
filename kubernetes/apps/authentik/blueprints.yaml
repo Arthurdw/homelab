@@ -9,7 +9,8 @@
 # `authentik-<app>-oidc` (namespace authentik), exposed to the worker as AUTHENTIK_<APP>_OIDC_SECRET (global.env
 # in release.yaml) and read below with !Env. The same value sits in the app's own Secret where the app reads it
 # from Kubernetes (seafile/seafile-oidc, monitoring/grafana-oidc); Immich, Audiobookshelf, Technitium and
-# Proxmox keep it in their own configuration, pasted in once (docs/runbooks/sso.md).
+# Proxmox keep it in their own configuration, set once (docs/runbooks/sso.md): `just audiobookshelf-oauth`,
+# `just technitium-sso`, `just immich-oauth`, and `pveum` for Proxmox.
 # scripts/secrets/gen-*-secrets.sh write the Secrets.
 #
 # Authentik 2026.x refuses every grant a provider doesn't list ("Invalid grant_type for provider"), so every
