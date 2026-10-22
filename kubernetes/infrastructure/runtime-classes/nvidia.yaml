@@ -12,3 +12,7 @@ kind: RuntimeClass
 metadata:
   name: nvidia
 handler: nvidia
+# Pods using this class only land on GPU nodes: the label from talos/patches/gpu-worker.yaml.
+scheduling:
+  nodeSelector:
+    nvidia.com/gpu.present: "true"
