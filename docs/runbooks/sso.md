@@ -4,6 +4,12 @@ Authentik (`kubernetes/apps/authentik/`) is the homelab's front door: its user d
 `https://auth.lab.ardw.be/if/user/`, lists every UI, grouped as **Apps** and **Infrastructure**. All of it is
 declared in `kubernetes/apps/authentik/blueprints.yaml`; nothing is clicked together in the Authentik UI.
 
+A pushed change to `blueprints.yaml` does not apply by itself right away: Kubernetes swaps the mounted ConfigMap
+through a symlink, which Authentik's file watcher does not see, and a blueprint that failed is not retried. After
+Flux applied the ConfigMap, either click **Apply** on the blueprint in *Customization → Blueprints* (existing
+blueprints only), or restart the worker, which discovers and applies every blueprint, new ones included:
+`kubectl -n authentik rollout restart deployment authentik-worker`. Otherwise it waits for the periodic discovery.
+
 | Application | Sign-in | Configured where |
 |---|---|---|
 | Seafile | OIDC, client `seafile` | Git: `kubernetes/apps/seafile/seafile.yaml` (`OAUTH_*`) |
