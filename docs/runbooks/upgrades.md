@@ -109,11 +109,11 @@ stateless charts. Automerge only happens through a PR whose CI passed.
   version. Bump it in the same PR.
 - **Flux:** Renovate regenerates `gotk-components.yaml` as a whole with the new `flux` CLI. It never bumps
   the controller images one by one. Read the Flux release notes before merging.
-- The **Dependency Dashboard** issue lists every pending, rate-limited or age-gated update. Tick a box to
-  create that PR now.
+- There is no Dependency Dashboard issue (`dependencyDashboard: false`): an update opens its PR once it is
+  14 days old. To take one sooner, bump the pin by hand in a PR.
 - Not tracked: the gitleaks image in the `Justfile`, `TALOS_VERSION_DEFAULT` in `scripts/lab/virt/lib.sh`,
   the BadgerOps provider pin and the app-version comments in `versions.yaml`. Bump them by hand.
 
 **Install (once):** go to <https://github.com/apps/renovate>, choose **Configure**, and grant **Only select
-repositories**: this one. Renovate finds `renovate.json5` and opens the Dependency Dashboard issue on its
+repositories**: this one. Renovate finds `renovate.json5` and starts opening PRs on its
 first run. Because Renovate merges its own PRs, branch protection on `main` must require the CI checks.

@@ -16,14 +16,14 @@
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   extends: ['config:recommended'],
   timezone: 'Europe/Brussels',
-  dependencyDashboard: true,
-  dependencyDashboardTitle: 'Dependency Dashboard',
+  // No Dependency Dashboard issue (config:recommended turns it on); Renovate closes the existing one.
+  dependencyDashboard: false,
   // Conventional commits, like the rest of the history: `chore(deps): update cilium to v1.20.4`.
   semanticCommits: 'enabled',
   semanticCommitType: 'chore',
   semanticCommitScope: 'deps',
   minimumReleaseAge: '14 days',
-  // Releases without a timestamp stay pending; force one from the Dependency Dashboard if needed.
+  // Releases without a timestamp stay pending; bump such a pin by hand if needed.
   minimumReleaseAgeBehaviour: 'timestamp-required',
   internalChecksFilter: 'strict',
   // Automerge only ever goes through a PR whose required checks (.github/workflows/ci.yml) passed.
