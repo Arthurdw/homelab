@@ -16,7 +16,8 @@ commands ad hoc.
 | Token | Meaning | Decided at |
 |---|---|---|
 | `<CP_IP>` | control-plane node address | owner |
-| `<WORKER_IP>` | worker node address | owner |
+| `<WK1_IP>` | `talos-wk-1` address (the GPU worker; `10.20.0.12`) | owner |
+| `<WK2_IP>` | `talos-wk-2` address (no GPU; `10.20.0.13`, TODO(GATE 4)) | owner |
 | `<API_ENDPOINT>` | Kubernetes API endpoint / VIP (set as `CLUSTER_ENDPOINT`) | owner |
 
 ## 1. Pre-checks
@@ -27,7 +28,7 @@ commands ad hoc.
       notes and confirm the pair is still supported before upgrading either.
 - [ ] The locally installed `talosctl` matches the pinned Talos minor (`talosctl version --client`).
       A mismatched client is reported by the tooling; upgrade it rather than ignoring the skew.
-- [ ] A **restorable, off-box** copy of `talos/out/controlplane.yaml`, `worker.yaml` and `talosconfig`
+- [ ] A **restorable, off-box** copy of `talos/out/controlplane.yaml`, the `worker-*.yaml` files and `talosconfig`
       exists (Tier-2 secret — see `docs/runbooks/upgrades.md` §5). Losing them loses cluster admin.
 - [ ] The node VMs exist and are powered on (Proxmox/OpenTofu, out of scope here).
 - [ ] You have out-of-band access to `poseidon` in case networking goes wrong.
@@ -41,16 +42,20 @@ Offline; write only local files.
 ./scripts/talos/validate.sh
 ```
 
-This writes `talos/out/controlplane.yaml`, `talos/out/worker.yaml` and `talos/out/talosconfig`. The
+This writes `talos/out/controlplane.yaml`, one `talos/out/worker-<node>.yaml` per worker
+(`worker-talos-wk-1.yaml`, `worker-talos-wk-2.yaml`) and `talos/out/talosconfig`. `talos/out/worker.yaml` is
+only the base the per-node files are derived from; never apply it in production. The
 directory is **gitignored** and the files embed the cluster PKI and secrets — never commit them. Verify:
 
 ```sh
 git check-ignore -v talos/out/controlplane.yaml
 ```
 
-The worker config carries the `local-path-provisioner` user volume (`talos/patches/worker.yaml`), so the
-worker VM needs its data disk (decisions §3.4). The libvirt lab uses `TALOS_INPUTS=talos/inputs.lab.env`,
-which skips that patch (`WORKER_PATCH=""`) and writes to `talos/out/lab`.
+Every worker config carries the `local-path-provisioner` user volume (`talos/patches/worker.yaml`), so each
+worker VM needs its data disk (decisions §3.4). Each also gets its storage-link address
+(`talos/patches/node-talos-wk-*.yaml`), and only `talos-wk-1` gets the GPU patch with its soft taint
+(`talos/patches/gpu-worker.yaml`, decisions §3.6). The libvirt lab uses `TALOS_INPUTS=talos/inputs.lab.env`,
+which skips the user-volume and GPU patches, keeps a single `worker.yaml` and writes to `talos/out/lab`.
 
 `gen-configs.sh` is idempotent: a second run is a no-op. `--force` regenerates, and that **replaces
 the cluster PKI/secrets**, invalidating any node already configured from the previous files. Once a node runs
@@ -68,9 +73,12 @@ Apply config to the control plane first, then each worker. `--insecure` is used 
 maintenance-mode apply, before the node trusts the cluster CA.
 
 ```sh
-talosctl apply-config --insecure --nodes <CP_IP>     --file talos/out/controlplane.yaml
-talosctl apply-config --insecure --nodes <WORKER_IP> --file talos/out/worker.yaml
+talosctl apply-config --insecure --nodes <CP_IP>  --file talos/out/controlplane.yaml
+talosctl apply-config --insecure --nodes <WK1_IP> --file talos/out/worker-talos-wk-1.yaml
+talosctl apply-config --insecure --nodes <WK2_IP> --file talos/out/worker-talos-wk-2.yaml
 ```
+
+`just talos-apply` runs the same three commands with the default addresses, then the two `config` lines below.
 
 Point the client at the cluster so later commands do not need `--nodes` on every call:
 
@@ -140,8 +148,8 @@ kubectl --kubeconfig talos/out/kubeconfig get pods -A -o wide
 kubectl --kubeconfig talos/out/kubeconfig get --raw='/readyz?verbose'
 ```
 
-Expected, at minimum: etcd reports one member; the control-plane node is `Ready`; the worker joins and is
-`Ready`; every system pod (and the CNI's pods) is `Running`; the API responds `ok` to `/readyz`.
+Expected, at minimum: etcd reports one member; the control-plane node is `Ready`; both workers join and are
+`Ready`; `talos-wk-1` shows the taint `nvidia.com/gpu=present:PreferNoSchedule`; every system pod (and the CNI's pods) is `Running`; the API responds `ok` to `/readyz`.
 
 ## 9. Rollback and limitations
 
@@ -195,15 +203,47 @@ After a change under `talos/patches/` or `talos/inputs.env`. Never `--force` her
 
    ```sh
    just talos-upgrade-config 10.20.0.11      # talosctl apply-config ... --dry-run
-   just talos-upgrade-config 10.20.0.12
+   just talos-upgrade-config 10.20.0.12      # worker-talos-wk-1.yaml
+   just talos-upgrade-config 10.20.0.13      # worker-talos-wk-2.yaml
    ```
+
+   The recipe picks each node's own file and refuses an address it does not know.
 
 4. Apply, control plane first. `--mode=auto` reboots only if the change needs it; the dry run says which.
 
    ```sh
    just talos-upgrade-config 10.20.0.11 --mode=auto
    just talos-upgrade-config 10.20.0.12 --mode=auto
+   just talos-upgrade-config 10.20.0.13 --mode=auto
    ```
 
 5. Check `just talos-health` and `kubectl get nodes -o wide`. To go back, copy the backup files over the
    new ones and apply them the same way.
+
+## 12. Add `talos-wk-2` to a running cluster
+
+For a cluster bootstrapped with `talos-wk-1` only (decisions §3.6). The owner runs every step.
+
+1. OpenTofu creates the VM (Proxmox root): set `talos_wk2_ipv4`, `talos_wk2_vmid` and a `talos-wk-2` entry in
+   `talos_macs` in `terraform.tfvars`, then `tofu plan` and `tofu apply`. The NAS exports already allow
+   `10.99.0.0/29`, which covers `.5`; if `k8s_nfs_allowed_networks` is overridden in the TrueNAS root, add it.
+2. Regenerate with the same PKI (section 11, steps 1–2): `just talos-regen`. This writes
+   `worker-talos-wk-1.yaml` and `worker-talos-wk-2.yaml`.
+3. Push the new config to `talos-wk-1`. Its storage-link address moves to its own patch, and it gains the
+   taint. Dry run first, then `just talos-upgrade-config 10.20.0.12 --mode=auto`.
+4. The kubelet sets the taint only when a node registers, so add it once by hand. Talos keeps it from then on:
+
+   ```sh
+   kubectl taint nodes talos-wk-1 nvidia.com/gpu=present:PreferNoSchedule
+   ```
+
+5. Join the new node, which is in maintenance mode: `just talos-apply-node 10.20.0.13`. This runs
+   `--insecure` with `worker-talos-wk-2.yaml`.
+6. Verify:
+   - `kubectl get nodes -o wide` shows `talos-wk-2` `Ready`.
+   - `kubectl describe node talos-wk-1 | grep Taints` shows the soft taint.
+   - On `talos-wk-2`, the storage link answers (`talosctl -n 10.20.0.13 get addresses` shows `10.99.0.5/29`) and
+     an `nas-nfs` PVC mounts there.
+   - A GPU pod still lands on `talos-wk-1`.
+
+Existing pods do not move on their own. Pods with `local-path` PVs stay on `talos-wk-1` by design.

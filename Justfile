@@ -124,12 +124,14 @@ talos-validate:
 
 # ---------------------------------------------------------------------------
 # Live Talos cluster — docs/runbooks/talos-bootstrap.md, in this order.
-# Node addresses default to docs/decisions.md §2.1 (talos_cp_ipv4 / talos_worker_ipv4 in the proxmox root);
-# override with TALOS_CP / TALOS_WORKER.
+# Node addresses default to docs/decisions.md §2.1 (talos_cp_ipv4 / talos_wk_ipv4 / talos_wk2_ipv4 in the
+# proxmox root); override with TALOS_CP / TALOS_WORKER / TALOS_WORKER2. Each worker has its own config,
+# talos/out/worker-<node>.yaml (scripts/talos/gen-configs.sh); talos/out/worker.yaml is only their base.
 # ---------------------------------------------------------------------------
 
 talos_cp := env('TALOS_CP', '10.20.0.11')
 talos_worker := env('TALOS_WORKER', '10.20.0.12')
+talos_worker2 := env('TALOS_WORKER2', '10.20.0.13')
 
 # Generate talos/out (offline). `just talos-gen --force` replaces the PKI: only before any node uses it; later, talos-regen
 talos-gen *args:
@@ -139,18 +141,23 @@ talos-gen *args:
 # First config push to nodes in maintenance mode (--insecure), control plane first, then point talosconfig at the CP
 talos-apply:
   talosctl apply-config --insecure --nodes {{talos_cp}} --file talos/out/controlplane.yaml
-  talosctl apply-config --insecure --nodes {{talos_worker}} --file talos/out/worker.yaml
+  talosctl apply-config --insecure --nodes {{talos_worker}} --file talos/out/worker-talos-wk-1.yaml
+  talosctl apply-config --insecure --nodes {{talos_worker2}} --file talos/out/worker-talos-wk-2.yaml
   talosctl --talosconfig talos/out/talosconfig config endpoint {{talos_cp}}
   talosctl --talosconfig talos/out/talosconfig config node {{talos_cp}}
 
-# Rebuild talos/out/{controlplane,worker}.yaml after a patch change, SAME PKI (needs talos/out/secrets.yaml; offline)
+# First config push to ONE node in maintenance mode (--insecure), e.g. a worker added to a running cluster
+talos-apply-node node:
+  talosctl apply-config --insecure --nodes {{node}} --file talos/out/{{ if node == talos_cp { "controlplane" } else if node == talos_worker { "worker-talos-wk-1" } else if node == talos_worker2 { "worker-talos-wk-2" } else { error("unknown Talos node " + node + "; set TALOS_CP / TALOS_WORKER / TALOS_WORKER2") } }}.yaml
+
+# Rebuild talos/out/{controlplane,worker*}.yaml after a patch change, SAME PKI (needs talos/out/secrets.yaml; offline)
 talos-regen *args:
   ./scripts/talos/gen-configs.sh --regen {{args}}
   ./scripts/talos/validate.sh
 
 # Push a changed config to a running node. Dry run by default; `just talos-upgrade-config <ip> --mode=auto` applies
 talos-upgrade-config node *args="--dry-run":
-  talosctl --talosconfig talos/out/talosconfig apply-config --nodes {{node}} --file talos/out/{{ if node == talos_cp { "controlplane" } else { "worker" } }}.yaml {{args}}
+  talosctl --talosconfig talos/out/talosconfig apply-config --nodes {{node}} --file talos/out/{{ if node == talos_cp { "controlplane" } else if node == talos_worker { "worker-talos-wk-1" } else if node == talos_worker2 { "worker-talos-wk-2" } else { error("unknown Talos node " + node + "; set TALOS_CP / TALOS_WORKER / TALOS_WORKER2") } }}.yaml {{args}}
 
 # Talos version and cluster members (read-only)
 talos-health:

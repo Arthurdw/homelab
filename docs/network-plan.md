@@ -64,7 +64,7 @@
 | SERVERS | 30 | `10.30.30.0/24` | workload VMs, separated from management — new |
 | IOT | 40 | `10.30.40.0/24` | smart-home and consumer devices — new |
 | GUEST | 60 | `10.30.60.0/24` | visitors, internet only — new |
-| Storage link (10 GbE) | — | `10.99.0.0/29` | Proxmox `10.99.0.1`, NAS `10.99.0.2`, talos-cp-1 `10.99.0.3`, talos-wk-1 `10.99.0.4`; no gateway; MTU 9000 |
+| Storage link (10 GbE) | — | `10.99.0.0/29` | Proxmox `10.99.0.1`, NAS `10.99.0.2`, talos-cp-1 `10.99.0.3`, talos-wk-1 `10.99.0.4`, talos-wk-2 `10.99.0.5`; no gateway; MTU 9000 |
 | Pods | — | `10.244.0.0/16` | identical in every environment |
 | Services | — | `10.96.0.0/16` | identical in every environment |
 | Lab nodes/VIPs | — | `10.99.100.0/24` | MetalLB `10.99.100.100–199`; local lab only |

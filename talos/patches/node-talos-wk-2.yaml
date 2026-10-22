@@ -1,0 +1,11 @@
+# Production only: talos-wk-2's own config (gen-configs.sh derives talos/out/worker-talos-wk-2.yaml from
+# worker.yaml with this file). No GPU, so no gpu-worker.yaml. Its address on the 10 GbE storage link;
+# the storage0 alias, node IP pinning and DNS shared by both workers are in network-worker.yaml.
+# Decision: docs/decisions.md §2.2.
+apiVersion: v1alpha1
+kind: LinkConfig
+name: storage0
+up: true
+mtu: 9000
+addresses:
+  - address: 10.99.0.5/29

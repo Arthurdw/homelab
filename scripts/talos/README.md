@@ -15,17 +15,20 @@ and `docs/runbooks/talos-bootstrap.md` for the end-to-end procedure.
 ```sh
 ./scripts/talos/gen-configs.sh            # idempotent; refuses to clobber without --force
 ./scripts/talos/gen-configs.sh --dry-run  # print the talosctl command, write nothing
-./scripts/talos/gen-configs.sh --regen    # rebuild controlplane/worker.yaml with the SAME PKI
-./scripts/talos/validate.sh               # validates talos/out/controlplane.yaml + worker.yaml
+./scripts/talos/gen-configs.sh --regen    # rebuild controlplane/worker*.yaml with the SAME PKI
+./scripts/talos/validate.sh               # validates talos/out/controlplane.yaml + worker*.yaml
 just talos-validate                        # the same via the Justfile
 ```
 
 `TALOS_INPUTS` selects the inputs file (default `talos/inputs.env`; the lab uses `talos/inputs.lab.env`).
 `TALOS_OUT_DIR` overrides the output directory and `WORKER_PATCH` the worker patch (empty skips it);
 `CONTROLPLANE_NETWORK_PATCH` / `WORKER_NETWORK_PATCH` the production storage-NIC patches (the lab empties them).
+`WORKER_NODES` (default `talos-wk-1 talos-wk-2`) names the production workers: each gets
+`<out>/worker-<node>.yaml`, the shared `worker.yaml` patched with `talos/patches/node-<node>.yaml`, and
+`GPU_WORKER_NODE` (default `talos-wk-1`) also gets `GPU_WORKER_PATCH`. The lab empties `WORKER_NODES`.
 
 `--regen` is for a running cluster. It reads the secrets bundle (`TALOS_SECRETS`, default `<out>/secrets.yaml`),
-refuses if it is missing, and never writes it. It copies the old two files to `<out>/backup-<UTC time>/` and
+refuses if it is missing, and never writes it. It copies the old `controlplane.yaml` and `worker*.yaml` to `<out>/backup-<UTC time>/`, replaces them, and
 leaves `talosconfig` alone. `--force` and `--regen` are exclusive.
 
 ## Guarded, live helpers

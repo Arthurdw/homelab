@@ -77,9 +77,15 @@ variable "talos_cp_ipv4" {
 }
 
 variable "talos_wk_ipv4" {
-  description = "IPv4 address of the worker node. Production: within 10.20.0.11–29 (docs/decisions.md §2.1). Lab: 10.99.100.x (§2.4)."
+  description = "IPv4 address of the first worker, talos-wk-1 (the GPU worker). Production: within 10.20.0.11–29 (docs/decisions.md §2.1). Lab: 10.99.100.x (§2.4)."
   type        = string
   default     = "10.20.0.12"
+}
+
+variable "talos_wk2_ipv4" {
+  description = "IPv4 address of the second worker, talos-wk-2 (no GPU). Production: within 10.20.0.11–29 (docs/decisions.md §2.1). Lab: 10.99.100.x (§2.4). TODO(GATE 4): confirm at cutover."
+  type        = string
+  default     = "10.20.0.13"
 }
 
 # ---------------------------------------------------------------------------
@@ -93,9 +99,15 @@ variable "talos_cp_vmid" {
 }
 
 variable "talos_wk_vmid" {
-  description = "Proxmox VMID for the worker VM. TODO(GATE 4): confirm at cutover."
+  description = "Proxmox VMID for the talos-wk-1 VM. TODO(GATE 4): confirm at cutover."
   type        = number
   default     = 111
+}
+
+variable "talos_wk2_vmid" {
+  description = "Proxmox VMID for the talos-wk-2 VM. TODO(GATE 4): confirm at cutover."
+  type        = number
+  default     = 112
 }
 
 variable "talos_macs" {
@@ -234,6 +246,31 @@ variable "talos_wk_data_disk_gb" {
   nullable    = true
 }
 
+variable "talos_wk2_cpu_cores" {
+  description = "talos-wk-2 VM vCPU cores."
+  type        = number
+  default     = 3
+}
+
+variable "talos_wk2_memory_mb" {
+  description = "talos-wk-2 VM RAM in MiB. Less than talos-wk-1, so the three guests fit beside the host reserve (docs/hardware.md)."
+  type        = number
+  default     = 12288
+}
+
+variable "talos_wk2_disk_gb" {
+  description = "talos-wk-2 system disk in GiB. Smaller than talos-wk-1's so all five disks (340 GiB) fit the 360 GiB local-lvm thin pool (docs/decisions.md §3.6)."
+  type        = number
+  default     = 40
+}
+
+variable "talos_wk2_data_disk_gb" {
+  description = "talos-wk-2 data disk (Talos user volume for local-path) in GiB; null for none."
+  type        = number
+  default     = 100
+  nullable    = true
+}
+
 variable "talos_vm_started" {
   description = "Whether the Talos VMs are started. Production: true. The L1 fixture creates them stopped (a 4 GiB nested Proxmox cannot run them)."
   type        = bool
@@ -263,7 +300,7 @@ variable "storage_link_port" {
 }
 
 variable "storage_link_address" {
-  description = "Proxmox end of the storage link, in CIDR form. The /29 (decisions.md §2.2) holds poseidon .1, the NAS .2 (truenas root), talos-cp-1 .3 and talos-wk-1 .4 (talos/patches/network-*.yaml), so the nodes mount NFS directly over the link, unrouted. Must match k8s_nfs_allowed_networks of the truenas root."
+  description = "Proxmox end of the storage link, in CIDR form. The /29 (decisions.md §2.2) holds poseidon .1, the NAS .2 (truenas root), talos-cp-1 .3, talos-wk-1 .4 and talos-wk-2 .5 (talos/patches/network-controlplane.yaml, node-talos-wk-*.yaml), so the nodes mount NFS directly over the link, unrouted. Must match k8s_nfs_allowed_networks of the truenas root."
   type        = string
   default     = "10.99.0.1/29"
 
@@ -285,7 +322,7 @@ variable "storage_link_mtu" {
 }
 
 variable "talos_storage_link_nic" {
-  description = "Give each Talos VM a second NIC (net1) on storage_link_bridge, untagged, at storage_link_mtu, with no cloud-init address: Talos machine config sets 10.99.0.3/.4 on it (decisions.md §2.2). Adding it to running VMs is an in-place hotplug. Set false for a lab or fixture without the link."
+  description = "Give each Talos VM a second NIC (net1) on storage_link_bridge, untagged, at storage_link_mtu, with no cloud-init address: Talos machine config sets 10.99.0.3/.4/.5 on it (decisions.md §2.2). Adding it to running VMs is an in-place hotplug. Set false for a lab or fixture without the link."
   type        = bool
   default     = true
 }

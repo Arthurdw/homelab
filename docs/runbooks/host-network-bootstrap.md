@@ -157,6 +157,6 @@ The console menu's "Configure network interfaces" option does the same if the we
 
 - The TrueNAS root needs SCALE 25.04 or later (`infrastructure/environments/homelab/truenas/README.md`).
 - Resolved 2026-10-21: the Talos nodes reach `10.99.0.2` for NFS over their own NIC on the `/29` (talos-cp-1
-  `.3`, talos-wk-1 `.4`), with no routing or NAT on poseidon (`docs/decisions.md` §2.2). The MTU stays
+  `.3`, talos-wk-1 `.4`, talos-wk-2 `.5`), with no routing or NAT on poseidon (`docs/decisions.md` §2.2). The MTU stays
   provisional: measure throughput over the link first.
 - Continue with the Proxmox root, then `docs/runbooks/talos-bootstrap.md`.

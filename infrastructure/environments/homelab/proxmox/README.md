@@ -1,6 +1,6 @@
 # Proxmox root configuration
 
-Manages Proxmox VE resources for the homelab — currently the two Talos node VMs via the
+Manages Proxmox VE resources for the homelab — currently the three Talos node VMs via the
 [`talos-vm`](../../../modules/talos-vm/README.md) module.
 
 **Status:** VM provisioning authored; **nothing applied to the real host**. Provider pinned; state
@@ -14,7 +14,7 @@ there are created stopped and small; the real host's storage, bridge, VLAN and t
 `storage-link.tf` manages `vmbr1`: port `nic2`, `10.99.0.1/29`, MTU 9000, no gateway (the poseidon end of the
 10 GbE link to the NAS, `docs/decisions.md` §2.2). Each Talos VM gets a second NIC (net1) on `vmbr1`, untagged, MTU
 9000, no cloud-init address (`talos_storage_link_nic`, default `true`); Talos machine config gives it `10.99.0.3/29`
-(cp) or `10.99.0.4/29` (worker), so NFS goes straight over the link. Adding it to running VMs is a hotplug, no reboot. The role needs no extra privilege. `nic2` itself must carry
+(cp), `10.99.0.4/29` (talos-wk-1) or `10.99.0.5/29` (talos-wk-2), so NFS goes straight over the link. Adding it to running VMs is a hotplug, no reboot. The role needs no extra privilege. `nic2` itself must carry
 `mtu 9000` first (a hand-written `iface nic2 inet manual` / `mtu 9000` stanza, see
 `docs/runbooks/host-network-bootstrap.md`), because PVE refuses a bridge MTU above its port's. A hand-made
 `vmbr1` is adopted with `tofu import proxmox_network_linux_bridge.storage_link poseidon:vmbr1`. Variables:
@@ -26,13 +26,14 @@ to the NAS fixture); the real link is unmeasured.
 | Guest | vCPUs | RAM | Disk | Datastore |
 |---|---|---|---|---|
 | `talos-cp-1` | 2 | 4 GiB | 20 GiB | `local-lvm` |
-| `talos-wk-1` | 3 | 16 GiB | 80 GiB boot + **100 GiB data** | `local-lvm` |
+| `talos-wk-1` | 3 | 16 GiB | 80 GiB boot + **100 GiB data**; the Tesla P4 (`gpu.tf`) | `local-lvm` |
+| `talos-wk-2` | 3 | 12 GiB | 40 GiB boot + **100 GiB data**; no GPU | `local-lvm` |
 
 **All boot disks live on `local-lvm` (the host SSD)** — never the NAS (§3.2). The old 3 TB
-qcow2 on the NAS is not carried forward. 5 vCPU on 4 host threads is a normal 1.25×
-overcommit; there is **no HA claim** — one host means host loss is cluster loss.
+qcow2 on the NAS is not carried forward. 8 vCPU on 4 host threads is a 2× overcommit,
+acceptable for a mostly idle homelab; 32 GiB of guest RAM leaves the 8 GiB reserve inside 46 GiB; the five disks provision 340 GiB of the 360 GiB thin pool (`docs/decisions.md` §3.6); there is **no HA claim** — one host means host loss is cluster loss.
 
-The worker's extra **data disk** (module variable `data_disk`, `data_disk_gb` in
+Each worker's extra **data disk** (module variable `data_disk`, `data_disk_gb` in
 [`talos.tf`](talos.tf)) backs the Talos user volume for the node-local `local-path`
 StorageClass (§3.4, §4.3); the control plane has none.
 
@@ -65,7 +66,7 @@ Production and lab differ; the code does not hardcode either:
 | `vm_bridge` | `vmbr0` (confirm at cutover) | libvirt bridge |
 | `k8s_vlan_id` | `20` | `null` (flat) |
 | `k8s_gateway` | `10.20.0.1` | `10.99.100.1` |
-| `talos_cp_ipv4` / `talos_wk_ipv4` | `10.20.0.11` / `10.20.0.12` | `10.99.100.11` / `10.99.100.12` |
+| `talos_cp_ipv4` / `talos_wk_ipv4` / `talos_wk2_ipv4` | `10.20.0.11` / `10.20.0.12` / `10.20.0.13` | `10.99.100.11` / `10.99.100.12` / `10.99.100.13` |
 
 Nodes live in `10.20.0.11–29`; lab nodes in `10.99.100.0/24`. Node addresses reach the
 guest through Proxmox's cloud-init `network-config`.

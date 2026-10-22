@@ -1,7 +1,8 @@
-# Applied to workers only via `--config-patch-worker` (GPU_WORKER_PATCH in gen-configs.sh). Never
-# apply it to the control plane, and the lab skips it (talos/inputs.lab.env).
+# Applied to the GPU worker only, talos-wk-1 (GPU_WORKER_PATCH and GPU_WORKER_NODE in gen-configs.sh,
+# which bakes it into talos/out/worker-talos-wk-1.yaml). Never apply it to the control plane or to
+# talos-wk-2, and the lab skips it (talos/inputs.lab.env).
 #
-# Loads the NVIDIA driver for the Tesla P4 that OpenTofu passes through to the worker
+# Loads the NVIDIA driver for the Tesla P4 that OpenTofu passes through to talos-wk-1
 # (infrastructure/environments/homelab/proxmox/gpu.tf, docs/hardware.md). The P4 is Pascal, which the
 # open kernel modules do not support, so the schematic carries the proprietary pair
 # siderolabs/nonfree-kmod-nvidia-production + siderolabs/nvidia-container-toolkit-production
@@ -9,9 +10,7 @@
 # (kubernetes/infrastructure). This follows the extension's README at the pinned Talos version:
 # https://github.com/siderolabs/extensions/blob/v1.14.4/nvidia-gpu/nvidia-container-toolkit/README.md
 #
-# Every worker gets this patch. With one worker that is the GPU node. If a second worker without the
-# card is ever added, apply this patch to the GPU node only (a per-node patch), or the module load
-# fails on the other one.
+# talos-wk-2 has no card, so it must not get this patch: the module load would fail there.
 apiVersion: v1alpha1
 kind: KernelModuleConfig
 name: nvidia
@@ -36,12 +35,26 @@ kind: SysctlConfig
 params:
   net.core.bpf_jit_harden: "1"
 ---
-# Schedules the NVIDIA device plugin here: its chart's default node affinity accepts this label as the
-# "force a GPU node" switch (kubernetes/infrastructure/nvidia-device-plugin/release.yaml), so no Node
-# Feature Discovery is needed. Nodes without this patch (the control plane, the lab) run no plugin pod.
-# Talos merges this into the worker's KubeNodeConfig from network-worker.yaml. The nvidia.com prefix is
-# not one NodeRestriction reserves, so the kubelet may set it.
+# Label: schedules the NVIDIA device plugin here. Its chart's default node affinity accepts this label as
+# the "force a GPU node" switch (kubernetes/infrastructure/nvidia-device-plugin/release.yaml), so no Node
+# Feature Discovery is needed. Nodes without this patch (the control plane, talos-wk-2, the lab) run no
+# plugin pod. The nvidia.com prefix is not one NodeRestriction reserves, so the kubelet may set it.
+#
+# Taint: a soft one, so the scheduler keeps this node for the work that needs it.
+# - Ordinary pods prefer talos-wk-2 and land here only when wk-2 is full.
+# - GPU pods ask for nvidia.com/gpu, which only this node offers, so they fit nowhere else; the
+#   `nvidia` RuntimeClass also pins them here (kubernetes/infrastructure/runtime-classes/nvidia.yaml).
+# - Pods with local-path volumes stay here, since their PVs live on this node's data disk
+#   (docs/decisions.md §3.4). PreferNoSchedule allows that; NoSchedule would strand them.
+# - The device plugin DaemonSet is unaffected: a soft taint never blocks a pod.
+# The kubelet sets it only when the node registers (registerWithTaints). A node that is already in the
+# cluster needs it once by hand, `kubectl taint nodes talos-wk-1 nvidia.com/gpu=present:PreferNoSchedule`;
+# Talos then sees its own taint and keeps it.
+#
+# Talos merges this into the worker's KubeNodeConfig from network-worker.yaml.
 apiVersion: v1alpha1
 kind: KubeNodeConfig
 labels:
   nvidia.com/gpu.present: "true"
+taints:
+  nvidia.com/gpu: present:PreferNoSchedule

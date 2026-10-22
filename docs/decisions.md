@@ -67,7 +67,8 @@ gateway, MTU 9000:
 | `10.99.0.1` | poseidon (`vmbr1`) | proxmox root `storage-link.tf` |
 | `10.99.0.2` | hercules-nas (`bond1`) | truenas root `storage-link.tf`; `NFS_SERVER` |
 | `10.99.0.3` | talos-cp-1, second NIC (`net1` on `vmbr1`) | `talos/patches/network-controlplane.yaml` |
-| `10.99.0.4` | talos-wk-1, second NIC | `talos/patches/network-worker.yaml` |
+| `10.99.0.4` | talos-wk-1, second NIC | `talos/patches/node-talos-wk-1.yaml` |
+| `10.99.0.5` | talos-wk-2, second NIC | `talos/patches/node-talos-wk-2.yaml` |
 
 **Why a /29 (2026-10-21):** the cluster mounts NFS from the NAS (§4.2), and the Talos nodes live on
 `10.20.0.0/24`, off the old `/30`. A NIC on the link gives them a direct path: no routing or NAT on poseidon, the
@@ -142,16 +143,18 @@ must not share a broadcast domain (e.g. iSCSI). Neither exists here.
 
 ## 3. Compute and Kubernetes
 
-### 3.1 — 1 control plane + 1 worker — *provisional*
+### 3.1 — 1 control plane + 2 workers — *provisional*
 
 | Guest | vCPU | RAM | Disk |
 |---|---|---|---|
 | `talos-cp-1` | 2 | 4 GiB | 20 GiB |
 | `talos-wk-1` | 3 | 16 GiB | 80 GiB boot **+ 100 GiB data** |
+| `talos-wk-2` | 3 | 12 GiB | 40 GiB boot **+ 100 GiB data** |
 
-5 vCPU on 4 threads is a 1.25× overcommit — normal, because idle control planes use very little.
-**No HA claim**: one physical host means host loss is cluster loss. Provisional until the lab measures
-real usage. The worker's data disk is explained in §3.4.
+8 vCPU on 4 threads is a 2× overcommit — acceptable, because idle control planes and an idle second worker
+use very little. 32 GiB of guest RAM leaves the 8 GiB hypervisor reserve inside the 46 GiB host. **No HA
+claim**: one physical host means host loss is cluster loss. Provisional until the lab measures real usage.
+The data disks are explained in §3.4; the second worker in §3.6.
 
 The control plane was 2 GiB until the lab measured it (2026-10-21): 2 GiB thrashed, and 3 GiB with 2 vCPU
 still crash-looped MetalLB on a cold boot. It runs every DaemonSet as well as the API server and etcd. 4 GiB
@@ -187,9 +190,14 @@ database I/O from the OS disk, and is cleaner than re-partitioning the boot disk
 **Honest limits:** the disk is **node-local and NOT replicated** — this is not HA. Losing the worker, or
 recreating it from OpenTofu, loses the Local PVs; the only recovery path is the scheduled logical dumps to
 the NAS in §4.3. The +100 GiB still fits the host SSD's `local-lvm` (360 GiB) after both boot disks
-(20 + 80 GiB) and the capacity reserve for the hypervisor / a non-Kubernetes VM.
+(20 + 80 GiB) and the capacity reserve for the hypervisor / a non-Kubernetes VM. (With `talos-wk-2`, see the
+disk budget in §3.6.)
 
 **Replaces:** the implicit §3.1 assumption that each VM has exactly one disk (boot only).
+
+**Amended 2026-10-22 (§3.6):** `talos-wk-2` gets the same 100 GiB data disk and user volume. Existing
+`local-path` PVs stay on `talos-wk-1`, and their pods follow them there; moving a stateful app to
+`talos-wk-2` is a separate, deliberate change (dump, recreate the PVC, restore).
 
 ### 3.5 — Untrusted CI build jobs run in Kata microVMs; one Talos schematic for every node — *decided 2026-10-21*
 
@@ -202,7 +210,7 @@ patch. Builds stay on the worker (the control plane is tainted).
 **Schematic:** `talos/schematic.yaml` is the single schematic for production (`nocloud`) and the lab (`metal`);
 only the installer platform differs. It holds `siderolabs/kata-containers`, `siderolabs/qemu-guest-agent` and the
 NVIDIA pair for the Tesla P4 (`siderolabs/nonfree-kmod-nvidia-production`,
-`siderolabs/nvidia-container-toolkit-production`; only the production worker loads the driver,
+`siderolabs/nvidia-container-toolkit-production`; only `talos-wk-1` loads the driver,
 `talos/patches/gpu-worker.yaml`) (id in `talos/inputs.env`; it must equal `talos_image_schematic_id` in the Proxmox environment). The agent
 extension waits forever for the virtio channel, so with this image `talos_qemu_guest_agent_enabled` (Proxmox)
 and the libvirt `org.qemu.guest_agent.0` channel (lab) must be on.
@@ -215,6 +223,32 @@ owner-gated at cutover.
 `local-path` PVC on the worker's data disk, thrown away with the job. NFS (`nas-nfs`) is only for what must
 persist. Build pods get no `hostPath` and no container-runtime socket; images are built rootless
 (for example `buildkit` rootless inside the Kata pod), never with a privileged Docker-in-Docker.
+
+### 3.6 — A second worker without the GPU; GPU pods stay on `talos-wk-1` — *decided 2026-10-22*
+
+`talos-wk-2` (3 vCPU / 12 GiB, 40 GiB boot + 100 GiB data, storage link `10.99.0.5`) joins as a second worker.
+The Tesla P4 can be passed through to one VM only, and sharing it across VMs needs NVIDIA vGPU licensing,
+which this project does not use. So `talos-wk-1` keeps the card and `talos-wk-2` has none.
+
+- **Per-node machine configs.** `scripts/talos/gen-configs.sh` derives `talos/out/worker-talos-wk-1.yaml` and
+  `worker-talos-wk-2.yaml` from the shared `worker.yaml` with `talos/patches/node-talos-wk-*.yaml` (the
+  node's storage-link address). Only `talos-wk-1` gets `talos/patches/gpu-worker.yaml`; on a node without
+  the card the NVIDIA module load would fail. The base `worker.yaml` is never applied in production.
+- **GPU pods land on `talos-wk-1`.** They request `nvidia.com/gpu`, which only that node offers, and the
+  `nvidia` RuntimeClass pins them there with a nodeSelector (`kubernetes/infrastructure/runtime-classes`).
+- **Ordinary pods prefer `talos-wk-2`.** `talos-wk-1` carries a soft taint,
+  `nvidia.com/gpu=present:PreferNoSchedule`, so the scheduler keeps it free for GPU work and uses it for
+  other pods only when `talos-wk-2` is full. A hard `NoSchedule` would strand the pods whose `local-path`
+  PVs live on `talos-wk-1` (§3.4).
+
+**Disk budget:** the five disks provision 340 GiB of the 360 GiB `local-lvm` thin pool (cp 20, wk-1 80 + 100,
+wk-2 40 + 100). That is why `talos-wk-2`'s boot disk is 40 GiB rather than 80: it holds only the OS and
+ordinary images, while the CUDA images live on `talos-wk-1`. A non-Kubernetes VM then needs the thin pool's
+real usage, not its provisioned size, to leave room; check `lvs` before adding one.
+
+**Honest limits:** still one host, so still no HA. The second worker adds capacity and lets a worker drain
+for maintenance, but a pod with a `local-path` PV cannot move while its node is down. Talos sets the taint
+only when a node registers, so the existing `talos-wk-1` needs it once by hand (`docs/runbooks/talos-bootstrap.md`).
 
 ## 4. Storage
 

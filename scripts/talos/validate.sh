@@ -44,13 +44,15 @@ if [ ! -d "$OUT_DIR" ]; then
 fi
 
 configs=()
-for type in controlplane worker; do
-  cfg="$OUT_DIR/$type.yaml"
-  [ -f "$cfg" ] && configs+=("$cfg")
+# worker-<node>.yaml: the per-node worker configs that production applies (gen-configs.sh).
+shopt -s nullglob
+for cfg in "$OUT_DIR"/controlplane.yaml "$OUT_DIR"/worker.yaml "$OUT_DIR"/worker-*.yaml; do
+  configs+=("$cfg")
 done
+shopt -u nullglob
 
 if [ "${#configs[@]}" -eq 0 ]; then
-  echo "no controlplane.yaml/worker.yaml under $OUT_DIR — run ./scripts/talos/gen-configs.sh first" >&2
+  echo "no controlplane.yaml/worker*.yaml under $OUT_DIR — run ./scripts/talos/gen-configs.sh first" >&2
   exit 1
 fi
 

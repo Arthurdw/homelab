@@ -26,7 +26,7 @@ variable "k8s_dataset_name" {
 }
 
 variable "k8s_nfs_allowed_networks" {
-  description = "CIDRs allowed to mount the NFS exports (k8s, kopia, seafile). Defaults to the storage link /29 (decisions.md §2.2): poseidon .1, NAS .2, talos-cp-1 .3, talos-wk-1 .4. The Talos nodes have their own NIC on the link and mount directly, unrouted, so their source address is .3/.4. Never 0.0.0.0/0."
+  description = "CIDRs allowed to mount the NFS exports (k8s, kopia, seafile). Defaults to the storage link /29 (decisions.md §2.2): poseidon .1, NAS .2, talos-cp-1 .3, talos-wk-1 .4, talos-wk-2 .5. The Talos nodes have their own NIC on the link and mount directly, unrouted, so their source address is .3/.4/.5. Never 0.0.0.0/0."
   type        = list(string)
   default     = ["10.99.0.0/29"]
 
@@ -117,7 +117,7 @@ variable "storage_link_interface" {
 }
 
 variable "storage_link_address" {
-  description = "The NAS's address on the storage link /29 (poseidon .1, talos-cp-1 .3, talos-wk-1 .4; decisions.md §2.2). Keep it inside k8s_nfs_allowed_networks; NFS_SERVER in kubernetes/clusters/homelab/cluster-settings.yaml points here."
+  description = "The NAS's address on the storage link /29 (poseidon .1, talos-cp-1 .3, talos-wk-1 .4, talos-wk-2 .5; decisions.md §2.2). Keep it inside k8s_nfs_allowed_networks; NFS_SERVER in kubernetes/clusters/homelab/cluster-settings.yaml points here."
   type        = string
   default     = "10.99.0.2"
 

@@ -2,7 +2,8 @@
 #   10.99.0.1  poseidon (this bridge)
 #   10.99.0.2  hercules-nas (truenas root)
 #   10.99.0.3  talos-cp-1, net1 (talos.tf attaches it; talos/patches/network-controlplane.yaml addresses it)
-#   10.99.0.4  talos-wk-1, net1 (talos/patches/network-worker.yaml)
+#   10.99.0.4  talos-wk-1, net1 (talos/patches/node-talos-wk-1.yaml)
+#   10.99.0.5  talos-wk-2, net1 (talos/patches/node-talos-wk-2.yaml)
 # It carries NFS and nothing else: no gateway, no VLAN, no route off the link, no NAT.
 #
 # vmbr1 is a Linux bridge with the fibre NIC as its only port (a bridge, not a bare NIC address, so a

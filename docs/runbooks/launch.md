@@ -142,8 +142,8 @@ UniFi switch-port tagging (HOME native; VLAN 4 and 20 tagged), a UI step.
 - **Interfaces.** `nic0` (1 GbE) is `vmbr0` carrying VLAN 4. `nic1` and `nic2` are the 10 GbE X520. The direct
   fibre is on `nic2` (carrier seen 2026-10-21); `nic1` is unused. Only `nic2`'s `mtu 9000` stanza is set by
   hand; `vmbr1` itself is created by the Proxmox root (step 5).
-- **Direct 10 GbE link.** `10.99.0.0/29`: poseidon `.1` (on `vmbr1`), hercules-nas `.2`, talos-cp-1 `.3` and
-  talos-wk-1 `.4` (each VM's second NIC on `vmbr1`), MTU 9000, no gateway (`docs/decisions.md` §2.2, decided
+- **Direct 10 GbE link.** `10.99.0.0/29`: poseidon `.1` (on `vmbr1`), hercules-nas `.2`, talos-cp-1 `.3`,
+  talos-wk-1 `.4` and talos-wk-2 `.5` (each VM's second NIC on `vmbr1`), MTU 9000, no gateway (`docs/decisions.md` §2.2, decided
   2026-10-21; MTU provisional). poseidon sees carrier on `nic2`; the NAS side
   is not configured yet and nothing has been pinged or measured on the real link. Both ends are OpenTofu
   resources (`storage-link.tf` in the Proxmox and TrueNAS roots, proven on the lab fixtures only), so this

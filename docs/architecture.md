@@ -41,15 +41,16 @@ Verified: i5-7400 (4c/4t), 46 GiB RAM, single 489 GiB SSD (SPOF), no ZFS on host
 
 - **VM boot disks live on `local-lvm`** (local SSD) — *not* on the NAS. The current setup puts a 3 TB VM disk
   on SMB; that couples VM I/O to the network and the NAS and should not continue.
-- **Kubernetes topology: 1 control plane + 1 worker**, both on the single host (`docs/decisions.md` §3.1,
+- **Kubernetes topology: 1 control plane + 2 workers**, all on the single host (`docs/decisions.md` §3.1,
   provisional until the lab measures real usage). *No HA claim* — host loss = cluster loss.
 - Reserve capacity for the hypervisor + at least one non-Kubernetes service VM; never overcommit RAM to the
   point where the host thrashes (today's 42/46 GiB usage is a temporary outlier, not a target).
 
 | Guest | vCPU | RAM | Disk (local-lvm) |
 |---|---|---|---|
-| `talos-cp-1` | 2 | 2 GiB | 20 GiB |
+| `talos-cp-1` | 2 | 4 GiB | 20 GiB |
 | `talos-wk-1` | 3 | 16 GiB | 80 GiB boot + 100 GiB data (`local-path`, decisions §3.4); Tesla P4 passthrough (`gpu.tf`) |
+| `talos-wk-2` | 3 | 12 GiB | 40 GiB boot + 100 GiB data; no GPU (decisions §3.6) |
 
 ## 4. Storage plan (TrueNAS)
 
@@ -72,7 +73,7 @@ See `docs/network-plan.md`. **Decided at GATE 0** (rationale: `docs/decisions.md
 - **K8s on a new VLAN 20, `10.20.0.0/24`**: UDM gateway `10.20.0.1`, nodes `10.20.0.11–29`, MetalLB pool
   `10.20.0.100–199`. Keeps cluster traffic off the management segment, and it is additive-only on the UDM.
 - **Storage link:** moves from link-local to `10.99.0.0/29` (Proxmox `.1`, NAS `.2`, talos-cp-1 `.3`, talos-wk-1
-  `.4`, no gateway, MTU 9000). Each Talos VM has a second NIC on it, so NFS needs no routing. MTU is
+  `.4`, talos-wk-2 `.5`, no gateway, MTU 9000). Each Talos VM has a second NIC on it, so NFS needs no routing. MTU is
   **provisional** until throughput is measured at cutover.
 - **Pods `10.244.0.0/16`, Services `10.96.0.0/16`** — identical in every environment, deliberately.
 - **Lab addresses are disjoint**: nodes/VIPs `10.99.100.0/24`, storage link `10.99.101.0/30`.
@@ -84,10 +85,12 @@ See `docs/network-plan.md`. **Decided at GATE 0** (rationale: `docs/decisions.md
 
 - **Talos Linux** (pinned `v1.14.4`, Kubernetes `v1.37.1`) for all nodes; machine configs generated, secrets
   never committed.
-- **Topology:** 1 control plane (2 vCPU / 2 GiB / 20 GiB) + 1 worker (3 vCPU / 16 GiB / 80 GiB boot
-  **+ 100 GiB data disk**); all VM disks on the host SSD, never on the NAS. The worker's data disk exists
-  so the node-local `local-path` StorageClass has a non-system disk to hold its Talos user volume
-  (`docs/decisions.md` §3.4, §4.3). **No HA claim** — one host means host loss is cluster loss.
+- **Topology:** 1 control plane (2 vCPU / 4 GiB / 20 GiB) + 2 workers (3 vCPU and a **100 GiB data disk**
+  each; `talos-wk-1` 16 GiB / 80 GiB boot with the Tesla P4, `talos-wk-2` 12 GiB / 40 GiB boot without); all VM disks on the host
+  SSD, never on the NAS. A worker's data disk exists so the node-local `local-path` StorageClass has a
+  non-system disk to hold its Talos user volume (`docs/decisions.md` §3.4, §4.3). GPU pods run on
+  `talos-wk-1`, which carries a soft `PreferNoSchedule` taint so ordinary pods prefer `talos-wk-2` (§3.6).
+  **No HA claim** — one host means host loss is cluster loss.
 - **CNI: Cilium** with kube-proxy replacement (NetworkPolicy support, fewer components on a 4-thread host).
   Provisional — Flannel is the documented fallback if resources prove insufficient.
 - **Flux** (`v2.9.6`) owns all ongoing Kubernetes config; separate `infrastructure/`, `infrastructure/configs/`

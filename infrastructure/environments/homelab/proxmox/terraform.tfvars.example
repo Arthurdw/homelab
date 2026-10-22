@@ -23,16 +23,19 @@ k8s_gateway      = "10.20.0.1"
 k8s_prefix_length = 24
 talos_cp_ipv4    = "10.20.0.11"   # lab: 10.99.100.11
 talos_wk_ipv4    = "10.20.0.12"   # lab: 10.99.100.12
+talos_wk2_ipv4   = "10.20.0.13"   # lab: 10.99.100.13
 
 # --- Talos VMIDs ---
 # TODO(GATE 4): confirm at cutover (the temporary live VM uses 100).
 talos_cp_vmid = 110
 talos_wk_vmid = 111
+talos_wk2_vmid = 112
 
 # Optional fixed MACs, keyed by node name. TODO(GATE 4): assign with UniFi reservations.
 # talos_macs = {
 #   talos-cp-1 = "BC:24:11:00:00:11"
 #   talos-wk-1 = "BC:24:11:00:00:12"
+#   talos-wk-2 = "BC:24:11:00:00:13"
 # }
 
 # --- Storage ---
@@ -71,6 +74,10 @@ proxmox_host_memory_reserve_mb = 8192
 # talos_wk_memory_mb    = 16384
 # talos_wk_disk_gb      = 80
 # talos_wk_data_disk_gb = 100    # null = no data disk
+# talos_wk2_cpu_cores    = 3
+# talos_wk2_memory_mb    = 12288
+# talos_wk2_disk_gb      = 40
+# talos_wk2_data_disk_gb = 100   # null = no data disk
 # talos_vm_started      = true
 # talos_vm_on_boot      = true
 

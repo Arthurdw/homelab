@@ -90,7 +90,8 @@ rsync -a --delete --include='*.tf' --include='.terraform.lock.hcl' --exclude='*'
 rsync -a --delete --include='*.tf' --exclude='*' "$MODULE_REL/" "$WORK/$MODULE_REL/"
 cp versions.yaml "$WORK/versions.yaml"
 umask 077
-# Sized for a 4 GiB nested Proxmox: stopped VMs, 2 GiB each, small thin disks, no data disk. The
+# Sized for a 4 GiB nested Proxmox: stopped VMs, 4 GiB between the three (so the root's capacity check
+# stays quiet), small thin disks, no data disk. The
 # production values are the variable defaults. Addresses are lab addresses outside the MetalLB pool.
 cat >"$WORK/$ROOT_REL/fixture.auto.tfvars" <<TFVARS
 proxmox_endpoint               = "${url%/}/"
@@ -105,12 +106,17 @@ k8s_gateway                    = "10.99.100.1"
 k8s_prefix_length              = 24
 talos_cp_ipv4                  = "10.99.100.31"
 talos_wk_ipv4                  = "10.99.100.32"
+talos_wk2_ipv4                 = "10.99.100.33"
 talos_cp_memory_mb             = 2048
 talos_cp_disk_gb               = 10
-talos_wk_memory_mb             = 2048
+talos_wk_memory_mb             = 1024
 talos_wk_cpu_cores             = 2
 talos_wk_disk_gb               = 10
 talos_wk_data_disk_gb          = null
+talos_wk2_memory_mb            = 1024
+talos_wk2_cpu_cores            = 2
+talos_wk2_disk_gb              = 10
+talos_wk2_data_disk_gb         = null
 talos_vm_started               = false
 talos_vm_on_boot               = false
 gpu_passthrough                = null
@@ -170,8 +176,8 @@ run_tofu apply -input=false -no-color fixture.tfplan | tail -n 12
 log "check the VMs and the image on the fixture"
 vms="$(pve_ssh "pvesh get /cluster/resources --type vm --output-format json")"
 echo "$vms" | jq -r '.[] | "   vmid \(.vmid) \(.name) status \(.status) maxmem \(.maxmem/1048576|floor)MiB"'
-[ "$(echo "$vms" | jq '[.[] | select(.name=="talos-cp-1" or .name=="talos-wk-1")] | length')" = 2 ] \
-  || die "the two Talos VMs are not on the fixture after apply"
+[ "$(echo "$vms" | jq '[.[] | select(.name=="talos-cp-1" or .name=="talos-wk-1" or .name=="talos-wk-2")] | length')" = 3 ] \
+  || die "the three Talos VMs are not on the fixture after apply"
 pve_ssh "ls -l /var/lib/vz/template/iso/ | grep -E 'talos-.*nocloud-amd64.img'" | sed 's/^/   /' \
   || die "the Talos image is not in local:iso after apply"
 
@@ -184,7 +190,7 @@ pve_ssh "test -e /sys/class/net/vmbr1/brif/nic2" || die "nic2 is not a port of v
 note "vmbr1: 10.99.0.1/29, MTU 9000, port nic2 at MTU 9000"
 
 log "check each Talos VM's storage-link NIC (net1 on vmbr1, MTU 9000, no VLAN)"
-for vmid in $(echo "$vms" | jq -r '.[] | select(.name=="talos-cp-1" or .name=="talos-wk-1") | .vmid'); do
+for vmid in $(echo "$vms" | jq -r '.[] | select(.name=="talos-cp-1" or .name=="talos-wk-1" or .name=="talos-wk-2") | .vmid'); do
   # Match the fields only; the line also carries a generated MAC, which is never printed.
   net1="$(pve_ssh "qm config $vmid" | grep '^net1:' || true)"
   [ -n "$net1" ] || die "vmid $vmid has no net1"

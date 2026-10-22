@@ -75,7 +75,7 @@ would break their different retention, so it has none (reasoning in `tiers.tf`).
   rebuilt under another name, both sides move together.
 
 Resolved 2026-10-21: **NFS client network vs routing.** The storage link is a `/29` and each Talos VM has
-a NIC on it (poseidon `.1`, NAS `.2`, talos-cp-1 `.3`, talos-wk-1 `.4`; decisions §2.2). Nodes mount
+a NIC on it (poseidon `.1`, NAS `.2`, talos-cp-1 `.3`, talos-wk-1 `.4`, talos-wk-2 `.5`; decisions §2.2). Nodes mount
 directly, with no routing or NAT, so `k8s_nfs_allowed_networks` defaults to `10.99.0.0/29` for every export.
 
 ## Verified against

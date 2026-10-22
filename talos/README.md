@@ -28,9 +28,11 @@ Upgrade the client to the pin before touching a live node.
 | `patches/controlplane.yaml` | yes | Control plane: disables kube-proxy (Cilium replaces it; Talos rejects this document on workers). |
 | `patches/worker.yaml` | yes | Workers: the `local-path-provisioner` user volume on the data disk (decisions §3.4). |
 | `patches/network-controlplane.yaml` | yes | Production control plane: storage-link NIC `10.99.0.3/29`, MTU 9000; kubelet node IP and etcd pinned to `10.20.0.0/24` (decisions §2.2). |
-| `patches/network-worker.yaml` | yes | Production worker: storage-link NIC `10.99.0.4/29`, MTU 9000; kubelet node IP pinned to `10.20.0.0/24`. |
-| `patches/gpu-worker.yaml` | yes | Production worker: NVIDIA driver modules and `net.core.bpf_jit_harden=1` for the passed-through Tesla P4. |
-| `out/` | **no** (gitignored) | Generated `controlplane.yaml`, `worker.yaml`, `talosconfig`, the `secrets.yaml` bundle, `--regen` backups. Contains secrets. |
+| `patches/network-worker.yaml` | yes | Production workers: the `storage0` NIC alias; kubelet node IP pinned to `10.20.0.0/24`. |
+| `patches/node-talos-wk-1.yaml` | yes | `talos-wk-1` only: storage-link address `10.99.0.4/29`, MTU 9000. |
+| `patches/node-talos-wk-2.yaml` | yes | `talos-wk-2` only: storage-link address `10.99.0.5/29`, MTU 9000. |
+| `patches/gpu-worker.yaml` | yes | `talos-wk-1` only: NVIDIA driver modules and `net.core.bpf_jit_harden=1` for the passed-through Tesla P4, the `nvidia.com/gpu.present` label and the `nvidia.com/gpu=present:PreferNoSchedule` taint. |
+| `out/` | **no** (gitignored) | Generated `controlplane.yaml`, `worker.yaml` (production: the shared base, never applied), `worker-<node>.yaml` (production: one per worker), `talosconfig`, the `secrets.yaml` bundle, `--regen` backups. Contains secrets. |
 
 Patches are Talos 1.14 **multi-document** patches (matched by `apiVersion`/`kind`), not legacy
 `machine:`/`cluster:` paths, which collide with the generated documents and fail `talosctl validate`.
@@ -44,9 +46,21 @@ has no `/var/mnt/local-path-provisioner`.
 `CONTROLPLANE_NETWORK_PATCH` and `WORKER_NETWORK_PATCH` work the same way (defaults `talos/patches/network-*.yaml`).
 The lab sets both empty: its guests have one NIC and no storage link.
 
-`GPU_WORKER_PATCH` (default `talos/patches/gpu-worker.yaml`) loads the NVIDIA modules for the Tesla P4. The lab
-sets it empty: it has no GPU. Every node's image carries the NVIDIA extensions (one shared schematic), but
-without this patch nothing loads them.
+**Per-node workers.** `WORKER_NODES` (default `talos-wk-1 talos-wk-2`) lists the production workers. For each,
+the generator patches the shared `worker.yaml` with `patches/node-<node>.yaml` into `out/worker-<node>.yaml`,
+and that file is what the node gets (`just talos-apply`, `just talos-upgrade-config <ip>`). The storage-link
+address is the only thing that differs between the two, so it lives in the node files. The lab sets
+`WORKER_NODES` empty and applies `worker.yaml` as before.
+
+`GPU_WORKER_PATCH` (default `talos/patches/gpu-worker.yaml`) loads the NVIDIA modules for the Tesla P4 and
+marks the node: a label for the device plugin and a soft taint, so ordinary pods prefer `talos-wk-2`.
+`GPU_WORKER_NODE` (default `talos-wk-1`) is the one worker that gets it; `talos-wk-2` has no GPU. The lab sets
+the patch empty. Every node's image carries the NVIDIA extensions (one shared schematic), but without this
+patch nothing loads them. The kubelet sets the taint only when a node registers, so a `talos-wk-1` that is
+already in the cluster needs it once with `kubectl taint` (`patches/gpu-worker.yaml`).
+
+`local-path` volumes stay on `talos-wk-1`'s data disk, so their pods stay there too; moving stateful apps to
+`talos-wk-2` is a separate change.
 
 **Storage NIC selection.** The patches never name a MAC. A `LinkAliasConfig` called `storage0` matches
 `link.driver == "virtio_net" && link.bus_path.endsWith(":13.0")`: Proxmox puts `netN` on PCI slot `0x12+N`
@@ -60,7 +74,7 @@ Both scripts are offline: they read and write local files only.
 ```sh
 ./scripts/talos/gen-configs.sh            # generate into talos/out/ (no-op if it already exists)
 ./scripts/talos/gen-configs.sh --dry-run  # print the command, write nothing
-./scripts/talos/gen-configs.sh --regen    # rebuild controlplane/worker.yaml from secrets.yaml (same PKI)
+./scripts/talos/gen-configs.sh --regen    # rebuild controlplane/worker*.yaml from secrets.yaml (same PKI)
 ./scripts/talos/gen-configs.sh --force    # NEW PKI: never on a running cluster
 TALOS_INPUTS=talos/inputs.lab.env ./scripts/talos/gen-configs.sh   # lab configs into talos/out/lab
 just talos-validate                       # talosctl validate --mode metal on every config

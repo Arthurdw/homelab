@@ -1,7 +1,7 @@
 # Talos node VMs — the decided topology in one file (docs/decisions.md §3.1).
 #
 # Review order:
-#   1. locals.talos_nodes      — the two guests, their sizing and addresses
+#   1. locals.talos_nodes      — the three guests, their sizing and addresses
 #   2. proxmox_download_file   — the Talos image and how it gets here
 #   3. module.talos            — one VM per table row
 #
@@ -27,7 +27,7 @@ locals {
   # Sizing per docs/decisions.md §3.1 (the variable defaults); addresses and sizes are variables so
   # the L1 fixture can differ.
   # `data_disk_gb` is the non-system disk backing the Talos user volume for `local-path`
-  # (§3.4, §4.3); the control plane gets none.
+  # (§3.4, §4.3); the control plane gets none. talos-wk-1 also gets the GPU (gpu.tf); talos-wk-2 has none.
   talos_nodes = {
     "talos-cp-1" = {
       vm_id        = var.talos_cp_vmid
@@ -45,6 +45,15 @@ locals {
       disk_gb      = var.talos_wk_disk_gb
       data_disk_gb = var.talos_wk_data_disk_gb
       ipv4         = var.talos_wk_ipv4
+      role         = "worker"
+    }
+    "talos-wk-2" = {
+      vm_id        = var.talos_wk2_vmid
+      cpu_cores    = var.talos_wk2_cpu_cores
+      memory_mb    = var.talos_wk2_memory_mb
+      disk_gb      = var.talos_wk2_disk_gb
+      data_disk_gb = var.talos_wk2_data_disk_gb
+      ipv4         = var.talos_wk2_ipv4
       role         = "worker"
     }
   }

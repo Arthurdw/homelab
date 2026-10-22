@@ -1,5 +1,7 @@
 # Production only (talos/inputs.env WORKER_NETWORK_PATCH; the libvirt lab sets it empty).
-# talos-wk-1's second NIC on the 10 GbE storage link, and the node pinned to its primary network.
+# Shared by both workers: the second NIC on the 10 GbE storage link, and the node pinned to its primary
+# network. Each worker's storage-link address is in its own file, talos/patches/node-<node>.yaml
+# (wk-1 .4, wk-2 .5), since the address is the one thing that differs between them.
 # Decision: docs/decisions.md §2.2. Selector reasoning: network-controlplane.yaml.
 
 apiVersion: v1alpha1
@@ -7,14 +9,6 @@ kind: LinkAliasConfig
 name: storage0
 selector:
   match: link.driver == "virtio_net" && link.bus_path.endsWith(":13.0")
----
-apiVersion: v1alpha1
-kind: LinkConfig
-name: storage0
-up: true
-mtu: 9000
-addresses:
-  - address: 10.99.0.4/29
 ---
 apiVersion: v1alpha1
 kind: KubeNodeConfig
