@@ -1,0 +1,75 @@
+---
+# Limits what the internet-facing connector can reach (docs/decisions.md §5.13), enforced by Cilium.
+# The ingress allowlist in tunnel-config.yaml is the first line; this is the second: even a wrong rule or a
+# compromised pod cannot reach the Kubernetes API, Authentik, the NAS or anything else on the LAN.
+#
+# Egress: cluster DNS, the two origins (pod ports, as NetworkPolicy sees traffic after the Service DNAT),
+# and Cloudflare's edge on the public internet only (7844 TCP/UDP for the tunnel, 443 for the edge
+# discovery fallback). Ingress: none. Kubelet probes come from the node and are always allowed by Cilium;
+# the metrics port (which also serves /config) is not reachable from other pods.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cloudflared
+  namespace: cloudflared
+  labels:
+    app.kubernetes.io/name: cloudflared
+    app.kubernetes.io/part-of: cloudflared
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: seafile
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: seafile
+              app.kubernetes.io/component: server
+      ports:
+        - protocol: TCP
+          port: 80
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: immich
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: immich-public-proxy
+      ports:
+        - protocol: TCP
+          port: 3000
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 7844
+        - protocol: UDP
+          port: 7844
+        - protocol: TCP
+          port: 443

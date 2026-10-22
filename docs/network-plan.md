@@ -97,6 +97,12 @@ host records: they fall under the wildcard, so Traefik serves the Let's Encrypt 
 host with its pinned certificate verified. The host names stay direct, so the UIs are reachable without the
 cluster.
 
+**Public share names (`docs/decisions.md` §5.13):** `files.ardw.be` is its own Technitium zone, created by the
+same CronJob (`APEX_ZONES`) with an A record to the Traefik VIP; the UDM forwards it to Technitium
+(`infrastructure/environments/homelab/unifi/dns.tf`), so the LAN gets the full Seafile UI. Public DNS points
+it at the Cloudflare Tunnel, which passes only share links. `photos.ardw.be` exists only in public DNS: its sole
+origin is the share proxy, so the LAN uses the tunnel too.
+
 **Cluster nodes' DNS:** the Talos nodes resolve via the UDM gateway `10.20.0.1` only (a `ResolverConfig` in
 `talos/patches/network-*.yaml`; cloud-init sets no nameserver, so Talos would default to `1.1.1.1`). The UDM's
 Forward Domain sends `lab.ardw.be` to Technitium, and CoreDNS forwards to the host resolver, so pods can resolve

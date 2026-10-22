@@ -255,7 +255,7 @@ lab-truenas-plan *args:
 # Apply order: unifi → truenas → proxmox. See scripts/live/tofu.sh.
 # ---------------------------------------------------------------------------
 
-# Read-only plan of a live root: `just plan unifi|truenas|proxmox|all`
+# Read-only plan of a live root: `just plan unifi|truenas|proxmox|cloudflare|all`
 plan root *args:
   ./scripts/live/tofu.sh plan {{root}} {{args}}
 
@@ -269,6 +269,8 @@ plan-proxmox *args: (plan "proxmox" args)
 apply-unifi *args: (apply "unifi" args)
 apply-truenas *args: (apply "truenas" args)
 apply-proxmox *args: (apply "proxmox" args)
+plan-cloudflare *args: (plan "cloudflare" args)
+apply-cloudflare *args: (apply "cloudflare" args)
 
 # Turn on Immich's Authentik login through its API (IMMICH_API_KEY or prompt); `--dry-run` shows the diff only
 immich-oauth *ARGS:
@@ -281,6 +283,10 @@ audiobookshelf-oauth *ARGS:
 # Turn on Technitium's Authentik SSO through its API (admin password read from the cluster); `--dry-run` shows the diff only
 technitium-sso *ARGS:
   ./scripts/technitium/sso.sh {{ARGS}}
+
+# Point Immich's share links at https://photos.ardw.be (server.externalDomain); `--dry-run` shows the diff only
+immich-external-domain *ARGS:
+  ./scripts/immich/external-domain.sh {{ARGS}}
 
 # Show lab prerequisites / resource requirements (no changes)
 lab-doctor:

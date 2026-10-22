@@ -16,12 +16,14 @@
 #   proxmox  proxmox.env holds PROXMOX_VE_API_TOKEN. Creating the Talos VMs imports their disk over SSH as
 #            root, through the ssh-agent only (providers.tf; ~/.ssh/config is ignored), so `apply` refuses to
 #            start unless the agent holds a key.
+#   cloudflare  cloudflare.env holds TF_VAR_cloudflare_api_token (Zone DNS:Edit on ardw.be + Account Cloudflare
+#            Tunnel:Edit; never cert-manager's token). Its state holds the tunnel secret (its README.md, State).
 #
 # State is local (terraform.tfstate in the root, gitignored). Init runs once, when .terraform is missing.
 #
 # Usage:
-#   scripts/live/tofu.sh plan unifi|truenas|proxmox [tofu args...]
-#   scripts/live/tofu.sh apply unifi|truenas|proxmox [tofu args...]
+#   scripts/live/tofu.sh plan unifi|truenas|proxmox|cloudflare [tofu args...]
+#   scripts/live/tofu.sh apply unifi|truenas|proxmox|cloudflare [tofu args...]
 #   scripts/live/tofu.sh plan all          # plan every root, in apply order
 #
 # Env: HOMELAB_CREDS (default ~/.config/homelab), TOFU (default tofu)
@@ -30,7 +32,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CREDS="${HOMELAB_CREDS:-$HOME/.config/homelab}"
 TOFU="${TOFU:-tofu}"
-ROOTS=(unifi truenas proxmox) # apply order: VLAN 20 before the Talos VMs, NAS before Proxmox's storage link
+# Apply order: VLAN 20 before the Talos VMs, NAS before Proxmox's storage link. cloudflare is independent.
+ROOTS=(unifi truenas proxmox cloudflare)
 
 log()  { printf '\n\033[1m== %s ==\033[0m\n' "$*"; }
 die()  { printf 'error: %s\n' "$*" >&2; exit 1; }
@@ -70,6 +73,9 @@ case "$root" in
     ;;
   truenas)
     [ -n "${TF_VAR_truenas_api_key:-}" ] || die "TF_VAR_truenas_api_key is not set in $env_file"
+    ;;
+  cloudflare)
+    [ -n "${TF_VAR_cloudflare_api_token:-}" ] || die "TF_VAR_cloudflare_api_token is not set in $env_file"
     ;;
   proxmox)
     [ -n "${PROXMOX_VE_API_TOKEN:-}" ] || die "PROXMOX_VE_API_TOKEN is not set in $env_file"

@@ -250,6 +250,10 @@ Legend: `[x]` done · `[ ]` not done; an *italic note* means started. Reconciled
 - [x] Stremio streaming server (decisions §5.15) at `stremio.lab.ardw.be`, local-only (SPEC §12.6) *(manifests
       written, not yet applied or tried with the Stremio apps. Runbook: `docs/runbooks/stremio.md`. Debrid keys
       stay in the user's Stremio account; no debrid service runs in the cluster)*
+- [ ] Public share links (decisions §5.13): Seafile at `files.ardw.be` and Immich through immich-public-proxy at
+      `photos.ardw.be`, via a Cloudflare Tunnel with a path allowlist *(manifests, OpenTofu root and runbook
+      written and validated offline; not applied. Owner steps and outside verification:
+      `docs/runbooks/public-shares.md`)*
 - [ ] Forgejo mirror *(deferred until production, `docs/future-work.md`; decisions §5.4, §5.6)*
 
 ### Phase 8: Backup automation and verification, ⛔ GATE 8 after a successful restore test

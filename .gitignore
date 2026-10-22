@@ -24,6 +24,9 @@ secrets*.yaml
 !.env.example
 *.pem
 *.key
+# Cloudflare Tunnel credentials (docs/runbooks/public-shares.md); `<tunnel-id>.json` is cloudflared's default name
+*credentials*.json
+cloudflared*.json
 !**/*.pub
 # SOPS ciphertext is safe to commit — never let a secret-looking name hide it
 !*.sops.yaml

@@ -462,6 +462,30 @@ through Authentik OIDC (the blueprint allows both the proxied and the `:8006` or
 finish. Not unlimited, so a trickling client still gets cut off eventually. Everything else stays at the
 chart defaults; no global Traefik setting (cross-namespace references, ExternalName Services) was needed.
 
+### 5.13 — Public share links through a Cloudflare Tunnel, nothing else — *decided 2026-10-22*
+
+Seafile and Immich share links must open for people outside the house. They go through an **outbound-only
+Cloudflare Tunnel** (`kubernetes/apps/cloudflared/`, homelab only, opt-in), so §5.2 still holds: no inbound port,
+no DMZ.
+
+- **`files.ardw.be`** becomes Seafile's canonical host. The tunnel passes only an **anchored path allowlist**
+  of share-link routes (`/f/`, `/d/`, `/u/d/`, their thumbnails, zip and upload endpoints, `/seafhttp/` token
+  URLs and `/media/` assets). Everything else, including login, OAuth, the APIs and admin, gets a 404 from the
+  tunnel's last rule. On the LAN and Tailscale (with split DNS) the UDM forwards the name to Technitium, which
+  answers with the Traefik IP, so the full UI keeps working there. `seafile.lab.ardw.be` redirects to it.
+- **`photos.ardw.be`** goes only to **immich-public-proxy**, which serves shared albums anonymously and never
+  holds an API key. Immich itself stays at `immich.lab.ardw.be`, internal only.
+- **Authentik is never exposed.** Share links need no login.
+- **Seafile hardening:** share links require a password (12 characters minimum, strength 2) and expire after
+  7 days by default (90 maximum).
+- **Cloudflare objects in OpenTofu** (`infrastructure/environments/homelab/cloudflare/`): the tunnel, its
+  config-less credentials and the two proxied CNAMEs. Origins and paths stay in the Git-tracked cloudflared
+  config, so a rule change is a reviewed commit, not a dashboard click.
+
+Accepted risks: Seafile does not rate-limit share-link password guesses (a Cloudflare rate-limit rule is the
+mitigation); Cloudflare terminates TLS and sees shared content; uploads through the tunnel are capped at
+100 MB per request. Owner steps: `docs/runbooks/public-shares.md`.
+
 ### 5.15 — Stremio streaming server: local-only, protected by DNS and routing rather than by a login — *decided 2026-10-22*
 
 **`stremio.lab.ardw.be` runs the official `stremio/server` image** (`kubernetes/apps/stremio/`), pinned by digest.

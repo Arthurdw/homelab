@@ -52,6 +52,9 @@ data:
           client_secret: !Env AUTHENTIK_SEAFILE_OIDC_SECRET
           redirect_uris:
             - matching_mode: strict
+              url: https://files.ardw.be/oauth/callback/
+            # Old name, kept while seafile.lab.ardw.be redirects (decisions.md §5.13).
+            - matching_mode: strict
               url: https://seafile.lab.ardw.be/oauth/callback/
           signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
           # Stable per-user id, so Seafile's uid survives an email change (seafile.yaml OAUTH_ATTRIBUTE_MAP).
@@ -68,7 +71,7 @@ data:
           name: Seafile
           provider: !KeyOf seafile-provider
           group: Apps
-          meta_launch_url: https://seafile.lab.ardw.be/
+          meta_launch_url: https://files.ardw.be/
           meta_description: Files and sync
   grafana.yaml: |
     # Grafana (kube-prometheus-stack, kubernetes/infrastructure/monitoring/release.yaml, grafana.ini

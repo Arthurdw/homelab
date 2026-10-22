@@ -48,7 +48,7 @@ data:
             app: immich
             podSelector: app.kubernetes.io/name=server
         - Seafile:
-            href: https://seafile.lab.ardw.be/
+            href: https://files.ardw.be/
             description: Files and sync
             icon: seafile.png
             namespace: seafile

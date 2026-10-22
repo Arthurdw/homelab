@@ -78,9 +78,11 @@ spec:
       name: letsencrypt-staging-account-key
     solvers:
       - selector:
-          # Covers lab.ardw.be and every name under it (the *.lab.ardw.be wildcard).
+          # lab.ardw.be and every name under it (the *.lab.ardw.be wildcard), plus files.ardw.be, the
+          # Seafile name that is both internal and public (docs/decisions.md §5.13).
           dnsZones:
             - lab.ardw.be
+            - files.ardw.be
         dns01:
           cloudflare:
             apiTokenSecretRef:
@@ -102,6 +104,7 @@ spec:
       - selector:
           dnsZones:
             - lab.ardw.be
+            - files.ardw.be
         dns01:
           cloudflare:
             apiTokenSecretRef:

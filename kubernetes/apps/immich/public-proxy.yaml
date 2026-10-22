@@ -1,0 +1,131 @@
+---
+# immich-public-proxy (IPP): the only thing the internet reaches for Immich (docs/decisions.md §5.13).
+# cloudflared sends all of photos.ardw.be here; IPP serves only shared links (/share/<key>) and their
+# assets, fetching them from Immich as an anonymous share visitor. It needs no API key and stores nothing,
+# so Immich's login, API and admin UI stay unreachable from outside.
+#
+# Runs in both clusters (it is harmless without a tunnel); only homelab's cloudflared points at it.
+# One replica: IPP signs the cookie that remembers an unlocked password-protected share with a secret
+# generated per process, so a second replica would ask for the password again on every other request.
+#
+# Config: only the keys that differ from IPP's defaults (https://docs.ipp.nz/config/), which already hide
+# all EXIF, location and description metadata.
+#   allowDownload 1       follow each Immich share's own "Allow downloads" toggle
+#   showHomePage false    / and /share answer 404 instead of a page announcing IPP
+#   allowSlugLinks false  only the unguessable /share/<key> form, no /s/<custom-slug>
+#   uploadUrl ""          no visitor uploads (the separate upload container is not deployed)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: immich-public-proxy
+  namespace: immich
+  labels:
+    app.kubernetes.io/name: immich-public-proxy
+    app.kubernetes.io/part-of: immich
+data:
+  config.json: |
+    {
+      "ipp": {
+        "allowDownload": 1,
+        "showHomePage": false,
+        "allowSlugLinks": false,
+        "uploadUrl": ""
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: immich-public-proxy
+  namespace: immich
+  labels:
+    app.kubernetes.io/name: immich-public-proxy
+    app.kubernetes.io/part-of: immich
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: immich-public-proxy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: immich-public-proxy
+        app.kubernetes.io/part-of: immich
+    spec:
+      automountServiceAccountToken: false
+      # The image runs as the `node` user (1000).
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: immich-public-proxy
+          # versions.yaml app_images.immich_public_proxy
+          image: docker.io/alangrainger/immich-public-proxy:4.0.0@sha256:54eb2a83f2d76a2e7e6b971638b011863ccb57a248e1d0a3e8a0f703c1f795dd
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            # In-cluster Immich, never its public or Traefik URL.
+            - name: IMMICH_URL
+              value: http://immich-server.immich.svc.cluster.local:2283
+            # Used for the og:image link previews in chat apps.
+            - name: PUBLIC_BASE_URL
+              value: https://photos.ardw.be
+            - name: IPP_CONFIG
+              value: /etc/ipp/config.json
+          readinessProbe:
+            httpGet:
+              path: /share/healthcheck
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /share/healthcheck
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/ipp
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: immich-public-proxy
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: immich-public-proxy
+  namespace: immich
+  labels:
+    app.kubernetes.io/name: immich-public-proxy
+    app.kubernetes.io/part-of: immich
+spec:
+  selector:
+    app.kubernetes.io/name: immich-public-proxy
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http

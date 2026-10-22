@@ -29,8 +29,14 @@ because it is the most safety-critical and upstream pins it that way.
   `ClusterIP`-only (the DB Service is headless) and have **no Ingress**. They are reachable only from
   inside the cluster.
 - **To whom:** the host is `immich.lab.ardw.be` (`docs/decisions.md` §5.7), resolved only by the
-  internal Technitium resolver. The surface is intended for **LAN + Tailscale** clients only. There is **no public
-  exposure** (no DMZ, no inbound ports — `docs/decisions.md` §5.2).
+  internal Technitium resolver. Immich itself is for **LAN + Tailscale** clients only (no DMZ, no inbound
+  ports — `docs/decisions.md` §5.2).
+- **Public share links** (`docs/decisions.md` §5.13): `photos.ardw.be` reaches only
+  **immich-public-proxy** (`public-proxy.yaml`, Service port 3000) through the homelab Cloudflare Tunnel. It
+  serves `/share/<key>` anonymously, needs no API key, hides EXIF/location metadata and follows each share's
+  download toggle. Immich's `server.externalDomain` is set to `https://photos.ardw.be` by
+  `just immich-external-domain`, so the links Immich shows point at the proxy. Owner steps:
+  `docs/runbooks/public-shares.md`.
 - **Authentication:** Immich's own account system (first-run admin, per-user accounts). SSO via
   Authentik is **not** wired yet. Immich has no separate administrative port — admin functions live in
   the authenticated web UI, so the exposure statement above covers them.

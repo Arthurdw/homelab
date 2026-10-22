@@ -5,6 +5,9 @@
 #   - lab.ardw.be and *.lab.ardw.be A -> Traefik's MetalLB VIP (TRAEFIK_LB_IP from cluster-settings)
 #   - <host>.lab.ardw.be A -> each physical host (HOST_RECORDS from cluster-settings). A specific
 #     record wins over the wildcard, so these names reach the host itself, not Traefik.
+#   - primary zone per APEX_ZONES entry (files.ardw.be), apex A -> Traefik's VIP only. These are
+#     public names served through the Cloudflare Tunnel (§5.13); the internal zone makes LAN clients
+#     reach Traefik directly instead, with the full Seafile UI and the sync clients.
 # Records are written with overwrite=true, so each run replaces the A RRset with the desired value
 # and running it again changes nothing.
 #
@@ -69,6 +72,9 @@ spec:
                 # Space-separated name=ip pairs; empty means no host records.
                 - name: HOST_RECORDS
                   value: "${HOST_RECORDS}"
+                # Space-separated zones that get only an apex A -> TARGET_IP (docs/decisions.md §5.13).
+                - name: APEX_ZONES
+                  value: files.ardw.be
               command:
                 - /bin/sh
                 - -c
@@ -129,6 +135,16 @@ spec:
                     must "A $host.$ZONE -> $ip" zones/records/add \
                       -d "zone=$ZONE" --data-urlencode "domain=$host.$ZONE" -d type=A \
                       -d "ipAddress=$ip" -d ttl=300 -d overwrite=true
+                  done
+
+                  for apex in $APEX_ZONES; do
+                    case "$zones" in
+                      *"\"name\":\"$apex\""*) echo "ok: zone $apex exists" ;;
+                      *) must "create zone $apex" zones/create -d "zone=$apex" -d type=Primary ;;
+                    esac
+                    must "A $apex -> $TARGET_IP" zones/records/add \
+                      -d "zone=$apex" --data-urlencode "domain=$apex" -d type=A \
+                      -d "ipAddress=$TARGET_IP" -d ttl=300 -d overwrite=true
                   done
               resources:
                 requests:

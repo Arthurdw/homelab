@@ -19,3 +19,13 @@ resource "unifi_dns_record" "lab" {
   record_type = "NS"
   value       = local.technitium_lb_ip
 }
+
+# files.ardw.be (docs/decisions.md §5.13): public DNS points it at the Cloudflare Tunnel, which only passes
+# share links. LAN clients are forwarded to Technitium instead, which answers with the Traefik IP, so the
+# full Seafile UI (login, sync clients) keeps working at home. photos.ardw.be needs no forward: the
+# public proxy is its only origin.
+resource "unifi_dns_record" "files" {
+  name        = "files.ardw.be"
+  record_type = "NS"
+  value       = local.technitium_lb_ip
+}

@@ -9,6 +9,7 @@
 #   HOMELAB_SMTP_PASSWORD         SMTP relay password (alertmanager-smtp, authentik-smtp, seafile-smtp)
 #   HOMELAB_SEAFILE_ADMIN_EMAIL   first Seafile admin's email
 #   HOMELAB_KOPIA_USERS           comma-separated <user>_<host> list, e.g. arthur_arthur-pc,dunia_dunia-pc
+#   HOMELAB_CLOUDFLARED_CREDENTIALS_FILE  optional: tunnel credentials JSON file -> cloudflared-tunnel
 # Plaintext only exists in a private temp dir and is piped into sops; it is never written into the
 # repository and never printed. Refuses to run until .sops.yaml holds the production age recipient.
 #
@@ -217,6 +218,18 @@ if will_write apps kopia-users; then
   [ "${#kopia_users[@]}" -gt 0 ] || die "HOMELAB_KOPIA_USERS lists no devices"
 fi
 secret apps kopia kopia-users "${kopia_users[@]}"
+# Cloudflare Tunnel credentials (kubernetes/apps/cloudflared, docs/runbooks/public-shares.md). Opt-in: only
+# with HOMELAB_CLOUDFLARED_CREDENTIALS_FILE, the one-line JSON from
+# `tofu output -raw tunnel_credentials_json` in a private temp file. The tunnel ID is read from it.
+if [ -n "${HOMELAB_CLOUDFLARED_CREDENTIALS_FILE:-}" ]; then
+  [ -f "$HOMELAB_CLOUDFLARED_CREDENTIALS_FILE" ] || die "HOMELAB_CLOUDFLARED_CREDENTIALS_FILE: no such file"
+  command -v jq >/dev/null 2>&1 || die "missing required tool: jq"
+  cf_creds="$(jq -ce 'select(.AccountTag and .TunnelID and .TunnelSecret)' "$HOMELAB_CLOUDFLARED_CREDENTIALS_FILE")" ||
+    die "HOMELAB_CLOUDFLARED_CREDENTIALS_FILE is not tunnel credentials JSON (AccountTag, TunnelID, TunnelSecret)"
+  cf_tunnel_id="$(jq -r '.TunnelID' <<<"$cf_creds")"
+  secret apps cloudflared cloudflared-tunnel credentials.json="$cf_creds" tunnel-id="$cf_tunnel_id"
+  unset cf_creds
+fi
 
 log "done. Check: scripts/secrets/check.sh --check && just k8s-validate"
 [ "$dry" -eq 1 ] && exit 0

@@ -1,0 +1,99 @@
+---
+# cloudflared's config file: the allowlist of what the internet can reach (docs/decisions.md §5.13).
+#
+# Locally-managed tunnel: these ingress rules live here, in git, and are not edited in the Cloudflare
+# dashboard (the tunnel is created by OpenTofu with config_src = "local",
+# infrastructure/environments/homelab/cloudflare). The tunnel ID and credentials come from the
+# owner-created Secret `cloudflared-tunnel` (kubernetes/overlays/homelab/README.md).
+#
+# How cloudflared matches: rules are tried top to bottom; a rule matches when the hostname matches AND
+# the `path` regex (Go RE2, unanchored, tested against the URL path without the query string) finds a
+# match. So every path below is anchored with ^...$. The last rule (no hostname) catches everything
+# else and answers 404 at the edge connector, never reaching a Service.
+#
+# Origins are the Services themselves over plain HTTP inside the cluster, not Traefik: the tunnel
+# terminates TLS at Cloudflare's edge, and skipping Traefik keeps the forward-auth middlewares and
+# every other *.lab.ardw.be route out of reach. cloudflared keeps the Host header and adds
+# X-Forwarded-For / X-Forwarded-Proto: https.
+#
+# Seafile (files.ardw.be): only the anonymous share-link and upload-link flows. Derived from Seahub 14
+# seahub/urls.py and frontend/src/api/seafile-api.js; each rule names the page that needs it.
+# Not exposed on purpose: /accounts, /oauth, /sso (login), /api2 and the rest of /api/v2.1 (the API),
+# /sys and /admin (admin UI), /seafhttp/f, /seafhttp/repo and /seafhttp/upload-aj (sync and logged-in
+# transfers), /api/v2.1/share-links/ without a token (lists a user's links), user-auth/email-auth,
+# and the logged-in-only "save to my library" and copy/move endpoints. A path segment pattern
+# `(?:[^/.][^/]*|\.[^/.][^/]*|\.\.[^/]+)` is used where free names are allowed, so "." and ".."
+# segments never match.
+#
+# Immich (photos.ardw.be): the whole host goes to immich-public-proxy, which is built to face the
+# internet and only serves share links; Immich itself is never an origin.
+#
+# kustomization.yaml turns this file into the ConfigMap with a content hash in its name, so any change
+# here rolls the Deployment (cloudflared reads its config only at start).
+credentials-file: /etc/cloudflared/creds/credentials.json
+metrics: 0.0.0.0:2000
+no-autoupdate: true
+originRequest:
+  connectTimeout: 10s
+ingress:
+  # --- Seafile share links (files.ardw.be) -------------------------------------------------
+  # File share page (preview and the download button).
+  - hostname: files.ardw.be
+    path: '^/f/[a-f0-9]+/$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  # Folder share page and its "files" view.
+  - hostname: files.ardw.be
+    path: '^/d/[a-f0-9]+/(?:files/)?$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  # Upload link page.
+  - hostname: files.ardw.be
+    path: '^/u/d/[a-f0-9]+/$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  # Image viewer inside a folder share (token and path are query parameters).
+  - hostname: files.ardw.be
+    path: '^/view-image-via-share-link/$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  # Thumbnails in a folder share. Share tokens are plain hex; the repo-ID thumbnail route of the
+  # logged-in UI uses 36-char dashed IDs and therefore does not match.
+  - hostname: files.ardw.be
+    path: '^/thumbnail/[a-f0-9]+/create/$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  - hostname: files.ardw.be
+    path: '^/thumbnail/[a-f0-9]+/[0-9]+/(?:[^/.][^/]*|\.[^/.][^/]*|\.\.[^/]+)(?:/(?:[^/.][^/]*|\.[^/.][^/]*|\.\.[^/]+))*$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  # Share-link API used by the share pages: folder listing, upload into an upload-enabled share,
+  # tags. Always scoped to one token.
+  - hostname: files.ardw.be
+    path: '^/api/v2.1/share-links/[a-f0-9]+/(?:dirents|upload|upload/done|repo-tags|tagged-files/[0-9]+)/$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  # Upload link: get an upload URL for the token.
+  - hostname: files.ardw.be
+    path: '^/api/v2.1/upload-links/[a-f0-9]+/upload/$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  # "Download as ZIP" from a folder share (the task takes the share token as a parameter).
+  - hostname: files.ardw.be
+    path: '^/api/v2.1/(?:share-link-zip-task|query-zip-progress|cancel-zip-task)/$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  # Resumable upload: how many bytes already arrived (upload pages, chunks under Cloudflare's 100 MB).
+  - hostname: files.ardw.be
+    path: '^/api/v2.1/repos/[-0-9a-f]{36}/file-uploaded-bytes/$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  # File server: downloads, ZIP downloads and uploads via the one-time access tokens Seahub issues.
+  - hostname: files.ardw.be
+    path: '^/seafhttp/files/[A-Za-z0-9-]+/[^/]+$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  - hostname: files.ardw.be
+    path: '^/seafhttp/zip/[A-Za-z0-9-]+$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  - hostname: files.ardw.be
+    path: '^/seafhttp/upload-api/[A-Za-z0-9-]+$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  # Static assets, translations and avatars that the share pages load.
+  - hostname: files.ardw.be
+    path: '^/media/(?:[^/.][^/]*|\.[^/.][^/]*|\.\.[^/]+)(?:/(?:[^/.][^/]*|\.[^/.][^/]*|\.\.[^/]+))*$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  # --- Immich share links (photos.ardw.be) -------------------------------------------------
+  - hostname: photos.ardw.be
+    service: http://immich-public-proxy.immich.svc.cluster.local:3000
+  # --- everything else -----------------------------------------------------------------------
+  - service: http_status:404

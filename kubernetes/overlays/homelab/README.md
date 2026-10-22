@@ -29,6 +29,7 @@ the values are real and are generated or chosen by the owner.
 | apps | `kopia/kopia-repository` | `password` | Kopia repository encryption | The only key to the backups: keep an offline copy |
 | apps | `kopia/kopia-server` | `username`, `password`, `control-username`, `control-password` | Kopia server UI/API and control login | |
 | apps | `kopia/kopia-users` | one key `<user>_<host>` per device, e.g. `dunia_dunia-pc`, `arthur_arthur-pc` | Kopia client logins (`user@host`) | Add a key per device, see `kubernetes/apps/kopia/server.yaml` |
+| apps | `cloudflared/cloudflared-tunnel` (optional) | `credentials.json`, `tunnel-id` | cloudflared, the public share links (`docs/decisions.md` §5.13) | Built from the OpenTofu outputs of `infrastructure/environments/homelab/cloudflare`; only after that apply (`docs/runbooks/public-shares.md`). Written by `gen-homelab-secrets.sh` only with `HOMELAB_CLOUDFLARED_CREDENTIALS_FILE` |
 
 ## What happens before they exist
 
@@ -40,6 +41,9 @@ anything anyway. Create the Secrets and the age key together, before the first F
 `infrastructure-configs` doesn't wait (`wait: false`), so a missing Cloudflare token leaves the ACME
 ClusterIssuers not-Ready without blocking `apps`. Traefik serves its default certificate until the wildcard
 Certificate is issued.
+
+A missing `cloudflared-tunnel` leaves the two cloudflared pods in `ContainerCreating`. `apps` doesn't wait
+(`wait: false`), so nothing else is held up; the share links are simply not public yet.
 
 ## Adding one
 

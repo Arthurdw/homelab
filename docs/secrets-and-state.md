@@ -27,6 +27,7 @@ credentials or recovery keys, and private addresses/hostnames you don't intend t
 | TrueNAS | API key | dedicated user; TrueNAS 24.10+ API |
 | UniFi | **full-access API key (cannot be read-only)** | see §4 — highest risk |
 | Cloudflare | DNS-01 token | narrowly scoped to the required zone(s) |
+| Cloudflare (OpenTofu) | separate API token | Zone DNS:Edit on `ardw.be` + Account Cloudflare Tunnel:Edit; workstation only (`cloudflare.env`) |
 | Offsite backup | dedicated backup identity | least privilege; cannot erase all history |
 
 ## 4. UniFi full-access key — mitigations (important)
@@ -60,6 +61,8 @@ limit it by **process and tooling**:
   locking, access control, backup/restore, recovery when the backend is unavailable, safe migration.
 - **Never** store state in the Kubernetes cluster that the state is required to rebuild.
 - State is treated as a secret (it can contain sensitive values).
+- The `cloudflare` root's state holds the **Cloudflare Tunnel secret** in clear text. Anyone holding it can run a
+  connector for the public hostnames (`infrastructure/environments/homelab/cloudflare/README.md`, State).
 
 ## 6. Rotation & recovery
 

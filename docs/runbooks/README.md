@@ -14,6 +14,7 @@ the system was built.
 - `stremio.md` — pointing the Stremio apps at `stremio.lab.ardw.be`; why it is local-only.
 - `break-glass.md` — access by IP and local credentials when DNS, SSO, Traefik or MetalLB are down.
 - `household-backups.md` — Time Machine for the Mac, Kopia for Windows and Linux, Seafile client.
+- `public-shares.md` — Seafile and Immich share links through the Cloudflare Tunnel: setup, outside checks, rollback.
 - `phase-reports/` — historical build reports: `phase-01-10-scaffold.md`, `phase-lab-virt-2026-10-20.md`.
 - `../disaster-recovery.md` — recovery after losing part or all of the homelab.
 - `../secrets-and-state.md` — how secrets and state are stored and recovered.

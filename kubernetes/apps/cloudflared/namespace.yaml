@@ -1,0 +1,11 @@
+---
+# Pod Security: cloudflared is distroless, non-root, read-only rootfs, no capabilities, so the namespace
+# enforces `restricted` (it is the one workload the internet talks to; docs/decisions.md §5.13).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudflared
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

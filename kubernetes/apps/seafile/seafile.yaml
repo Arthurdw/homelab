@@ -27,7 +27,14 @@
 # keep their own tokens. Seahub itself fetches the token and userinfo from Authentik, so auth.lab.ardw.be must
 # resolve from the pod and its certificate must be trusted (it is, with the public wildcard in production).
 #
-# EXPOSURE: LAN only, via the internal zone seafile.lab.ardw.be (decisions.md §5.7).
+# EXPOSURE (decisions.md §5.13): the canonical name is files.ardw.be. On the LAN it resolves to Traefik (an
+# internal Technitium zone plus a UDM Forward Domain) and serves everything, sign-in included. From the internet
+# the same name goes through the Cloudflare Tunnel (kubernetes/apps/cloudflared), which passes ONLY the
+# share-link and upload-link paths. seafile.lab.ardw.be permanently redirects to files.ardw.be.
+#
+# Behind the tunnel the client IP Seahub logs (first X-Forwarded-For entry) is client-controlled: treat it as
+# untrusted in logs and audit entries. Share-link password checks are not rate limited by Seahub, hence the
+# forced, long passwords and expiry below (docs/runbooks/public-shares.md).
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -72,7 +79,8 @@ data:
     ENABLE_OAUTH = True
     OAUTH_CLIENT_ID = "seafile"
     OAUTH_CLIENT_SECRET = os.environ.get("SEAFILE_OIDC_SECRET", "")
-    OAUTH_REDIRECT_URL = "https://seafile.lab.ardw.be/oauth/callback/"
+    # The Authentik client also keeps the old seafile.lab.ardw.be callback (blueprints.yaml).
+    OAUTH_REDIRECT_URL = "https://files.ardw.be/oauth/callback/"
     OAUTH_PROVIDER_DOMAIN = "auth.lab.ardw.be"
     OAUTH_AUTHORIZATION_URL = "https://auth.lab.ardw.be/application/o/authorize/"
     OAUTH_TOKEN_URL = "https://auth.lab.ardw.be/application/o/token/"
@@ -85,6 +93,21 @@ data:
         "name": (False, "name"),
         "email": (False, "contact_email"),
     }
+
+    # Share and upload links can be opened from the internet (decisions.md §5.13), and Seahub does not
+    # throttle wrong share-link passwords. So every link needs a password of 12+ characters from at least
+    # two character classes (digits, upper, lower, symbols), and expires within 1-90 days (7 by default).
+    # The first three are also editable in the admin UI (Settings, stored in the database by Constance):
+    # once saved there, the database value wins over this file.
+    SHARE_LINK_FORCE_USE_PASSWORD = True
+    SHARE_LINK_PASSWORD_MIN_LENGTH = 12
+    SHARE_LINK_PASSWORD_STRENGTH_LEVEL = 2
+    SHARE_LINK_EXPIRE_DAYS_MIN = 1
+    SHARE_LINK_EXPIRE_DAYS_DEFAULT = 7
+    SHARE_LINK_EXPIRE_DAYS_MAX = 90
+    UPLOAD_LINK_EXPIRE_DAYS_MIN = 1
+    UPLOAD_LINK_EXPIRE_DAYS_DEFAULT = 7
+    UPLOAD_LINK_EXPIRE_DAYS_MAX = 90
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -122,12 +145,14 @@ spec:
           env:
             - name: TIME_ZONE
               value: Europe/Brussels
+            # Seahub derives SERVICE_URL and FILE_SERVER_ROOT (download and upload URLs) from these two at
+            # every start, so this env wins over conf/ for those (decisions.md §5.13).
             - name: SEAFILE_SERVER_HOSTNAME
-              value: seafile.lab.ardw.be
+              value: files.ardw.be
             - name: SEAFILE_SERVER_PROTOCOL
               value: https
             - name: CSRF_TRUSTED_ORIGINS
-              value: '["https://seafile.lab.ardw.be"]'
+              value: '["https://files.ardw.be","https://seafile.lab.ardw.be"]'
             - name: SEAFILE_MYSQL_DB_HOST
               value: seafile-mariadb
             - name: SEAFILE_MYSQL_DB_PORT
@@ -245,6 +270,30 @@ spec:
       port: 80
       targetPort: http
 ---
+# Certificate for files.ardw.be (Let's Encrypt DNS-01 on homelab; the ClusterIssuers' solver selector lists
+# files.ardw.be). It is outside the *.lab.ardw.be wildcard, so the Ingress below references it by secretName.
+# Only LAN clients see it: the internet reaches files.ardw.be through Cloudflare's edge certificate.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: files-ardw-be
+  namespace: seafile
+  labels:
+    app.kubernetes.io/name: seafile
+    app.kubernetes.io/part-of: seafile
+spec:
+  secretName: files-ardw-be-tls
+  dnsNames:
+    - files.ardw.be
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    name: ${CLUSTER_ISSUER}
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -255,6 +304,53 @@ metadata:
     app.kubernetes.io/part-of: seafile
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  ingressClassName: traefik
+  rules:
+    # LAN only: files.ardw.be resolves to Traefik through the internal Technitium zone (bootstrap-zone.yaml).
+    - host: files.ardw.be
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: seafile
+                port:
+                  name: http
+  tls:
+    - hosts:
+        - files.ardw.be
+      secretName: files-ardw-be-tls
+---
+# The old name redirects permanently (301 for GET, 308 otherwise), path and query kept. Bookmarks keep working;
+# desktop and mobile clients should be re-pointed at https://files.ardw.be (docs/runbooks/public-shares.md).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-to-files
+  namespace: seafile
+  labels:
+    app.kubernetes.io/name: seafile
+    app.kubernetes.io/part-of: seafile
+spec:
+  redirectRegex:
+    regex: ^https?://seafile\.lab\.ardw\.be/(.*)
+    # Brace-less $1: Flux postBuild only substitutes `${`.
+    replacement: https://files.ardw.be/$1
+    permanent: true
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: seafile-redirect
+  namespace: seafile
+  labels:
+    app.kubernetes.io/name: seafile
+    app.kubernetes.io/part-of: seafile
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: seafile-redirect-to-files@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:

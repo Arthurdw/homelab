@@ -43,6 +43,15 @@ iac:
       stable: true
       opentofu_compat: "see verification_tasks"
       note: "newest stable (2026-10-03). 0.60.0-beta.0 exists; do NOT use betas for critical network automation"
+    cloudflare/cloudflare:
+      # renovate: datasource=terraform-provider depName=cloudflare packageName=cloudflare/cloudflare
+      version: "5.27.0"
+      opentofu_compat: "verified 2026-10-22 (tofu 1.13.1 validate, infrastructure/environments/homelab/cloudflare)"
+      note: "5.27.0 is from 2026-10-03; 5.28.x was under two weeks old when pinned"
+    hashicorp/random:
+      # renovate: datasource=terraform-provider depName=random packageName=hashicorp/random
+      version: "3.9.1"
+      opentofu_compat: "verified 2026-10-22 (tofu 1.13.1 validate); generates the Cloudflare Tunnel secret"
     BadgerOps/unifi:
       version: "0.4.0"
       note: "alternative; check maintenance cadence before relying on it"
@@ -106,6 +115,14 @@ app_images:
   # (2026-10-10) was under two weeks old when this was pinned.
   # renovate: datasource=docker depName=ghcr.io/gethomepage/homepage
   homepage: "ghcr.io/gethomepage/homepage:v2.4.0@sha256:643bd0be730d40f69d58028a55d1a896739333e8815786df42bc97f109ecbe61"
+  # Cloudflare Tunnel connector (kubernetes/apps/cloudflared, homelab overlay only; docs/decisions.md §5.13).
+  # 2026.9.3 is from 2026-09-24; 2026.10.x was under two weeks old when pinned.
+  # renovate: datasource=docker depName=docker.io/cloudflare/cloudflared
+  cloudflared: "docker.io/cloudflare/cloudflared:2026.9.3@sha256:072c067d25ccbe61d46e18f0d0723255f2bb5304f7317caa95b27031520ff92c"
+  # Public share proxy for Immich (kubernetes/apps/immich/public-proxy.yaml). 4.0.0 is from 2026-10-07;
+  # 4.1.x was under two weeks old when pinned.
+  # renovate: datasource=docker depName=docker.io/alangrainger/immich-public-proxy
+  immich_public_proxy: "docker.io/alangrainger/immich-public-proxy:4.0.0@sha256:54eb2a83f2d76a2e7e6b971638b011863ccb57a248e1d0a3e8a0f703c1f795dd"
   # Prometheus data-dir chown initContainer (kubernetes/infrastructure/monitoring/release.yaml)
   # renovate: datasource=docker depName=docker.io/library/busybox
   busybox: "docker.io/library/busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e"

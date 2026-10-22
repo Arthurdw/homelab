@@ -1,0 +1,12 @@
+# Copy to `terraform.tfvars` (gitignored) and fill in, or export TF_VAR_* instead.
+# NEVER commit real values.
+
+# Prefer: TF_VAR_cloudflare_api_token in ~/.config/homelab/cloudflare.env (mode 600), see README.md.
+# cloudflare_api_token = "REPLACE-ME"
+
+# Dashboard > ardw.be > Overview (right column), 32 hex characters each.
+account_id = "00000000000000000000000000000000"
+zone_id    = "00000000000000000000000000000000"
+
+# tunnel_name      = "homelab"
+# public_hostnames = ["files.ardw.be", "photos.ardw.be"]

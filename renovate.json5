@@ -244,6 +244,14 @@
       automerge: false,
     },
     {
+      description: 'Internet-facing (docs/decisions.md §5.13): cloudflared and the Immich public proxy decide what the public can reach, so a human reads the changelog first',
+      matchDepNames: ['docker.io/cloudflare/cloudflared', 'docker.io/alangrainger/immich-public-proxy'],
+      automerge: false,
+      prBodyNotes: [
+        '> [!IMPORTANT]\n> Internet-facing. Check the changelog for ingress-matching (cloudflared) or route/config (immich-public-proxy) changes, then re-run the outside checks in docs/runbooks/public-shares.md after the rollout.',
+      ],
+    },
+    {
       description: 'Seafile: the local_settings.py mount path in seafile.yaml embeds the version',
       matchDepNames: ['docker.io/seafileltd/seafile-mc'],
       prBodyNotes: [

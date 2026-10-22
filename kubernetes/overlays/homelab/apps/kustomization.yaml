@@ -6,6 +6,9 @@ resources:
   - ../../../apps
   # Homelab only: proxies to poseidon and hercules-nas, which the lab does not have (docs/runbooks/host-proxies.md).
   - ../../../apps/host-proxies
+  # Public share links, homelab only (docs/decisions.md §5.13). Its Secret, cloudflared-tunnel.sops.yaml,
+  # is added here by the owner once the tunnel exists (docs/runbooks/public-shares.md).
+  - ../../../apps/cloudflared
   - immich-db.sops.yaml
   - authentik-credentials.sops.yaml
   - authentik-smtp.sops.yaml

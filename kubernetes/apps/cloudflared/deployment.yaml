@@ -1,0 +1,114 @@
+---
+# cloudflared: the outbound-only Cloudflare Tunnel connector for the public share links
+# (docs/decisions.md §5.13, docs/runbooks/public-shares.md). No Service and no Ingress: nothing connects
+# to it; it dials Cloudflare's edge (port 7844, QUIC with HTTP/2 fallback) and forwards the requests that
+# match tunnel-config.yaml.
+#
+# Needs the owner-created Secret `cloudflared-tunnel` (kubernetes/overlays/homelab/README.md):
+#   credentials.json  {"AccountTag","TunnelID","TunnelSecret"}, built from the OpenTofu output
+#                     tunnel_credentials_json (infrastructure/environments/homelab/cloudflare)
+#   tunnel-id         the tunnel UUID (tofu output tunnel_id)
+# Until it exists the pods wait in ContainerCreating. That is harmless: the apps Flux Kustomization does
+# not wait for health (wait: false), so nothing else is held up.
+#
+# Two replicas, each its own connector with four edge connections; Cloudflare balances between them, so a
+# node drain or a rollout keeps the links up.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  namespace: cloudflared
+  labels:
+    app.kubernetes.io/name: cloudflared
+    app.kubernetes.io/part-of: cloudflared
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloudflared
+        app.kubernetes.io/part-of: cloudflared
+    spec:
+      automountServiceAccountToken: false
+      # Distroless image, user nonroot (65532).
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudflared
+      containers:
+        - name: cloudflared
+          # versions.yaml app_images.cloudflared
+          image: docker.io/cloudflare/cloudflared:2026.9.3@sha256:072c067d25ccbe61d46e18f0d0723255f2bb5304f7317caa95b27031520ff92c
+          imagePullPolicy: IfNotPresent
+          # $(TUNNEL_ID) is expanded by the kubelet from the env below (not a Flux substitution).
+          args:
+            - tunnel
+            - --config
+            - /etc/cloudflared/config/config.yaml
+            - run
+            - $(TUNNEL_ID)
+          env:
+            - name: TUNNEL_ID
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflared-tunnel
+                  key: tunnel-id
+          ports:
+            - name: metrics
+              containerPort: 2000
+          # /ready is 200 only while this connector has at least one live edge connection.
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            periodSeconds: 10
+            failureThreshold: 3
+          # /healthcheck only says the process serves HTTP; an edge outage must not restart-loop the pods.
+          livenessProbe:
+            httpGet:
+              path: /healthcheck
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 48Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cloudflared/config
+              readOnly: true
+            - name: creds
+              mountPath: /etc/cloudflared/creds
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: cloudflared
+        - name: creds
+          secret:
+            secretName: cloudflared-tunnel
+            items:
+              - key: credentials.json
+                path: credentials.json

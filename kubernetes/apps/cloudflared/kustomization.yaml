@@ -1,0 +1,19 @@
+---
+# Opt-in: NOT listed in kubernetes/apps/kustomization.yaml, so the lab never runs it. Only the homelab apps
+# overlay references this directory (docs/decisions.md §5.13, docs/runbooks/public-shares.md).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - networkpolicy.yaml
+  - deployment.yaml
+# The ConfigMap name carries a hash of tunnel-config.yaml, so a rule change restarts the pods.
+configMapGenerator:
+  - name: cloudflared
+    namespace: cloudflared
+    files:
+      - config.yaml=tunnel-config.yaml
+    options:
+      labels:
+        app.kubernetes.io/name: cloudflared
+        app.kubernetes.io/part-of: cloudflared
