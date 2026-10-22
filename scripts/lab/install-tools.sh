@@ -13,7 +13,9 @@
 #
 #   --dry-run   Print what would happen, change nothing.
 #
-# Either way, a tool already on PATH is left alone.
+# Binary mode: a tool already on PATH is left alone only if it reports exactly the pinned
+# version; missing or different versions get the pin installed into BIN_DIR (which is put
+# first on PATH). --native installs only missing tools and reports drift against the pins.
 set -euo pipefail
 
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
@@ -34,7 +36,7 @@ for arg in "$@"; do
   case "$arg" in
     --native)  NATIVE=1 ;;
     --dry-run) DRY=1 ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
 done
@@ -51,6 +53,31 @@ run() {
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
+
+# norm_version <string> — strip a leading "v" and any "+build" suffix.
+norm_version() { local v="${1#v}"; printf '%s' "${v%%+*}"; }
+
+# tool_version <tool> — the normalized version the tool on PATH reports ("" if absent).
+tool_version() {
+  have "$1" || return 0
+  local v=""
+  case "$1" in
+    kind)       v="$(kind version 2>/dev/null | awk '{print $2}')" ;;
+    flux)       v="$(flux --version 2>/dev/null | awk '{print $3}')" ;;
+    age-keygen) v="$(age --version 2>/dev/null | head -1)" ;;
+    sops)       v="$(sops --version --disable-version-check 2>/dev/null | awk 'NR==1{print $2}')" ;;
+  esac
+  norm_version "$v"
+}
+
+# have_version <tool> <pin> — true if the tool on PATH reports exactly <pin>.
+# Sets FOUND to the reported version ("none" if missing/unreadable).
+FOUND=""
+have_version() {
+  FOUND="$(tool_version "$1")"
+  [ -n "$FOUND" ] || FOUND="none"
+  [ "$FOUND" = "$(norm_version "$2")" ]
+}
 
 fetch() { curl -fsSL --retry 3 --retry-delay 2 -o "$2" "$1"; }
 
@@ -155,20 +182,20 @@ esac
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-if have kind; then
-  log "kind: present ($(kind version 2>/dev/null | awk '{print $2}'))"
+if have_version kind "$KIND_VERSION"; then
+  log "kind: present ($FOUND)"
 else
-  log "kind: installing $KIND_VERSION"
+  log "kind: installing $KIND_VERSION (found $FOUND)"
   asset="kind-linux-${ARCH}"
   fetch "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/${asset}" "$TMP/kind"
   verify "$TMP/kind" "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/${asset}.sha256sum" "$asset"
   run install -m 0755 "$TMP/kind" "$BIN_DIR/kind"
 fi
 
-if have flux; then
-  log "flux: present ($(flux --version 2>/dev/null))"
+if have_version flux "$FLUX_VERSION"; then
+  log "flux: present ($FOUND)"
 else
-  log "flux: installing $FLUX_VERSION"
+  log "flux: installing $FLUX_VERSION (found $FOUND)"
   asset="flux_${FLUX_VERSION}_linux_${ARCH}.tar.gz"
   fetch "https://github.com/fluxcd/flux2/releases/download/v${FLUX_VERSION}/${asset}" "$TMP/flux.tgz"
   verify "$TMP/flux.tgz" \
@@ -177,10 +204,10 @@ else
   run install -m 0755 "$TMP/flux" "$BIN_DIR/flux"
 fi
 
-if have age-keygen; then
-  log "age: present"
+if have_version age-keygen "$AGE_VERSION"; then
+  log "age: present ($FOUND)"
 else
-  log "age: installing $AGE_VERSION"
+  log "age: installing $AGE_VERSION (found $FOUND)"
   asset="age-${AGE_VERSION}-linux-${ARCH}.tar.gz"
   fetch "https://github.com/FiloSottile/age/releases/download/${AGE_VERSION}/${asset}" "$TMP/age.tgz"
   verify "$TMP/age.tgz" "" "$asset"
@@ -189,10 +216,10 @@ else
   run install -m 0755 "$TMP/age/age-keygen" "$BIN_DIR/age-keygen"
 fi
 
-if have sops; then
-  log "sops: present ($(sops --version 2>/dev/null | awk '{print $2}'))"
+if have_version sops "$SOPS_VERSION"; then
+  log "sops: present ($FOUND)"
 else
-  log "sops: installing $SOPS_VERSION"
+  log "sops: installing $SOPS_VERSION (found $FOUND)"
   asset="sops-${SOPS_VERSION}.linux.${ARCH}"
   fetch "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/${asset}" "$TMP/sops"
   verify "$TMP/sops" \
