@@ -478,14 +478,16 @@ no DMZ.
 - **`photos.ardw.be`** goes only to **immich-public-proxy**, which serves shared albums anonymously and never
   holds an API key. Immich itself stays at `immich.lab.ardw.be`, internal only.
 - **Authentik is never exposed.** Share links need no login.
-- **Seafile hardening:** share links require a password (12 characters minimum, strength 2) and expire after
-  7 days by default (90 maximum).
+- **Seafile hardening:** a share-link password is optional, but when one is set it needs 12 characters minimum,
+  strength 2. Expiry is optional too, with no default and no maximum. *Revised 2026-10-22:* both were forced
+  (password always, expiry 1-90 days, 7 by default). The owner made them a per-link choice for the sharer.
 - **Cloudflare objects in OpenTofu** (`infrastructure/environments/homelab/cloudflare/`): the tunnel, its
   config-less credentials and the two proxied CNAMEs. Origins and paths stay in the Git-tracked cloudflared
   config, so a rule change is a reviewed commit, not a dashboard click.
 
-Accepted risks: Seafile does not rate-limit share-link password guesses (a Cloudflare rate-limit rule is the
-mitigation); Cloudflare terminates TLS and sees shared content; uploads through the tunnel are capped at
+Accepted risks: a link without a password opens for anyone holding its URL, and one without expiry stays open
+until the sharer deletes it; Seafile does not rate-limit share-link password guesses (a Cloudflare rate-limit
+rule is the mitigation); Cloudflare terminates TLS and sees shared content; uploads through the tunnel are capped at
 100 MB per request. Owner steps: `docs/runbooks/public-shares.md`.
 
 ### 5.15 — Stremio streaming server: local-only, protected by DNS and routing rather than by a login — *decided 2026-10-22*

@@ -73,10 +73,12 @@ The order matters: the Secret needs the tunnel, and Immich's links should point 
    starts the two cloudflared pods. Until this Secret exists the pods wait in `ContainerCreating` and nothing
    else is affected.
 
-5. **Seafile settings in the database.** The share-link rules (password required, 12 characters, strength 2,
-   expiry 1/7/90 days) are set in `seahub_settings.py`, but values saved on Seafile's *System Admin > Settings*
-   page live in the database and win. Open that page once as admin at `https://files.ardw.be/sys/web-settings/`
-   from the LAN and check nothing there overrides them.
+5. **Seafile settings in the database.** The share-link rules (password optional but 12 characters and
+   strength 2 when set, expiry optional) are set in the `seafile-local-settings` ConfigMap (`local_settings.py`), but
+   values saved on Seafile's *System Admin > Settings* page live in the database and win. Open that page once
+   as admin at `https://files.ardw.be/sys/web-settings/` from the LAN and check nothing there overrides them:
+   *Share link force use password* must be off. The ConfigMap is mounted with `subPath`, so a change to it
+   takes effect only after `kubectl -n seafile rollout restart deployment seafile`.
 
 6. **Re-point Seafile clients.** `seafile.lab.ardw.be` now redirects to `files.ardw.be` in browsers, but desktop
    and mobile sync clients do not follow redirects reliably. Change each client's server URL to
@@ -112,7 +114,8 @@ curl -sI https://immich.lab.ardw.be/             # no answer: internal only
 Then, as a user:
 
 - Create a Seafile share link for a file and for a folder (with a password). Open both from outside: the
-  password page, preview, download, folder listing and *Download all* (zip) work.
+  password page, preview, download, folder listing and *Download all* (zip) work. Then create one with the
+  password and expiry boxes unticked: it is accepted and opens without a password page.
 - Create an upload link and upload a file from outside. Also try one over 100 MB: Cloudflare caps a single
   request at 100 MB, and the Seafile web uploader should split the upload into chunks below that. If it fails,
   note it in the risk register.
@@ -147,8 +150,11 @@ Fastest first; each step on its own stops public access.
 
 ## Risks and notes
 
-- **Password guessing on share links:** no throttling in Seafile; mitigated by the 12-character minimum, expiry
-  and the optional Cloudflare rate limit.
+- **Links without a password or expiry:** the sharer may leave out either. Such a link is a bearer URL: anyone
+  it is forwarded to can open it, until the sharer deletes it. Set a password and an expiry for anything
+  sensitive.
+- **Password guessing on share links:** no throttling in Seafile; mitigated by the 12-character minimum and the
+  optional Cloudflare rate limit.
 - **Cloudflare sees the traffic:** TLS ends at Cloudflare, so shared content passes through it in clear.
 - **Client IPs in Seafile's logs** come from `X-Forwarded-For`, which a visitor can pre-fill. Do not rely on them.
 - **The allowlist follows Seahub 14.** A Seafile major upgrade can move share-link routes; re-check the path

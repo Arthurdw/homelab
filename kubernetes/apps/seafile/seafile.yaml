@@ -94,20 +94,24 @@ data:
         "email": (False, "contact_email"),
     }
 
-    # Share and upload links can be opened from the internet (decisions.md §5.13), and Seahub does not
-    # throttle wrong share-link passwords. So every link needs a password of 12+ characters from at least
-    # two character classes (digits, upper, lower, symbols), and expires within 1-90 days (7 by default).
+    # Share and upload links can be opened from the internet (decisions.md §5.13). Password and expiry are
+    # the sharer's choice per link (owner decision 2026-10-22): a link without either is as safe as its
+    # random token. When a password is set, Seahub does not throttle wrong guesses, so it must be 12+
+    # characters from at least two character classes (digits, upper, lower, symbols).
     # The first three are also editable in the admin UI (Settings, stored in the database by Constance):
     # once saved there, the database value wins over this file.
-    SHARE_LINK_FORCE_USE_PASSWORD = True
+    SHARE_LINK_FORCE_USE_PASSWORD = False
     SHARE_LINK_PASSWORD_MIN_LENGTH = 12
     SHARE_LINK_PASSWORD_STRENGTH_LEVEL = 2
-    SHARE_LINK_EXPIRE_DAYS_MIN = 1
-    SHARE_LINK_EXPIRE_DAYS_DEFAULT = 7
-    SHARE_LINK_EXPIRE_DAYS_MAX = 90
-    UPLOAD_LINK_EXPIRE_DAYS_MIN = 1
-    UPLOAD_LINK_EXPIRE_DAYS_DEFAULT = 7
-    UPLOAD_LINK_EXPIRE_DAYS_MAX = 90
+    # Expiry is optional only when MIN, MAX and DEFAULT are all 0: any non-zero value makes Seahub's link
+    # dialog force the expiry box on (isExpireDaysNoLimit in Seahub 14's link-creation.js and
+    # generate-upload-link.js), and the API applies DEFAULT to links created without an expiry.
+    SHARE_LINK_EXPIRE_DAYS_MIN = 0
+    SHARE_LINK_EXPIRE_DAYS_DEFAULT = 0
+    SHARE_LINK_EXPIRE_DAYS_MAX = 0
+    UPLOAD_LINK_EXPIRE_DAYS_MIN = 0
+    UPLOAD_LINK_EXPIRE_DAYS_DEFAULT = 0
+    UPLOAD_LINK_EXPIRE_DAYS_MAX = 0
 ---
 apiVersion: apps/v1
 kind: Deployment
