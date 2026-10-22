@@ -119,6 +119,9 @@ secret apps authentik authentik-grafana-oidc client-secret="$grafana_oidc"
 # Authentik's side is a Secret.
 secret apps authentik authentik-immich-oidc client-secret=@rand:48
 secret apps authentik authentik-audiobookshelf-oidc client-secret=@rand:48
+# Proxmox and Technitium likewise keep theirs in their own configuration (pasted once, docs/runbooks/sso.md).
+secret apps authentik authentik-proxmox-oidc client-secret=@rand:48
+secret apps authentik authentik-technitium-oidc client-secret=@rand:48
 # Kopia repository server (kubernetes/apps/kopia). The repository password is the only key to the
 # backups; the server login is the UI/API, the control login is for the server's own control API,
 # and kopia-users holds one password per client user, key `<user>_<host>` for user@host (test_lab here).

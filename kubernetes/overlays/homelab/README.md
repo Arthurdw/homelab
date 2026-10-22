@@ -25,6 +25,7 @@ the values are real and are generated or chosen by the owner.
 | apps | `authentik/authentik-seafile-oidc` and `seafile/seafile-oidc` | `client-secret` | Seafile's OIDC login: Authentik's blueprint and Seahub | The two Secrets must hold the same value |
 | apps | `authentik/authentik-grafana-oidc` | `client-secret` | Grafana's OIDC login: Authentik's blueprint | Same value as `monitoring/grafana-oidc` (infrastructure layer) |
 | apps | `authentik/authentik-immich-oidc`, `authentik/authentik-audiobookshelf-oidc` | `client-secret` | Immich's and Audiobookshelf's OIDC login: Authentik's blueprint | The apps keep the value in their own database, pasted once (`docs/runbooks/sso.md`) |
+| apps | `authentik/authentik-proxmox-oidc`, `authentik/authentik-technitium-oidc` | `client-secret` | Proxmox's and Technitium's OIDC login: Authentik's blueprint | Pasted once into the PVE realm and Technitium's SSO settings (`docs/runbooks/sso.md`); optional in `release.yaml`, so Authentik starts without them |
 | apps | `kopia/kopia-repository` | `password` | Kopia repository encryption | The only key to the backups: keep an offline copy |
 | apps | `kopia/kopia-server` | `username`, `password`, `control-username`, `control-password` | Kopia server UI/API and control login | |
 | apps | `kopia/kopia-users` | one key `<user>_<host>` per device, e.g. `dunia_dunia-pc`, `arthur_arthur-pc` | Kopia client logins (`user@host`) | Add a key per device, see `kubernetes/apps/kopia/server.yaml` |

@@ -5,7 +5,9 @@
 #
 # Authentik is NEVER required to recover infrastructure: break-glass access is independent of it
 # (docs/runbooks/break-glass.md, docs/secrets-and-state.md §6). Seafile, Grafana, Immich and Audiobookshelf sign
-# in through it, and its user dashboard links the other homelab UIs (blueprints.yaml, docs/runbooks/sso.md).
+# in through it, Proxmox and Technitium have OIDC clients, Homepage sits behind its forward-auth (embedded
+# outpost, forward-auth.yaml), and its user dashboard links the other homelab UIs (blueprints.yaml,
+# docs/runbooks/sso.md).
 #
 # No Redis: authentik 2025.10+ moved its cache, tasks and websockets into PostgreSQL, and this chart no
 # longer has a Redis dependency at all.
@@ -15,7 +17,7 @@
 #   secret-key         cookie signing + unique IDs; long random string; NEVER change after first install
 #   postgres-password  password of the `authentik` database user (bundled PostgreSQL + the app)
 # Also `authentik-smtp` (relay login) and `authentik-<app>-oidc` (client-secret of each app's OIDC provider:
-# seafile, grafana, immich, audiobookshelf).
+# seafile, grafana, immich, audiobookshelf, proxmox, technitium).
 # The chart's own generated config Secret then carries only non-secret settings: `secret_key` and
 # `postgresql.password` stay empty here (the chart drops empty values), and the real values are
 # injected into the server and worker as env vars from `authentik-credentials`, which take precedence.
@@ -94,6 +96,20 @@ spec:
             secretKeyRef:
               name: authentik-audiobookshelf-oidc
               key: client-secret
+        # Optional, so authentik still starts before the owner generated these two Secrets
+        # (docs/runbooks/sso.md); until then only the Proxmox/Technitium blueprint fails to apply.
+        - name: AUTHENTIK_PROXMOX_OIDC_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: authentik-proxmox-oidc
+              key: client-secret
+              optional: true
+        - name: AUTHENTIK_TECHNITIUM_OIDC_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: authentik-technitium-oidc
+              key: client-secret
+              optional: true
 
     # Blueprints (blueprints.yaml): the chart mounts each ConfigMap under /blueprints/mounted.
     blueprints:
