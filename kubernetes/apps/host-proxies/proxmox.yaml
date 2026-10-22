@@ -1,0 +1,137 @@
+---
+# Proxmox web UI at https://pve.lab.ardw.be through Traefik (docs/runbooks/host-proxies.md, decisions.md §5.12).
+# Break-glass, bypassing the cluster: https://poseidon.lab.ardw.be:8006/ (host record, 10.10.1.1).
+#
+# Selector-less Service + hand-written EndpointSlice: Traefik v3's kubernetescrd provider reads EndpointSlices
+# (matched by the kubernetes.io/service-name label and the port name), and with no selector the EndpointSlice
+# controller leaves this one alone.
+apiVersion: v1
+kind: Service
+metadata:
+  name: proxmox
+  namespace: host-proxies
+  labels:
+    app.kubernetes.io/name: proxmox
+    app.kubernetes.io/part-of: host-proxies
+spec:
+  ports:
+    - name: https
+      port: 8006
+      targetPort: 8006
+      protocol: TCP
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: proxmox
+  namespace: host-proxies
+  labels:
+    kubernetes.io/service-name: proxmox
+    endpointslice.kubernetes.io/managed-by: flux
+    app.kubernetes.io/name: proxmox
+    app.kubernetes.io/part-of: host-proxies
+addressType: IPv4
+ports:
+  - name: https
+    port: 8006
+    protocol: TCP
+endpoints:
+  - addresses:
+      - 10.10.1.1
+    # Explicit: Traefik skips endpoints that are not ready.
+    conditions:
+      ready: true
+      serving: true
+      terminating: false
+---
+# Verified backend TLS, no insecureSkipVerify: the only trusted root is the pinned certificate below, and the
+# host's certificate must carry serverName as a SAN. No allowCrossNamespace needed: the ServersTransport, its
+# ConfigMap and the IngressRoute all live in this namespace.
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: proxmox
+  namespace: host-proxies
+  labels:
+    app.kubernetes.io/name: proxmox
+    app.kubernetes.io/part-of: host-proxies
+spec:
+  serverName: poseidon
+  rootCAs:
+    - configMap: proxmox-pinned-cert
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: proxmox
+  namespace: host-proxies
+  labels:
+    app.kubernetes.io/name: proxmox
+    app.kubernetes.io/part-of: host-proxies
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    # Internal zone <name>.lab.ardw.be (decisions.md §5.7), resolved to Traefik by Technitium's wildcard.
+    # No Authentik forward-auth middleware: Proxmox has its own login.
+    - kind: Rule
+      match: Host(`pve.lab.ardw.be`)
+      services:
+        - name: proxmox
+          port: https
+          scheme: https
+          serversTransport: proxmox
+  # No secretName: Traefik's default TLSStore serves the *.lab.ardw.be wildcard (decisions.md §5.7).
+  tls: {}
+---
+# Pinned certificate for the ServersTransport above. A public certificate, no key. pveproxy does not send its
+# CA (PVE Cluster Manager CA) in the chain, so this pins poseidon's node LEAF certificate itself:
+#   subject  CN=poseidon.network.control, OU=PVE Cluster Node, O=Proxmox Virtual Environment
+#   issuer   CN=Proxmox Virtual Environment, O=PVE Cluster Manager CA
+#   SANs     poseidon, poseidon.network.control, localhost, 10.10.1.1, 127.0.0.1, ::1
+#   expires  2028-10-19 (notAfter Oct 19 16:02:40 2028 GMT)
+# PVE renews the node certificate on its own before expiry, and a reinstall or `pvecm updatecerts -f` replaces
+# it; any of these breaks this route (502) until the pin is refreshed. Refresh (read-only):
+#   openssl s_client -connect 10.10.1.1:8006 -showcerts </dev/null | openssl x509
+# and paste the PEM below. Longer-lived alternative: pin the CA instead (/etc/pve/pve-root-ca.pem on poseidon,
+# also public, valid ~10 years), which survives node-certificate renewals.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: proxmox-pinned-cert
+  namespace: host-proxies
+  labels:
+    app.kubernetes.io/name: proxmox
+    app.kubernetes.io/part-of: host-proxies
+data:
+  ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    MIIFETCCAvmgAwIBAgIBAzANBgkqhkiG9w0BAQsFADB2MSQwIgYDVQQDDBtQcm94
+    bW94IFZpcnR1YWwgRW52aXJvbm1lbnQxLTArBgNVBAsMJGRmYWIyY2QyLTEyODMt
+    NDE0Zi1iNWYxLWE1NGNjMThlNzU5MDEfMB0GA1UECgwWUFZFIENsdXN0ZXIgTWFu
+    YWdlciBDQTAeFw0yNjEwMjAxNjAyNDBaFw0yODEwMTkxNjAyNDBaMGQxGTAXBgNV
+    BAsMEFBWRSBDbHVzdGVyIE5vZGUxJDAiBgNVBAoMG1Byb3htb3ggVmlydHVhbCBF
+    bnZpcm9ubWVudDEhMB8GA1UEAwwYcG9zZWlkb24ubmV0d29yay5jb250cm9sMIIB
+    IjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzRaI8+lU3f+iQROjQyzFBTcE
+    pqd327PfUeXx9uH9kmRmpl+NKIwJ+qCCdICEcfzii2LTc4tUepvXP6nbAtlnuk1V
+    lXNcVbDZznInc9WiomhuGWoJtadHeCvWNR0yhHtxeMArgdpO5YMrpwoxWG62AZ4D
+    YkahDYz3/OIVXnSw675sqFGmB3vCBgsuiPMj+c7xI+p+1TpnYuj1qRg9RBNZOzQ9
+    GJR3hXLU8DvyDgkASPPse2JsmCZ7PezGcLUGQdrzm9+AW+kM4A+guM5v2L3vzMqR
+    5XB/AxkJcviq2pi3sh4Miqs47qFhjx7OgTaaY82O6yq+yoB1jobVLGm5OXOnVwID
+    AQABo4G7MIG4MAkGA1UdEwQCMAAwEwYDVR0lBAwwCgYIKwYBBQUHAwEwVgYDVR0R
+    BE8wTYcEfwAAAYcQAAAAAAAAAAAAAAAAAAAAAYIJbG9jYWxob3N0hwQKCgEBgghw
+    b3NlaWRvboIYcG9zZWlkb24ubmV0d29yay5jb250cm9sMB0GA1UdDgQWBBQp/jSv
+    iyKgTLjqGilv+o3ptxEODjAfBgNVHSMEGDAWgBSZU8qAdwNv4AuYqQLbKRgRxnfv
+    jDANBgkqhkiG9w0BAQsFAAOCAgEAf9Ia6kDslnLdCUBJ5dKmbjCAuFXrH8bdld5u
+    ArLciCnXnypK34cgA4WurTSQ9xR/YKMG2EU23L4jHDl0+rrEa94GPyHPkry9dpvs
+    eiwtKfXq0MavEjlRnDL1Swb24t1tZG6zSKgX5rl8Ozn//F8sbPosG2BNrjypTmnQ
+    jGHXRFYxSaAJThMI8ciNMLZN4/wy/rsxY+6d5nN9ECbeqpwM787MfG0THYP+DUNc
+    Uuci6ZtQ6Sm7Cs++61yMRw8LKn4uCrSmYmOWJzPCuD3Dnu2QsPXuijeyLKwZ/lK8
+    Uj/zg4g0OpH7351UkVmDCvvRymfngQX9OxFra7gRLGg7Gzv7wgDYgQgmclouP0vF
+    m7bMzl/ZZTqRVjKpXZLlN9c17BpjV+g3iF5/CORhMApSJHrvo6X7J+EOicMbXZYG
+    +9Nwpl8ax6y7FF6PRp2ImwZuDKGyQnLxdSr6kbheHKFp0o5RqUrY8xLlGdyiaqjN
+    RZnC9IWwLro2BApV9eU7oXfYrCELTfo1PCSO1pQtknaj+fmYtTCahdv8By5BSKN3
+    8UhK5qR45zpk2NEnTnicuZAInrLkUNzwGRuRpxeejnU04qR94TEbIXYfEgJvNC+K
+    NNG+1WmMJaTn/Usqaf/JSIDotg0ICkVNQLFMKBH7CnAB3+qtQ/pVQ2ueDADCtFjm
+    F/guPPk=
+    -----END CERTIFICATE-----

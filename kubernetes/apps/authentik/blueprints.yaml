@@ -227,6 +227,11 @@ data:
               url: https://poseidon.lab.ardw.be:8006
             - matching_mode: strict
               url: https://poseidon.lab.ardw.be:8006/
+            # Through Traefik (docs/runbooks/host-proxies.md); the :8006 pair above is the break-glass path.
+            - matching_mode: strict
+              url: https://pve.lab.ardw.be
+            - matching_mode: strict
+              url: https://pve.lab.ardw.be/
           signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
           sub_mode: hashed_user_id
           property_mappings:
@@ -241,7 +246,7 @@ data:
           name: Proxmox
           provider: !KeyOf proxmox-provider
           group: Infrastructure
-          meta_launch_url: https://poseidon.lab.ardw.be:8006/
+          meta_launch_url: https://pve.lab.ardw.be/
           meta_description: Hypervisor (pick the "authentik" realm)
           open_in_new_tab: true
   technitium.yaml: |
@@ -368,7 +373,7 @@ data:
         attrs:
           name: TrueNAS
           group: Infrastructure
-          meta_launch_url: https://hercules-nas.lab.ardw.be/
+          meta_launch_url: https://nas.lab.ardw.be/
           meta_description: NAS (own login)
           open_in_new_tab: true
       - model: authentik_core.application

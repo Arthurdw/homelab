@@ -83,14 +83,19 @@ The zone-bootstrap CronJob (`kubernetes/infrastructure/technitium/bootstrap-zone
 | Name | Points at | Notes |
 |---|---|---|
 | `lab.ardw.be`, `*.lab.ardw.be` | Traefik VIP (`TRAEFIK_LB_IP`) | every app, e.g. `dns.lab.ardw.be` (Technitium web console) |
-| `poseidon.lab.ardw.be` | `10.10.1.1` | Proxmox, UI on `:8006` |
-| `hercules-nas.lab.ardw.be` | `10.10.1.10` | TrueNAS |
+| `pve.lab.ardw.be` | Traefik VIP (wildcard) | Proxmox UI through Traefik, no port (`docs/runbooks/host-proxies.md`) |
+| `nas.lab.ardw.be` | Traefik VIP (wildcard) | TrueNAS UI through Traefik (`docs/runbooks/host-proxies.md`) |
+| `poseidon.lab.ardw.be` | `10.10.1.1` | Proxmox, UI on `:8006`; SSH name and break-glass UI |
+| `hercules-nas.lab.ardw.be` | `10.10.1.10` | TrueNAS; SSH name and break-glass UI |
 | `unifi.lab.ardw.be` | `10.0.0.1` | UDM Pro |
 
 Host names come from `HOST_RECORDS` in each cluster's `cluster-settings.yaml` (the lab has only
 `lab-nas.lab.ardw.be` -> `10.99.100.10`). A specific record wins over the wildcard. The names are the machines'
 own hostnames, unique across sites, so other sites' hosts can be added later without renaming. Proxmox, TrueNAS
-and UniFi keep their self-signed certificates, so the browser warns on these names.
+and UniFi keep their self-signed certificates, so the browser warns on these names. `pve` and `nas` are not
+host records: they fall under the wildcard, so Traefik serves the Let's Encrypt certificate and proxies to the
+host with its pinned certificate verified. The host names stay direct, so the UIs are reachable without the
+cluster.
 
 **Cluster nodes' DNS:** the Talos nodes resolve via the UDM gateway `10.20.0.1` only (a `ResolverConfig` in
 `talos/patches/network-*.yaml`; cloud-init sets no nameserver, so Talos would default to `1.1.1.1`). The UDM's

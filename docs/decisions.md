@@ -442,6 +442,26 @@ fire permanently and teach everyone to ignore mail from Alertmanager (§5.1).
 What stays on: `KubeQuotaOvercommit` and the per-node pressure and pod-scheduling alerts, which catch a node that
 is really full. Revisit if the cluster ever gets a second host.
 
+### 5.12 — Proxmox and TrueNAS UIs through Traefik, backend TLS verified against pinned certificates — *decided 2026-10-22*
+
+**`pve.lab.ardw.be` and `nas.lab.ardw.be` are Traefik routes** to `10.10.1.1:8006` and `10.10.1.10:443`
+(`kubernetes/apps/host-proxies/`, homelab only). They fall under the `*.lab.ardw.be` wildcard, so the browser
+gets the Let's Encrypt certificate (§5.7) and no port. The direct host records `poseidon` and `hercules-nas`
+stay as they are: SSH names and the break-glass path when the cluster is down.
+
+**Backend TLS is verified, not skipped.** Each route has a ServersTransport whose only trusted root is the
+host's own certificate, pinned in a ConfigMap, with `serverName` set to one of its SANs (`poseidon`,
+`localhost`). `insecureSkipVerify` would let anything on the path answer for the host. The cost is a refresh
+when a host's certificate changes (`docs/runbooks/host-proxies.md`); pinning the PVE cluster CA instead of the
+node leaf would remove that for Proxmox.
+
+**No Authentik forward-auth** on these routes: both UIs have their own login, and Proxmox already logs in
+through Authentik OIDC (the blueprint allows both the proxied and the `:8006` origin).
+
+**websecure `readTimeout` is 30m**, up from Traefik v3's 60s default, so large uploads (ISOs to Proxmox)
+finish. Not unlimited, so a trickling client still gets cut off eventually. Everything else stays at the
+chart defaults; no global Traefik setting (cross-namespace references, ExternalName Services) was needed.
+
 ## 6. Findings that changed the plan
 
 ### 6.1 — The NAS has pointed at a dead resolver — *found 2026-10-16, read-only*

@@ -1,0 +1,127 @@
+---
+# TrueNAS web UI at https://nas.lab.ardw.be through Traefik (docs/runbooks/host-proxies.md, decisions.md §5.12).
+# Break-glass, bypassing the cluster: https://hercules-nas.lab.ardw.be/ (host record, 10.10.1.10).
+#
+# Selector-less Service + hand-written EndpointSlice: Traefik v3's kubernetescrd provider reads EndpointSlices
+# (matched by the kubernetes.io/service-name label and the port name), and with no selector the EndpointSlice
+# controller leaves this one alone.
+apiVersion: v1
+kind: Service
+metadata:
+  name: truenas
+  namespace: host-proxies
+  labels:
+    app.kubernetes.io/name: truenas
+    app.kubernetes.io/part-of: host-proxies
+spec:
+  ports:
+    - name: https
+      port: 443
+      targetPort: 443
+      protocol: TCP
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: truenas
+  namespace: host-proxies
+  labels:
+    kubernetes.io/service-name: truenas
+    endpointslice.kubernetes.io/managed-by: flux
+    app.kubernetes.io/name: truenas
+    app.kubernetes.io/part-of: host-proxies
+addressType: IPv4
+ports:
+  - name: https
+    port: 443
+    protocol: TCP
+endpoints:
+  - addresses:
+      - 10.10.1.10
+    # Explicit: Traefik skips endpoints that are not ready.
+    conditions:
+      ready: true
+      serving: true
+      terminating: false
+---
+# Verified backend TLS, no insecureSkipVerify: the only trusted root is the pinned certificate below, and the
+# host's certificate must carry serverName as a SAN. No allowCrossNamespace needed: the ServersTransport, its
+# ConfigMap and the IngressRoute all live in this namespace.
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: truenas
+  namespace: host-proxies
+  labels:
+    app.kubernetes.io/name: truenas
+    app.kubernetes.io/part-of: host-proxies
+spec:
+  serverName: localhost
+  rootCAs:
+    - configMap: truenas-pinned-cert
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: truenas
+  namespace: host-proxies
+  labels:
+    app.kubernetes.io/name: truenas
+    app.kubernetes.io/part-of: host-proxies
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    # Internal zone <name>.lab.ardw.be (decisions.md §5.7), resolved to Traefik by Technitium's wildcard.
+    # No Authentik forward-auth middleware: TrueNAS has its own login.
+    - kind: Rule
+      match: Host(`nas.lab.ardw.be`)
+      services:
+        - name: truenas
+          port: https
+          scheme: https
+          serversTransport: truenas
+  # No secretName: Traefik's default TLSStore serves the *.lab.ardw.be wildcard (decisions.md §5.7).
+  tls: {}
+---
+# Pinned certificate for the ServersTransport above. A public certificate, no key. TrueNAS's default
+# self-signed certificate, so the leaf is its own root:
+#   subject  CN=localhost, O=iXsystems (self-signed)
+#   SANs     localhost
+#   expires  2027-11-22 (notAfter Nov 22 11:07:59 2027 GMT)
+# When TrueNAS regenerates it (expiry, reinstall, or a new UI certificate chosen in System > Certificates), this
+# route breaks (502) until the pin is refreshed. Refresh (read-only):
+#   openssl s_client -connect 10.10.1.10:443 -showcerts </dev/null | openssl x509
+# and paste the PEM below; if the new certificate's SAN is not `localhost`, change serverName above to match.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: truenas-pinned-cert
+  namespace: host-proxies
+  labels:
+    app.kubernetes.io/name: truenas
+    app.kubernetes.io/part-of: host-proxies
+data:
+  ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    MIIDrTCCApWgAwIBAgIEHIXGzTANBgkqhkiG9w0BAQsFADCBgDELMAkGA1UEBhMC
+    VVMxEjAQBgNVBAoMCWlYc3lzdGVtczESMBAGA1UEAwwJbG9jYWxob3N0MSEwHwYJ
+    KoZIhvcNAQkBFhJpbmZvQGl4c3lzdGVtcy5jb20xEjAQBgNVBAgMCVRlbm5lc3Nl
+    ZTESMBAGA1UEBwwJTWFyeXZpbGxlMB4XDTI2MTAyMTExMDc1OVoXDTI3MTEyMjEx
+    MDc1OVowgYAxCzAJBgNVBAYTAlVTMRIwEAYDVQQKDAlpWHN5c3RlbXMxEjAQBgNV
+    BAMMCWxvY2FsaG9zdDEhMB8GCSqGSIb3DQEJARYSaW5mb0BpeHN5c3RlbXMuY29t
+    MRIwEAYDVQQIDAlUZW5uZXNzZWUxEjAQBgNVBAcMCU1hcnl2aWxsZTCCASIwDQYJ
+    KoZIhvcNAQEBBQADggEPADCCAQoCggEBALC1+TKfUSz64DzC85ZJjL1mF0Hq4aRq
+    rQdJbr28IgWPwJlpCWGCABem3naOgWkHOxexGrLbeEi9hTypZJX0XzUmmTWu5cH7
+    1dhJr1JDA+1yEkM43LbK4rVNic7aMDteQACOsRSA9g27yFhCINoyOM6y9YbKqhGZ
+    W/s+KjwOurfX0Wagbo0LQW3bIINXKAnv5pqBeon3oF+5451uqSra8Nw5nBkbaXOT
+    OZeg9CpI70Reffj+h5ckM+CsuZsVBPbyayHSnbO6L1BLexuHR1vEWYXTOHQWUHzl
+    gqapVDFfTkRT5BKKDQOqIGO4jpvvPHSxsycuWu84X4T56O11g+F1t7sCAwEAAaMt
+    MCswFAYDVR0RBA0wC4IJbG9jYWxob3N0MBMGA1UdJQQMMAoGCCsGAQUFBwMBMA0G
+    CSqGSIb3DQEBCwUAA4IBAQBnBz2lztSGHYsQdltJ1BdOsKtjo2pviYP6dyAsqT5v
+    LOiGFroFBFcM8jO1+K4cLI3bOL1cKsj1Hl2Sab5Nfct1iKJQI+L6CZd/oeh3Ja/8
+    vXcu2L9Ae8IGxQ3FKcHls4hvpxGFk33e7Zq+ARsMAJZBSjZFR7C/ex6NhEE3ps1P
+    G+SrXOSZLCLW+VStV0rn/TyP4WSWG9vGc0VV9iJqJpUlm3CEOfuEzbECn83H7fSy
+    l465EH5j7MzuvITf+HO7iHA/5fNu0aX6kdUieDbEQTJYZf1xW2xcoYrdj14/FeOT
+    dLNRjBmsWVqPF+cUrzF25yYbfUicEKFT46yFKEzRs5oO
+    -----END CERTIFICATE-----

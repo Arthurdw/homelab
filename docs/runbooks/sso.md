@@ -117,7 +117,8 @@ pveum realm add authentik --type openid \
 `--username-claim username` uses Authentik's `preferred_username`, so the Proxmox user is `<username>@authentik`.
 Autocreated users have no permissions. Grant your own user what it needs, e.g.
 `pveum acl modify / --users arthur@authentik --roles Administrator`. On the login page pick the realm
-**authentik**. Proxmox sends `https://poseidon.lab.ardw.be:8006` as the redirect URI; the blueprint allows it
+**authentik**. Proxmox sends the origin of the page as the redirect URI: `https://pve.lab.ardw.be` through Traefik
+(`host-proxies.md`), or `https://poseidon.lab.ardw.be:8006` on the break-glass path. The blueprint allows both,
 with and without a trailing slash. Roll back with `pveum realm delete authentik` (`root@pam` is unaffected).
 
 ## Technitium

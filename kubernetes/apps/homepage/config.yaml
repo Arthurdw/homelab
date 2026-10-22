@@ -101,10 +101,10 @@ data:
   bookmarks.yaml: |
     - Homelab:
         - Proxmox:
-            - href: https://poseidon.lab.ardw.be:8006/
+            - href: https://pve.lab.ardw.be/
               description: Hypervisor
         - TrueNAS:
-            - href: https://hercules-nas.lab.ardw.be/
+            - href: https://nas.lab.ardw.be/
               description: NAS
         - UniFi:
             - href: https://unifi.lab.ardw.be/

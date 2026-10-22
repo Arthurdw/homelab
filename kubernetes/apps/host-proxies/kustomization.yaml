@@ -1,0 +1,9 @@
+---
+# Homelab only: listed by kubernetes/overlays/homelab/apps, NOT by kubernetes/apps/kustomization.yaml, because
+# the lab has no poseidon or hercules-nas to proxy to (docs/runbooks/host-proxies.md).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - proxmox.yaml
+  - truenas.yaml

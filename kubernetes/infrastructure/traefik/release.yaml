@@ -40,6 +40,15 @@ spec:
               to: websecure
               scheme: https
               permanent: true
+      # Traefik v3 defaults readTimeout to 60s: the whole request, body included, must arrive within it, which cuts
+      # off large uploads (an ISO to Proxmox through pve.lab.ardw.be, big Immich/Seafile files). 30m covers a
+      # multi-GB upload over a slow Wi-Fi or Tailscale link. Not 0 (unlimited): a client that trickles a request
+      # could then hold a connection open forever; 30m still bounds that. writeTimeout (0) and idleTimeout (180s)
+      # stay at their defaults. decisions.md §5.12.
+      websecure:
+        transport:
+          respondingTimeouts:
+            readTimeout: 30m
       # Dashboard entrypoint (8080): kept OFF the LoadBalancer Service (chart default, restated so it
       # cannot drift). See `api` below.
       traefik:

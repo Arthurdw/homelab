@@ -1,0 +1,11 @@
+---
+# Traefik routes to the physical hosts' web UIs (docs/runbooks/host-proxies.md). No pods run here: only
+# selector-less Services, EndpointSlices, ServersTransports, IngressRoutes and the pinned-cert ConfigMaps.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: host-proxies
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
