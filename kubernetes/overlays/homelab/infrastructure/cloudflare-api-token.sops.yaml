@@ -6,19 +6,19 @@ metadata:
     namespace: cert-manager
 type: Opaque
 stringData:
-    api-token: ENC[AES256_GCM,data:kQ2pkKpgiKVweWi2CpUgFLkP7VoQAOZYN7pCmU2U/XmAZc677cgHdPoHyt7LzPuSvA3ECJs=,iv:HWRqPdns8P8TxDJgJke0iT933BehyGNGgZJb7ydPQbs=,tag:YuKtcr0HwZw0OsELEEIscg==,type:str]
+    api-token: ENC[AES256_GCM,data:MLN2iNYmVpaaA0iJvnn2GPiWoXKJ1elt56x42QzxiugrZRDj43gVeiChci1LaNcBByWD+Z8=,iv:iw+jooI24h6Kiu0ICUzO+sP7Pn/LaDEO5PhRnVm9V84=,tag:mk8nEW2R8j5cWdfUgocmSg==,type:str]
 sops:
     age:
         - enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSArM0FORXp1TkNWSDFheUxT
-            U0xxV3JJOFAzMktoekJ4MDRod3pZTS9jaVg4CmN5Wk9sTWUxT0VxVlZTZ3BJVTZZ
-            Ums2SnJ0QUlVYnZ6VzU0M3pTT0ozUVEKLS0tIGZsMGUySHc2K3BFWHNOTExTbVRC
-            K25iaStWTFR6bmk1OXU2N3RUd1V5N1kKq7EWXnH8ODgmYo7DeffSWqPjjNgYrHeJ
-            UjMvHvP8BzNhlkXb6fMeCWc6853PPVUjVW0gWTGRLpLBgApjI7/RmA==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBBN3QxOVdkRmJiajFCREFo
+            a3VuajFPL0dBUUNaVmdsWnRnMHJOZm5rQ1Q4CjZqanJXYm1DNzFjempXeVNYNEls
+            emxqcmdIMEtRQUZWU09vaU9nYVRCWE0KLS0tIERrVWpLaGxCMzdoQ2s3S1RNNVEz
+            L3ZDQURzbmlIWTZKSFRFaHJldkYxOVkK+LAC0QcgLztwrmSSIpyaQvD3KEAY0c+r
+            wDBAmV1kp4EkU227oK9rXBJihRY9Jv4Qs/jqt3fFHDmFvX5yqBNTRA==
             -----END AGE ENCRYPTED FILE-----
           recipient: age1p0pyppgapzv8xj3hk294hp2m7wnjt6956dz8dccn6scslcqqmursq0zsux
     encrypted_regex: ^(data|stringData)$
-    lastmodified: "2026-10-21T17:39:02Z"
-    mac: ENC[AES256_GCM,data:FfXDXdevHCIBexZQkMg67jcmD2OYtFYR6/8oMRFyS5DKT/NydjknaDCp2WBH8cdrQ6StpwQkERr5vbVnRGUvHJqzfn8SOG4PocfH4+5GHNuAvH42qyYO5sIEQ6iIlryf0FLcZ0aGo36J1K4/ciYLHodiXuKMIciYaUoZx6t15c4=,iv:pQXjVNeX46rUt2/7KqpXkqDTLFss6Qeeq1lDwXMZ6HM=,tag:eSNcDlxl45t/gLl8BCuG4A==,type:str]
+    lastmodified: "2026-10-22T10:00:24Z"
+    mac: ENC[AES256_GCM,data:+NfcKJFXA/tzqC/TvBK+9na2rCjk7Y3ADguaHmNoMif1h4ARC+40vUd/MyjSxPmqFmFiKwDbHGe5RKVr6+vWNVatGq94PTMtZQW09m9tA0AWi1P3ftSBi8JUwDh2hO2v17TVzS3vDVzRN0gDKZqPhmK7pinJPgBrgVmbS48/EAs=,iv:DLm5u4pj9mhTQVhoSCM7SR6gqaTGVZn0obV74OJ1IYg=,tag:NXI8XCvpAl1fLwXKesOigw==,type:str]
     version: 3.13.3
