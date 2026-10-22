@@ -232,6 +232,7 @@
         'ghcr.io/immich-app/postgres',
         'docker.io/library/postgres',
         'docker.io/seafileltd/seafile-mc',
+        'docker.io/seafileltd/sdoc-server',
         'docker.io/library/mariadb',
         'docker.io/library/memcached',
         'audiobookshelf',
@@ -256,6 +257,14 @@
       matchDepNames: ['docker.io/seafileltd/seafile-mc'],
       prBodyNotes: [
         '> [!IMPORTANT]\n> Bump the `local_settings.py` mount path in `kubernetes/apps/seafile/seafile.yaml` in this PR too.',
+      ],
+    },
+    {
+      description: 'SeaDoc: a new major must match the Seafile server version',
+      matchDepNames: ['docker.io/seafileltd/sdoc-server'],
+      matchUpdateTypes: ['major'],
+      prBodyNotes: [
+        '> [!IMPORTANT]\n> Merge only once the Seafile manual for the running server version ships this SeaDoc line (`seadoc.yml` in https://github.com/haiwen/seafile-admin-docs).',
       ],
     },
     {

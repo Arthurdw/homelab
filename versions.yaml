@@ -101,6 +101,10 @@ app_images:
   # version, so bump the mount in seafile.yaml together with this tag.
   # renovate: datasource=docker depName=docker.io/seafileltd/seafile-mc
   seafile: "docker.io/seafileltd/seafile-mc:14.0.9@sha256:75d8b88e8bfaa54099082aec0e99ff1a962bd364bfc21da34125fa66998f0861"
+  # SeaDoc for Seafile wikis and .sdoc files (kubernetes/apps/seafile/seadoc.yaml). Seafile 14.0's docs ship the
+  # 2.0 line (seadoc.yml: sdoc-server:2.0-latest); take a new major only once the Seafile docs move to it.
+  # renovate: datasource=docker depName=docker.io/seafileltd/sdoc-server
+  seafile_seadoc: "docker.io/seafileltd/sdoc-server:2.0.9@sha256:5b1bf5a8bfdb8bc5db957e7faee2220111fd6eff00795eaaf172e2f80bb999a5"
   # renovate: datasource=docker depName=docker.io/library/mariadb
   seafile_mariadb: "docker.io/library/mariadb:12.3.2@sha256:a02fe89cb597d4375812b2eac90cf9d0775d4686daa7f7cc750ebbcad7525bbc"
   # renovate: datasource=docker depName=docker.io/library/memcached

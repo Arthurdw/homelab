@@ -159,4 +159,7 @@ Fastest first; each step on its own stops public access.
 - **Client IPs in Seafile's logs** come from `X-Forwarded-For`, which a visitor can pre-fill. Do not rely on them.
 - **The allowlist follows Seahub 14.** A Seafile major upgrade can move share-link routes; re-check the path
   rules (`tunnel-config.yaml` header) and repeat the verification above after every Seafile major.
+- **Wikis and `.sdoc` files are LAN only.** SeaDoc (`kubernetes/apps/seafile/seadoc.yaml`) answers at
+  `/sdoc-server/` and `/socket.io/`, which the tunnel does not pass, so an `.sdoc` file opened from a share link
+  does not render from the internet. Adding those paths to the allowlist needs the owner's review first (GATE 7).
 - **cloudflared updates** are never automerged (`renovate.json5`): it is internet-facing.

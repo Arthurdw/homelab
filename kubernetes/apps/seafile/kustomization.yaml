@@ -5,4 +5,5 @@ resources:
   - namespace.yaml
   - mariadb.yaml
   - seafile.yaml
+  - seadoc.yaml
   - backup.yaml

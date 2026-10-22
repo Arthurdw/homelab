@@ -34,7 +34,9 @@
 #
 # Behind the tunnel the client IP Seahub logs (first X-Forwarded-For entry) is client-controlled: treat it as
 # untrusted in logs and audit entries. Share-link password checks are not rate limited by Seahub, hence the
-# forced, long passwords and expiry below (docs/runbooks/public-shares.md).
+# long minimum for the optional passwords below (docs/runbooks/public-shares.md).
+#
+# WIKIS AND .sdoc FILES need SeaDoc (seadoc.yaml): ENABLE_SEADOC and SEADOC_SERVER_URL below point Seahub at it.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -155,6 +157,11 @@ spec:
               value: files.ardw.be
             - name: SEAFILE_SERVER_PROTOCOL
               value: https
+            # SeaDoc (seadoc.yaml). Unset, Seahub sends the browser to its default http://127.0.0.1:7070.
+            - name: ENABLE_SEADOC
+              value: "true"
+            - name: SEADOC_SERVER_URL
+              value: https://files.ardw.be/sdoc-server
             - name: CSRF_TRUSTED_ORIGINS
               value: '["https://files.ardw.be","https://seafile.lab.ardw.be"]'
             - name: SEAFILE_MYSQL_DB_HOST

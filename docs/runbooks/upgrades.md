@@ -98,7 +98,7 @@ stateless charts. Automerge only happens through a PR whose CI passed.
 | --- | --- |
 | GitHub Actions: minor, patch, digest | Any major |
 | CI and workstation tools (OpenTofu CLI, helm, kind, sops, linters…): minor, patch | Cilium, MetalLB, Technitium, Authentik |
-| OpenTofu providers and lock files: minor, patch (the owner runs `tofu plan/apply`) | Immich (chart, server, Postgres), Seafile, MariaDB, memcached, Postgres images |
+| OpenTofu providers and lock files: minor, patch (the owner runs `tofu plan/apply`) | Immich (chart, server, Postgres), Seafile, SeaDoc, MariaDB, memcached, Postgres images |
 | cert-manager, Traefik, csi-driver-nfs, kube-prometheus-stack, local-path-provisioner: patch | Audiobookshelf, Kopia, Stremio, Homepage, Flux (`fluxcd/flux2`, opened as one grouped PR) |
 | | Talos and Kubernetes: labelled `manual-upgrade` |
 
@@ -107,6 +107,9 @@ stateless charts. Automerge only happens through a PR whose CI passed.
   (§5), then merge.
 - **Seafile:** the `local_settings.py` mount path in `kubernetes/apps/seafile/seafile.yaml` contains the
   version. Bump it in the same PR.
+- **SeaDoc** (`docker.io/seafileltd/sdoc-server`, wikis and `.sdoc` files): take a new major only once the
+  Seafile manual for the running server version ships it (`seadoc.yml` in haiwen/seafile-admin-docs). Seafile
+  14.0 ships the 2.0 line.
 - **Flux:** Renovate regenerates `gotk-components.yaml` as a whole with the new `flux` CLI. It never bumps
   the controller images one by one. Read the Flux release notes before merging.
 - There is no Dependency Dashboard issue (`dependencyDashboard: false`): an update opens its PR once it is
