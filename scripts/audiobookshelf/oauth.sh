@@ -105,6 +105,9 @@ view='(.serverSettings // .) | with_entries(select((.key | startswith("authOpenI
 
 # authOpenIDSubfolderForRedirectURLs prefixes the redirect_uri ABS sends; left unset, ABS sends the literal
 # "/undefined/auth/openid/callback". "" is the settings page's "None": ABS is served at the host root.
+# authOpenIDMatchExistingBy null is "Do not match": every Authentik user gets their own ABS user on first login.
+# Matching by email fails because Authentik sends email_verified false, and would let anyone who can set
+# their Authentik email take over the ABS user with that email.
 # BEGIN PATCH (kept as one filter so it can be tested offline)
 # shellcheck disable=SC2016 # jq variables, not shell ones
 PATCH='{
@@ -121,7 +124,7 @@ PATCH='{
   authOpenIDButtonText: "Login with Authentik",
   authOpenIDAutoLaunch: false,
   authOpenIDAutoRegister: true,
-  authOpenIDMatchExistingBy: "email",
+  authOpenIDMatchExistingBy: null,
   authOpenIDSubfolderForRedirectURLs: ""
 }'
 # END PATCH
@@ -145,10 +148,11 @@ api GET /api/auth-settings "$TMP/after.json"
 # ABS silently drops "openid" from the active methods when a required field is missing.
 if ! jq -e --arg issuer "$ISSUER" '(.serverSettings // .) as $s
     | $s.authOpenIDIssuerURL == $issuer and $s.authOpenIDSubfolderForRedirectURLs == ""
+      and $s.authOpenIDMatchExistingBy == null
       and (($s.authActiveAuthMethods // []) | index("openid") != null)' \
     "$TMP/after.json" >/dev/null; then
   echo "PATCH sent but openid is not active with issuer $ISSUER; compare with --dry-run" >&2
   exit 1
 fi
 echo "Audiobookshelf OpenID on: \"Login with Authentik\" at $URL (issuer $ISSUER); local login still enabled."
-echo "Existing ABS users are matched by email (set the same email on the ABS user); new users are auto-created."
+echo "Each Authentik user gets a new ABS user (type user) on first login; promote yours to admin as root."

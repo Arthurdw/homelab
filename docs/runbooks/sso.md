@@ -91,10 +91,15 @@ answers `isInit: true`), so the form will not show again: if nobody knows the pa
 "Where are my local logins" first. Then:
 
 1. In Audiobookshelf: *Settings -> API Keys* (or any admin API token), create a key for an admin user.
-2. Give your ABS user the same email as your Authentik user (*Settings -> Users*): existing users are matched by
-   email, and Authentik must have the email verified.
-3. `ABS_TOKEN=<key> just audiobookshelf-oauth --dry-run`, then without `--dry-run` (leave `ABS_TOKEN` unset for a
+2. `ABS_TOKEN=<key> just audiobookshelf-oauth --dry-run`, then without `--dry-run` (leave `ABS_TOKEN` unset for a
    silent prompt).
+3. Click *Login with Authentik* once: ABS creates a new user of type *user* for you. Sign in as `root` and raise
+   it to *admin* in *Settings -> Users* if you want it to manage the server. `root` stays the local break-glass
+   login.
+
+Existing ABS users are not matched: Authentik sends `email_verified: false`, which ABS refuses when matching by
+email ("Unauthorized" after the Authentik login), and email matching would let anyone who can change their
+Authentik email take over the ABS user with that address.
 
 The script reads the client secret from `authentik-audiobookshelf-oidc`, PATCHes `/api/auth-settings` and reads
 it back. It sets:
@@ -107,7 +112,7 @@ it back. It sets:
 | Client ID / secret | `audiobookshelf` / `authentik-audiobookshelf-oidc` |
 | Signing algorithm | `RS256` |
 | Button text | `Login with Authentik` |
-| Match existing users by | `email` |
+| Match existing users by | Do not match |
 | Auto register | on |
 | Auto launch | off (keeps the local login reachable) |
 | Active methods | `local` and `openid` |
