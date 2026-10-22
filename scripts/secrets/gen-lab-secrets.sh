@@ -122,6 +122,8 @@ secret apps authentik authentik-audiobookshelf-oidc client-secret=@rand:48
 # Proxmox and Technitium likewise keep theirs in their own configuration (pasted once, docs/runbooks/sso.md).
 secret apps authentik authentik-proxmox-oidc client-secret=@rand:48
 secret apps authentik authentik-technitium-oidc client-secret=@rand:48
+# Household users' emails (household.yaml in the Authentik blueprints); the lab never mails them.
+secret apps authentik authentik-users dunia-email=dunia@lab.ardw.be jolien-email=jolien@lab.ardw.be
 # Kopia repository server (kubernetes/apps/kopia). The repository password is the only key to the
 # backups; the server login is the UI/API, the control login is for the server's own control API,
 # and kopia-users holds one password per client user, key `<user>_<host>` for user@host (test_lab here).

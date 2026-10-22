@@ -26,6 +26,7 @@ the values are real and are generated or chosen by the owner.
 | apps | `authentik/authentik-grafana-oidc` | `client-secret` | Grafana's OIDC login: Authentik's blueprint | Same value as `monitoring/grafana-oidc` (infrastructure layer) |
 | apps | `authentik/authentik-immich-oidc`, `authentik/authentik-audiobookshelf-oidc` | `client-secret` | Immich's and Audiobookshelf's OIDC login: Authentik's blueprint | The apps keep the value in their own database, pasted once (`docs/runbooks/sso.md`) |
 | apps | `authentik/authentik-proxmox-oidc`, `authentik/authentik-technitium-oidc` | `client-secret` | Proxmox's and Technitium's OIDC login: Authentik's blueprint | Pasted once into the PVE realm and Technitium's SSO settings (`docs/runbooks/sso.md`); optional in `release.yaml`, so Authentik starts without them |
+| apps | `authentik/authentik-users` | `dunia-email`, `jolien-email` | The household users in Authentik's blueprint (`household.yaml`) | Optional in `release.yaml`; edit it by hand (below) to change an email or add a user, then restart the Authentik server and worker |
 | apps | `kopia/kopia-repository` | `password` | Kopia repository encryption | The only key to the backups: keep an offline copy |
 | apps | `kopia/kopia-server` | `username`, `password`, `control-username`, `control-password` | Kopia server UI/API and control login | |
 | apps | `kopia/kopia-users` | one key `<user>_<host>` per device, e.g. `dunia_dunia-pc`, `arthur_arthur-pc` | Kopia client logins (`user@host`) | Add a key per device, see `kubernetes/apps/kopia/server.yaml` |
@@ -49,9 +50,10 @@ A missing `cloudflared-tunnel` leaves the two cloudflared pods in `ContainerCrea
 
 `scripts/secrets/gen-homelab-secrets.sh` (`just secrets-gen-homelab`) writes every Secret in the table and
 adds it to the kustomization. It generates the passwords and keys, prompts (without echo) for the Cloudflare
-token, the SMTP relay password, the Seafile admin email and the Kopia devices, or reads them from
-`HOMELAB_CLOUDFLARE_API_TOKEN`, `HOMELAB_SMTP_PASSWORD`, `HOMELAB_SEAFILE_ADMIN_EMAIL` and
-`HOMELAB_KOPIA_USERS` (comma-separated `<user>_<host>`). Existing files are kept; `--force` rewrites them,
+token, the SMTP relay password, the Seafile admin email, the household users' emails and the Kopia devices, or reads
+them from `HOMELAB_CLOUDFLARE_API_TOKEN`, `HOMELAB_SMTP_PASSWORD`, `HOMELAB_SEAFILE_ADMIN_EMAIL`,
+`HOMELAB_AUTHENTIK_DUNIA_EMAIL`, `HOMELAB_AUTHENTIK_JOLIEN_EMAIL` and `HOMELAB_KOPIA_USERS` (comma-separated
+`<user>_<host>`). Existing files are kept; `--force` rewrites them,
 except `authentik-credentials`, `seafile-jwt` and `kopia-repository`, which also need `--rotate-immutable`.
 `--dry-run` lists what would be written. Read values back with `scripts/secrets/decrypt.sh`, and keep an offline
 copy of the `kopia-repository` password.

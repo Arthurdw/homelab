@@ -8,6 +8,7 @@
 #   HOMELAB_CLOUDFLARE_API_TOKEN  Cloudflare token (Zone:DNS:Edit on the zone only)
 #   HOMELAB_SMTP_PASSWORD         SMTP relay password (alertmanager-smtp, authentik-smtp, seafile-smtp)
 #   HOMELAB_SEAFILE_ADMIN_EMAIL   first Seafile admin's email
+#   HOMELAB_AUTHENTIK_DUNIA_EMAIL, HOMELAB_AUTHENTIK_JOLIEN_EMAIL  household users' emails (authentik-users)
 #   HOMELAB_KOPIA_USERS           comma-separated <user>_<host> list, e.g. arthur_arthur-pc,dunia_dunia-pc
 #   HOMELAB_CLOUDFLARED_CREDENTIALS_FILE  optional: tunnel credentials JSON file -> cloudflared-tunnel
 # Plaintext only exists in a private temp dir and is piped into sops; it is never written into the
@@ -31,7 +32,7 @@ for arg in "$@"; do
     --force) force=1 ;;
     --rotate-immutable) rotate_immutable=1 ;;
     --dry-run) dry=1 ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
     *) die "unknown argument: $arg" ;;
   esac
 done
@@ -200,6 +201,13 @@ secret apps authentik authentik-audiobookshelf-oidc client-secret=@rand:48
 # Proxmox and Technitium likewise keep theirs in their own configuration (pasted once, docs/runbooks/sso.md).
 secret apps authentik authentik-proxmox-oidc client-secret=@rand:48
 secret apps authentik authentik-technitium-oidc client-secret=@rand:48
+# Emails of the household users that household.yaml in kubernetes/apps/authentik/blueprints.yaml declares.
+if will_write apps authentik-users; then
+  ask HOMELAB_AUTHENTIK_DUNIA_EMAIL "dunia's email (Authentik)" visible
+  ask HOMELAB_AUTHENTIK_JOLIEN_EMAIL "jolien's email (Authentik)" visible
+fi
+secret apps authentik authentik-users dunia-email="${HOMELAB_AUTHENTIK_DUNIA_EMAIL:-}" \
+  jolien-email="${HOMELAB_AUTHENTIK_JOLIEN_EMAIL:-}"
 # Kopia repository server (kubernetes/apps/kopia). The repository password is the only key to the
 # backups; the server login is the UI/API, the control login is for the server's own control API,
 # and kopia-users holds one password per client device, key `<user>_<host>` for user@host.

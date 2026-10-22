@@ -208,23 +208,36 @@ and scales it back up; the first-run form appears again. This is a write to a li
 
 ## Add a household user
 
-Users are not in the repo (their emails stay out of git): the owner creates them in the Authentik admin UI.
-Authentik sends nothing when a user is created; the user sets a password through a recovery link. The recovery
-flow, its email stage and the "Forgot username or password?" link on the login page come from `recovery.yaml` in
-the blueprints.
+The users are declared in git: `household.yaml` in `kubernetes/apps/authentik/blueprints.yaml` holds dunia and
+jolien (username, name, type, the `household` group). Their emails stay out of git, in the SOPS Secret
+`authentik/authentik-users`, which the blueprint reads through `AUTHENTIK_USER_<NAME>_EMAIL` (`release.yaml`). The
+blueprint re-applies those fields, so change them in git, not in the UI. Passwords never go in git: Authentik
+sends nothing when a user is created, and the user sets a password through a recovery link. The recovery flow,
+its email stage and the "Forgot username or password?" link on the login page come from `recovery.yaml`.
 
-1. *Directory → Users → Create*: username (e.g. `dunia`), name, email. Leave the user type *Internal* and set no
-   password.
-2. Open the user and pick **Send recovery link**, with the stage `default-recovery-email`. Authentik mails a
+1. Write the Secret, without `--force` (that would rewrite every other Secret too):
+   `HOMELAB_AUTHENTIK_DUNIA_EMAIL=... HOMELAB_AUTHENTIK_JOLIEN_EMAIL=... just secrets-gen-homelab` (it prompts for
+   any that are unset). Commit `kubernetes/overlays/homelab/apps/authentik-users.sops.yaml` and the
+   `kustomization.yaml` line it adds, and push.
+2. After Flux applied it, restart Authentik so the server and worker read the new env vars:
+   `kubectl -n authentik rollout restart deployment authentik-server authentik-worker`. The worker re-applies the
+   blueprints on start. Check: *Customization → Blueprints* shows *Homelab household users* as successful, and
+   *Directory → Users* shows both users with their email.
+3. Open the user and pick **Send recovery link**, with the stage `default-recovery-email`. Authentik mails a
    *Set your homelab password* link through the shared relay (`release.yaml`, `email`), valid for 24 hours.
    Without working mail, **Create recovery link** gives the same link to copy and hand over yourself.
-3. The user opens the link, picks a password, and is signed in to the dashboard.
+4. The user opens the link, picks a password, and is signed in to the dashboard.
+
+Another user later: add an entry to `household.yaml`, a key to `authentik-users` (edit it by hand,
+`kubernetes/overlays/homelab/README.md`, "To add or change a single Secret by hand") and the matching env var in `release.yaml`, then steps 2-4.
+Changing an email is the same Secret edit plus the restart.
 
 Send the first link to your own user to prove the relay works; *Events → Logs* shows `email_sent` or the SMTP
 error. On first login the user gets an account in Seafile and Immich (auto-created); Audiobookshelf creates one
-too. Grafana gives them Viewer, Proxmox an account without permissions, and Technitium none (signup only for
-mapped groups). The dashboard shows them every tile, Infrastructure included, because no application has a
-policy binding.
+too. The dashboard shows household users the Apps only: every Infrastructure application (Grafana, Proxmox,
+Technitium and the TrueNAS, UniFi and Kopia links) is bound to `authentik Admins`, which also refuses them the
+Grafana, Proxmox and Technitium logins. Your own user must therefore be in `authentik Admins` (*Directory →
+Groups*), or those tiles disappear for you too.
 
 ## Forward-auth
 

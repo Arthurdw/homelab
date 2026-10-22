@@ -1,9 +1,12 @@
 ---
 # Authentik blueprints, mounted into the server and worker by the chart (`blueprints.configMaps` in
 # release.yaml) and applied by the worker. One file per app that signs in through Authentik (home.yaml is the
-# forward-auth one, with the embedded outpost), plus portal.yaml and recovery.yaml (password reset by email):
-# together they make the Authentik user dashboard (https://auth.lab.ardw.be/if/user/) the homelab portal.
-# Applications are grouped by `group`: "Apps" for household apps, "Infrastructure" for admin UIs.
+# forward-auth one, with the embedded outpost), plus portal.yaml, recovery.yaml (password reset by email) and
+# household.yaml (the household users): together they make the Authentik user dashboard
+# (https://auth.lab.ardw.be/if/user/) the homelab portal.
+# Applications are grouped by `group`: "Apps" for household apps, "Infrastructure" for admin UIs. Every
+# Infrastructure application has a group policy binding to `authentik Admins`, so only admins see its tile or
+# can sign in to it; Apps have no binding and are open to every user.
 #
 # Every OIDC client secret follows the same pattern: the `client-secret` key of the Secret
 # `authentik-<app>-oidc` (namespace authentik), exposed to the worker as AUTHENTIK_<APP>_OIDC_SECRET (global.env
@@ -114,6 +117,15 @@ data:
           group: Infrastructure
           meta_launch_url: https://grafana.lab.ardw.be/
           meta_description: Dashboards and metrics
+      # Infrastructure: only `authentik Admins` sees the tile and may sign in (header).
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !KeyOf grafana-app
+          group: !Find [authentik_core.group, [name, authentik Admins]]
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
   immich.yaml: |
     # Immich: its OAuth settings live in its own database (Administration -> Settings -> OAuth,
     # docs/runbooks/sso.md). app.immich:///oauth-callback is the mobile app's callback; strict matching is a
@@ -268,6 +280,15 @@ data:
           meta_launch_url: https://pve.lab.ardw.be/
           meta_description: Hypervisor (pick the "authentik" realm)
           open_in_new_tab: true
+      # Infrastructure: only `authentik Admins` sees the tile and may sign in (header).
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !KeyOf proxmox-app
+          group: !Find [authentik_core.group, [name, authentik Admins]]
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
   technitium.yaml: |
     # Technitium DNS (15.x has native OIDC SSO): its SSO settings live in its own config (Administration -> SSO,
     # docs/runbooks/sso.md); the DNS_SERVER_SSO_* env vars only apply on a first start without config. The
@@ -312,6 +333,15 @@ data:
           meta_launch_url: https://dns.lab.ardw.be/
           meta_description: DNS
           open_in_new_tab: true
+      # Infrastructure: only `authentik Admins` sees the tile and may sign in (header).
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !KeyOf technitium-app
+          group: !Find [authentik_core.group, [name, authentik Admins]]
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
   home.yaml: |
     # Homepage (kubernetes/apps/homepage) behind forward-auth: a proxy provider in forward_single mode, served
     # by the embedded outpost (inside authentik-server). Traefik asks it through the shared Middleware
@@ -368,7 +398,7 @@ data:
     # Link-only applications: no provider, just a dashboard tile that opens the UI, which keeps its own login.
     # Kopia, TrueNAS and UniFi have no generic OIDC login (docs/runbooks/sso.md); Proxmox and Technitium have
     # their own OIDC applications above.
-    # No policy bindings, so every Authentik user sees them; the targets still ask for their own credentials.
+    # Bound to `authentik Admins` like the other Infrastructure tiles; the targets keep their own login.
     version: 1
     metadata:
       name: Homelab portal links
@@ -385,6 +415,15 @@ data:
           meta_launch_url: https://kopia.lab.ardw.be/
           meta_description: Backup repository server (own login, no OIDC)
           open_in_new_tab: true
+      # Infrastructure: only `authentik Admins` sees the tile and may sign in (header).
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !KeyOf kopia-app
+          group: !Find [authentik_core.group, [name, authentik Admins]]
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
       - model: authentik_core.application
         id: truenas-app
         identifiers:
@@ -395,6 +434,15 @@ data:
           meta_launch_url: https://nas.lab.ardw.be/
           meta_description: NAS (own login)
           open_in_new_tab: true
+      # Infrastructure: only `authentik Admins` sees the tile and may sign in (header).
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !KeyOf truenas-app
+          group: !Find [authentik_core.group, [name, authentik Admins]]
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
       - model: authentik_core.application
         id: unifi-app
         identifiers:
@@ -405,6 +453,15 @@ data:
           meta_launch_url: https://unifi.lab.ardw.be/
           meta_description: Network (own login)
           open_in_new_tab: true
+      # Infrastructure: only `authentik Admins` sees the tile and may sign in (header).
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !KeyOf unifi-app
+          group: !Find [authentik_core.group, [name, authentik Admins]]
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
   recovery.yaml: |
     # Password recovery by email (docs/runbooks/sso.md, "Add a household user"). Authentik ships this flow only as
     # an example blueprint, which is never instantiated and so cannot be pulled in with metaapplyblueprint; this
@@ -571,3 +628,42 @@ data:
           name: default-authentication-identification
         attrs:
           recovery_flow: !KeyOf flow
+  household.yaml: |
+    # The household users and their group (docs/runbooks/sso.md, "Add a household user"). The blueprint owns
+    # username, name, email, type and group membership: it re-applies them, so change them here, not in the UI.
+    # Passwords are never here; each user sets one through a recovery link. The emails stay out of git: they are
+    # the Secret `authentik-users` (dunia-email, jolien-email), exposed as AUTHENTIK_USER_<NAME>_EMAIL (global.env
+    # in release.yaml, optional). Until that Secret exists the users have no email, so no recovery link can reach
+    # them; once it exists and the server and worker restart, the next apply fills it in.
+    # The owner's own account and `authentik Admins` are managed in the UI, not here.
+    version: 1
+    metadata:
+      name: Homelab household users
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_core.group
+        id: household
+        state: present
+        identifiers:
+          name: household
+      - model: authentik_core.user
+        state: present
+        identifiers:
+          username: dunia
+        attrs:
+          name: Dunia
+          email: !Env [AUTHENTIK_USER_DUNIA_EMAIL, ""]
+          type: internal
+          groups:
+            - !KeyOf household
+      - model: authentik_core.user
+        state: present
+        identifiers:
+          username: jolien
+        attrs:
+          name: Jolien
+          email: !Env [AUTHENTIK_USER_JOLIEN_EMAIL, ""]
+          type: internal
+          groups:
+            - !KeyOf household
