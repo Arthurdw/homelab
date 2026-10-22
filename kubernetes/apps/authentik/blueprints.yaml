@@ -1,9 +1,9 @@
 ---
 # Authentik blueprints, mounted into the server and worker by the chart (`blueprints.configMaps` in
 # release.yaml) and applied by the worker. One file per app that signs in through Authentik (home.yaml is the
-# forward-auth one, with the embedded outpost), plus portal.yaml, recovery.yaml (password reset by email) and
-# household.yaml (the household users): together they make the Authentik user dashboard
-# (https://auth.lab.ardw.be/if/user/) the homelab portal.
+# forward-auth one, with the embedded outpost), plus portal.yaml, recovery.yaml (password reset by email),
+# recovery-login.yaml (its link on the login page) and household.yaml (the household users): together they make
+# the Authentik user dashboard (https://auth.lab.ardw.be/if/user/) the homelab portal.
 # Applications are grouped by `group`: "Apps" for household apps, "Infrastructure" for admin UIs. Every
 # Infrastructure application has a group policy binding to `authentik Admins`, so only admins see its tile or
 # can sign in to it; Apps have no binding and are open to every user.
@@ -466,8 +466,9 @@ data:
     # Password recovery by email (docs/runbooks/sso.md, "Add a household user"). Authentik ships this flow only as
     # an example blueprint, which is never instantiated and so cannot be pulled in with metaapplyblueprint; this
     # is the upstream `example/flows-recovery-email-verification.yaml` (2026.8) with a longer link lifetime. It
-    # sets the brand's recovery flow, which the admin "Send recovery link" action needs, and adds "Forgot username
-    # or password?" to the login page. Mail goes through the global SMTP settings (release.yaml `email`).
+    # sets the brand's recovery flow, which the admin "Send recovery link" action needs; recovery-login.yaml adds
+    # "Forgot username or password?" to the login page. Mail goes through the global SMTP settings (release.yaml
+    # `email`).
     version: 1
     metadata:
       name: Homelab password recovery
@@ -622,12 +623,31 @@ data:
           domain: authentik-default
         attrs:
           flow_recovery: !KeyOf flow
+  recovery-login.yaml: |
+    # "Forgot username or password?" on the login page: points the identification stage of the default
+    # authentication flow at the recovery flow. Its own blueprint so that a miss here cannot stop recovery.yaml
+    # (the brand's recovery flow, which admin recovery links need). The stage is found through its flow binding,
+    # not its name, and the entry is skipped when either the stage or the recovery flow is not found.
+    version: 1
+    metadata:
+      name: Homelab login recovery link
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_blueprints.metaapplyblueprint
+        attrs:
+          identifiers:
+            name: Homelab password recovery
+          required: true
       - model: authentik_stages_identification.identificationstage
         state: present
+        conditions:
+          - !Find [authentik_stages_identification.identificationstage, [flow__slug, default-authentication-flow]]
+          - !Find [authentik_flows.flow, [slug, default-recovery-flow]]
         identifiers:
-          name: default-authentication-identification
+          pk: !Find [authentik_stages_identification.identificationstage, [flow__slug, default-authentication-flow]]
         attrs:
-          recovery_flow: !KeyOf flow
+          recovery_flow: !Find [authentik_flows.flow, [slug, default-recovery-flow]]
   household.yaml: |
     # The household users and their group (docs/runbooks/sso.md, "Add a household user"). The blueprint owns
     # username, name, email, type and group membership: it re-applies them, so change them here, not in the UI.

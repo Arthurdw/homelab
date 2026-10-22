@@ -212,8 +212,10 @@ The users are declared in git: `household.yaml` in `kubernetes/apps/authentik/bl
 jolien (username, name, type, the `household` group). Their emails stay out of git, in the SOPS Secret
 `authentik/authentik-users`, which the blueprint reads through `AUTHENTIK_USER_<NAME>_EMAIL` (`release.yaml`). The
 blueprint re-applies those fields, so change them in git, not in the UI. Passwords never go in git: Authentik
-sends nothing when a user is created, and the user sets a password through a recovery link. The recovery flow,
-its email stage and the "Forgot username or password?" link on the login page come from `recovery.yaml`.
+sends nothing when a user is created, and the user sets a password through a recovery link. The recovery flow and
+its email stage come from `recovery.yaml`, the "Forgot username or password?" link on the login page from
+`recovery-login.yaml`. If Send recovery link says the brand has no recovery flow, `recovery.yaml` did not apply:
+Customization, Blueprints, expand "Homelab password recovery" for the error.
 
 1. Write the Secret, without `--force` (that would rewrite every other Secret too):
    `HOMELAB_AUTHENTIK_DUNIA_EMAIL=... HOMELAB_AUTHENTIK_JOLIEN_EMAIL=... just secrets-gen-homelab` (it prompts for
