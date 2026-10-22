@@ -628,6 +628,9 @@ data:
     # authentication flow at the recovery flow. Its own blueprint so that a miss here cannot stop recovery.yaml
     # (the brand's recovery flow, which admin recovery links need). The stage is found through its flow binding,
     # not its name, and the entry is skipped when either the stage or the recovery flow is not found.
+    # user_fields must be sent too: the stage's serializer checks only the fields an update carries and rejects
+    # one with neither user_fields nor sources. These are Authentik's defaults for that stage, so the blueprint
+    # now owns them; change them here, not in the UI.
     version: 1
     metadata:
       name: Homelab login recovery link
@@ -647,6 +650,9 @@ data:
         identifiers:
           pk: !Find [authentik_stages_identification.identificationstage, [flow__slug, default-authentication-flow]]
         attrs:
+          user_fields:
+            - email
+            - username
           recovery_flow: !Find [authentik_flows.flow, [slug, default-recovery-flow]]
   household.yaml: |
     # The household users and their group (docs/runbooks/sso.md, "Add a household user"). The blueprint owns
