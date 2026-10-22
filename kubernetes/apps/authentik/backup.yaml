@@ -52,7 +52,7 @@ spec:
           containers:
             - name: pg-dump
               # Same major version as the chart's bundled PostgreSQL (postgres:17.11-trixie).
-              image: docker.io/library/postgres:17.11-trixie@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3
+              image: docker.io/library/postgres:18.4-trixie@sha256:a02db8cac496f15b094798a38254f14d6e00741f709360e5e00bb6668ea31636
               imagePullPolicy: IfNotPresent
               command:
                 - /bin/bash
