@@ -73,9 +73,10 @@ the shell history, and paste `terraform@pve!tofu=<secret>` at the prompt:
 read -rs PROXMOX_VE_API_TOKEN && export PROXMOX_VE_API_TOKEN
 ```
 
-The provider also uses SSH for a few operations (uploading images and snippets). Load root's key into an
-agent so no key file is referenced: `eval "$(ssh-agent)"; ssh-add ~/.ssh/<your key>`, and check
-`ssh root@10.10.1.1 true` works.
+The provider also uses SSH for a few operations (uploading images and snippets), through an ssh-agent only.
+`just apply proxmox` uses the key already in your agent; if there is none, it loads `PROXMOX_SSH_KEY` from
+`~/.config/homelab/proxmox.env` (default `~/.ssh/id_ed25519`) into a temporary agent for that run. Check root
+accepts the key: `ssh -F /dev/null -i <key> root@10.10.1.1 true`.
 
 **Tag colours (optional, once).** Proxmox derives a tag's colour from a hash of its name, and `homelab` and
 `kubernetes` land on the same one. The provider cannot set the datacenter tag style, so pin the colours by
