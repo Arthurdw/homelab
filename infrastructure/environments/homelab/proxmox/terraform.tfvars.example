@@ -94,6 +94,7 @@ proxmox_host_memory_reserve_mb = 8192
 #   mapping_name = "tesla-p4"
 #   pci_path     = "0000:01:00.0"
 #   device_id    = "10de:1bb3"
+#   subsystem_id = "10de:11d8"   # lspci -nn -v -s 0000:01:00.0, "Subsystem:"; Proxmox requires it
 #   iommu_group  = 2
 #   vm           = "talos-wk-1"   # null keeps the mapping but gives the card to no Talos VM
 # }

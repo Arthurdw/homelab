@@ -334,7 +334,9 @@ variable "talos_storage_link_nic" {
 variable "gpu_passthrough" {
   description = <<-EOT
     The host GPU as a Proxmox cluster PCI resource mapping, and the Talos VM it is passed to.
-    `pci_path` and `device_id` (vendor:device) come from `lspci -nn -D` on the host; `iommu_group` from
+    `pci_path` and `device_id` (vendor:device) come from `lspci -nn -D` on the host, `subsystem_id` from
+    the "Subsystem:" line of `lspci -nn -v -s <pci_path>` (Proxmox refuses to start the VM if a card that
+    has one is mapped without it); `iommu_group` from
     /sys/bus/pci/devices/<pci_path>/iommu_group. `vm` is a key of local.talos_nodes, or null to keep the
     mapping without giving the card to a Talos VM (e.g. while another VM uses it). Null for no mapping
     at all (the L1 fixture has no GPU).
@@ -348,10 +350,11 @@ variable "gpu_passthrough" {
     vm           = optional(string)
   })
   default = {
-    pci_path    = "0000:01:00.0"
-    device_id   = "10de:1bb3"
-    iommu_group = 2
-    vm          = "talos-wk-1"
+    pci_path     = "0000:01:00.0"
+    device_id    = "10de:1bb3"
+    subsystem_id = "10de:11d8"
+    iommu_group  = 2
+    vm           = "talos-wk-1"
   }
 
   validation {
@@ -362,5 +365,10 @@ variable "gpu_passthrough" {
   validation {
     condition     = var.gpu_passthrough == null || can(regex("^[0-9a-f]{4}:[0-9a-f]{4}$", var.gpu_passthrough.device_id))
     error_message = "gpu_passthrough.device_id must be vendor:device such as 10de:1bb3."
+  }
+
+  validation {
+    condition     = var.gpu_passthrough == null || try(var.gpu_passthrough.subsystem_id, null) == null || can(regex("^[0-9a-f]{4}:[0-9a-f]{4}$", var.gpu_passthrough.subsystem_id))
+    error_message = "gpu_passthrough.subsystem_id must be vendor:device such as 10de:11d8."
   }
 }
