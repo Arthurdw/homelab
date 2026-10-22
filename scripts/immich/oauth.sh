@@ -66,6 +66,11 @@ if [ -z "$API_KEY" ]; then
   read -r -s -p "Immich admin API key: " API_KEY
   echo >&2
 fi
+# A paste into the prompt can carry the terminal's bracketed-paste markers (ESC[200~ ... ESC[201~);
+# in a header they make Traefik reset the stream. Drop them, then any whitespace/control characters.
+API_KEY="${API_KEY//$'\e[200~'/}"
+API_KEY="${API_KEY//$'\e[201~'/}"
+API_KEY="$(printf '%s' "$API_KEY" | tr -d '[:space:][:cntrl:]')"
 [ -n "$API_KEY" ] || { echo "no API key given" >&2; exit 1; }
 printf 'x-api-key: %s\n' "$API_KEY" >"$TMP/headers"
 unset API_KEY
