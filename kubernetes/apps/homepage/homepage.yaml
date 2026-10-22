@@ -1,0 +1,145 @@
+---
+# Homepage (gethomepage.dev): the household start page at https://home.lab.ardw.be, a tile per homelab app with
+# its pod status. Stateless: the configuration is config.yaml, nothing is stored.
+#
+# SIGN-IN: behind Authentik forward-auth (kubernetes/apps/authentik/forward-auth.yaml, docs/runbooks/sso.md):
+# Traefik asks Authentik's embedded outpost before every request, so only Authentik users see the page.
+#
+# EXPOSURE: LAN only, internal zone home.lab.ardw.be (decisions.md §5.7).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homepage
+  namespace: homepage
+  labels:
+    app.kubernetes.io/name: homepage
+    app.kubernetes.io/part-of: homepage
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: homepage
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: homepage
+        app.kubernetes.io/part-of: homepage
+    spec:
+      serviceAccountName: homepage
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: homepage
+          # versions.yaml app_images.homepage
+          image: ghcr.io/gethomepage/homepage:v2.4.0@sha256:643bd0be730d40f69d58028a55d1a896739333e8815786df42bc97f109ecbe61
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            # Host header check (Homepage refuses any other Host). The probes below send this host too.
+            - name: HOMEPAGE_ALLOWED_HOSTS
+              value: home.lab.ardw.be
+            # No log file: /app/config is a read-only ConfigMap mount (config.yaml).
+            - name: LOG_TARGETS
+              value: stdout
+          readinessProbe:
+            httpGet:
+              path: /api/healthcheck
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: home.lab.ardw.be
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/healthcheck
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: home.lab.ardw.be
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+            limits:
+              memory: 384Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            # Next.js writes its fetch/image cache here.
+            - name: next-cache
+              mountPath: /app/.next/cache
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: homepage
+        - name: next-cache
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: homepage
+  namespace: homepage
+  labels:
+    app.kubernetes.io/name: homepage
+    app.kubernetes.io/part-of: homepage
+spec:
+  selector:
+    app.kubernetes.io/name: homepage
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: homepage
+  namespace: homepage
+  labels:
+    app.kubernetes.io/name: homepage
+    app.kubernetes.io/part-of: homepage
+  annotations:
+    # Authentik forward-auth (kubernetes/apps/authentik/forward-auth.yaml). The outpost's own paths on this host
+    # are routed by the Ingress `authentik-outpost` in the authentik namespace.
+    traefik.ingress.kubernetes.io/router.middlewares: authentik-forward-auth@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    # Internal zone <app>.lab.ardw.be (decisions.md §5.7), served by Technitium only.
+    - host: home.lab.ardw.be
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: homepage
+                port:
+                  name: http
+  # TLS on websecure with NO secretName: Traefik serves its default TLSStore certificate, the
+  # *.lab.ardw.be wildcard (decisions.md §5.7).
+  tls:
+    - hosts:
+        - home.lab.ardw.be

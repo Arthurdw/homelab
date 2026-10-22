@@ -1,0 +1,115 @@
+---
+# Homepage configuration (https://gethomepage.dev/configs/). Mounted read-only as the whole /app/config
+# directory (homepage.yaml), so an edit here reaches the pod without a restart: the kubelet refreshes the files
+# within a minute and Homepage re-reads them on the next page load.
+#
+# Every file Homepage expects is listed, even when empty: it copies a default for any missing one into
+# /app/config on start, which the read-only mount refuses. Logs go to stdout only (LOG_TARGETS), for the same
+# reason.
+#
+# Service status comes from the Kubernetes API (kubernetes.yaml, `mode: cluster`, RBAC in rbac.yaml): each
+# service names the namespace and pod labels of its app. No widget holds an API key, so nothing here is secret.
+# Do not write `$` followed by `{` anywhere in this file: Flux's postBuild substitution would eat it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homepage
+  namespace: homepage
+  labels:
+    app.kubernetes.io/name: homepage
+    app.kubernetes.io/part-of: homepage
+data:
+  settings.yaml: |
+    title: Homelab
+    headerStyle: clean
+    theme: dark
+    color: slate
+    hideVersion: true
+    disableUpdateCheck: true
+    layout:
+      Apps:
+        style: row
+        columns: 4
+      Infrastructure:
+        style: row
+        columns: 4
+  kubernetes.yaml: |
+    mode: cluster
+    ingress: false
+    traefik: false
+    gateway: false
+  services.yaml: |
+    - Apps:
+        - Immich:
+            href: https://immich.lab.ardw.be/
+            description: Photos and videos
+            icon: immich.png
+            namespace: immich
+            app: immich
+            podSelector: app.kubernetes.io/name=server
+        - Seafile:
+            href: https://seafile.lab.ardw.be/
+            description: Files and sync
+            icon: seafile.png
+            namespace: seafile
+            app: seafile
+            podSelector: app.kubernetes.io/name=seafile,app.kubernetes.io/component=server
+        - Audiobookshelf:
+            href: https://audiobookshelf.lab.ardw.be/
+            description: Audiobooks and podcasts
+            icon: audiobookshelf.png
+            namespace: audiobookshelf
+            app: audiobookshelf
+        - Kopia:
+            href: https://kopia.lab.ardw.be/
+            description: Device backups
+            icon: kopia.png
+            namespace: kopia
+            app: kopia
+    - Infrastructure:
+        - Authentik:
+            href: https://auth.lab.ardw.be/if/user/
+            description: Sign-in and app portal
+            icon: authentik.png
+            namespace: authentik
+            app: authentik
+            podSelector: app.kubernetes.io/name=authentik,app.kubernetes.io/component=server
+        - Grafana:
+            href: https://grafana.lab.ardw.be/
+            description: Metrics and alerts
+            icon: grafana.png
+            namespace: monitoring
+            app: grafana
+        - DNS:
+            href: https://dns.lab.ardw.be/
+            description: Technitium DNS
+            icon: technitium.png
+            namespace: technitium
+            app: technitium-dnsserver
+  widgets.yaml: |
+    - resources:
+        cpu: true
+        memory: true
+    - search:
+        provider: duckduckgo
+        target: _blank
+    - datetime:
+        format:
+          dateStyle: long
+          timeStyle: short
+          hour12: false
+  bookmarks.yaml: |
+    - Homelab:
+        - Proxmox:
+            - href: https://poseidon.lab.ardw.be:8006/
+              description: Hypervisor
+        - TrueNAS:
+            - href: https://hercules-nas.lab.ardw.be/
+              description: NAS
+        - UniFi:
+            - href: https://unifi.lab.ardw.be/
+              description: Network
+  docker.yaml: ""
+  proxmox.yaml: ""
+  custom.css: ""
+  custom.js: ""

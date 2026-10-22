@@ -99,6 +99,10 @@ app_images:
   # Kopia repository server (kubernetes/apps/kopia); household PCs back up to it over HTTPS.
   # renovate: datasource=docker depName=docker.io/kopia/kopia
   kopia: "docker.io/kopia/kopia:0.23.1@sha256:89fd95ee2942880ca00eae964266958a394421ddbdf69bca62e38afc55f5900e"
+  # Homepage dashboard (kubernetes/apps/homepage); v2.4.0 is from 2026-09-17; v2.5.0
+  # (2026-10-10) was under two weeks old when this was pinned.
+  # renovate: datasource=docker depName=ghcr.io/gethomepage/homepage
+  homepage: "ghcr.io/gethomepage/homepage:v2.4.0@sha256:643bd0be730d40f69d58028a55d1a896739333e8815786df42bc97f109ecbe61"
   # Prometheus data-dir chown initContainer (kubernetes/infrastructure/monitoring/release.yaml)
   # renovate: datasource=docker depName=docker.io/library/busybox
   busybox: "docker.io/library/busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e"
