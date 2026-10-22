@@ -52,7 +52,7 @@ spec:
       containers:
         - name: mariadb
           # versions.yaml app_images.seafile_mariadb
-          image: docker.io/library/mariadb:11.8.9@sha256:f16d7a344413e519dff518f27bdb221388f84b0d274c97c4fb5f2cb0dc1b34fa
+          image: docker.io/library/mariadb:12.3.2@sha256:a02fe89cb597d4375812b2eac90cf9d0775d4686daa7f7cc750ebbcad7525bbc
           imagePullPolicy: IfNotPresent
           ports:
             - name: mysql
