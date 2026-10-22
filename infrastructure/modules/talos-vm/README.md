@@ -257,7 +257,7 @@ Consequences:
    user-data, the documented manual flow) or the `metal` image with DHCP + `talosctl`.
 
 2. **The QEMU guest agent.** The repo schematic (`talos/schematic.yaml`, id
-   `a31c606a63e512b77145a19a7441828049b1567936ab8335f24bf8d28e831736`) includes
+   `08d87116314dbc848da5843a26140ad62f1a97d0d27a5358f6380337e865b739`) includes
    `siderolabs/qemu-guest-agent` (and `kata-containers` and the NVIDIA pair). The module still defaults
    `qemu_guest_agent_enabled` to `false`, because with an image *without* the extension Proxmox would wait for an
    agent that never starts. The Proxmox root sets it to `true` (`talos_qemu_guest_agent_enabled`), which the new

@@ -4,12 +4,14 @@
 #   curl -sX POST --data-binary @talos/schematic.yaml https://factory.talos.dev/schematics
 # After editing, update TALOS_SCHEMATIC (talos/inputs.env, scripts/talos/gen-configs.sh) and
 # talos_image_schematic_id (infrastructure/environments/homelab/proxmox) together. Decision: docs/decisions.md.
-# The NVIDIA pair drives the passed-through Tesla P4 (Pascal: proprietary modules, not the open ones).
+# The NVIDIA pair drives the passed-through Tesla P4. It is Pascal, so: the proprietary modules, not the open ones,
+# and the -lts (580) branch, not -production: NVIDIA dropped Pascal from the 590 driver series on, and 580 is the
+# last branch that supports it (security fixes through 2028). Do not move these to -production.
 # Every node carries it, but only the production worker loads the driver (talos/patches/gpu-worker.yaml).
 customization:
   systemExtensions:
     officialExtensions:
       - siderolabs/kata-containers
-      - siderolabs/nonfree-kmod-nvidia-production
-      - siderolabs/nvidia-container-toolkit-production
+      - siderolabs/nonfree-kmod-nvidia-lts
+      - siderolabs/nvidia-container-toolkit-lts
       - siderolabs/qemu-guest-agent

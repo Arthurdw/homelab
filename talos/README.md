@@ -94,7 +94,7 @@ is a gated live operation: follow `docs/runbooks/talos-bootstrap.md`. The guarde
 - `INSTALL_IMAGE`: derived from `TALOS_PLATFORM` and `TALOS_SCHEMATIC` as the Image Factory installer
   (`factory.talos.dev/nocloud-installer/<schematic>:<talos>`). `ghcr.io/siderolabs/installer` is no longer
   published. The schematic is `talos/schematic.yaml` (`siderolabs/kata-containers`, `siderolabs/qemu-guest-agent`,
-  `siderolabs/nonfree-kmod-nvidia-production`, `siderolabs/nvidia-container-toolkit-production`), shared by
+  `siderolabs/nonfree-kmod-nvidia-lts`, `siderolabs/nvidia-container-toolkit-lts`), shared by
   production and the lab (only the platform differs), and must match `talos_image_schematic_id`
   in the Proxmox environment. To change it, edit the file, `curl -sX POST --data-binary @talos/schematic.yaml
   https://factory.talos.dev/schematics`, and update the id in `talos/inputs.env`, `scripts/talos/gen-configs.sh`

@@ -78,7 +78,7 @@ INSTALL_IMAGE="${INSTALL_IMAGE:-}"
 # Image Factory coordinates for the derived installer. ghcr.io/siderolabs/installer is no longer
 # published (no tags); the installer must also match the platform the node booted (nocloud on Proxmox).
 TALOS_PLATFORM="${TALOS_PLATFORM:-nocloud}"
-TALOS_SCHEMATIC="${TALOS_SCHEMATIC:-a31c606a63e512b77145a19a7441828049b1567936ab8335f24bf8d28e831736}"
+TALOS_SCHEMATIC="${TALOS_SCHEMATIC:-08d87116314dbc848da5843a26140ad62f1a97d0d27a5358f6380337e865b739}"
 ADDITIONAL_SANS="${ADDITIONAL_SANS:-}"
 # Worker patch (the local-path user volume). An inputs file may point this at another file, or at
 # an empty string to skip it, for environments whose worker has no dedicated data disk (the lab).

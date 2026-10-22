@@ -44,9 +44,9 @@ talos_image_datastore_id = "local"       # needs 'iso' content enabled
 
 # --- Talos image (Image Factory) ---
 # talos/schematic.yaml: siderolabs/kata-containers, siderolabs/qemu-guest-agent and the NVIDIA pair
-# (nonfree-kmod-nvidia-production, nvidia-container-toolkit-production); same id as TALOS_SCHEMATIC in
+# (nonfree-kmod-nvidia-lts, nvidia-container-toolkit-lts); same id as TALOS_SCHEMATIC in
 # talos/inputs.env.
-talos_image_schematic_id = "a31c606a63e512b77145a19a7441828049b1567936ab8335f24bf8d28e831736"
+talos_image_schematic_id = "08d87116314dbc848da5843a26140ad62f1a97d0d27a5358f6380337e865b739"
 talos_image_platform     = "nocloud"   # Proxmox uses the NoCloud datasource
 talos_image_compression  = "zst"
 

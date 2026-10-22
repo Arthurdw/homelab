@@ -139,13 +139,13 @@ variable "talos_image_datastore_id" {
 variable "talos_image_schematic_id" {
   description = <<-EOT
     Talos Image Factory schematic id. The default is talos/schematic.yaml (siderolabs/kata-containers,
-    siderolabs/qemu-guest-agent, siderolabs/nonfree-kmod-nvidia-production and
-    siderolabs/nvidia-container-toolkit-production). To change extensions edit that file, POST it to
+    siderolabs/qemu-guest-agent, siderolabs/nonfree-kmod-nvidia-lts and
+    siderolabs/nvidia-container-toolkit-lts). To change extensions edit that file, POST it to
     https://factory.talos.dev/schematics and pass the new id here and as TALOS_SCHEMATIC.
     The URL built from this id was verified (curl -sI) for the pinned Talos version.
   EOT
   type        = string
-  default     = "a31c606a63e512b77145a19a7441828049b1567936ab8335f24bf8d28e831736"
+  default     = "08d87116314dbc848da5843a26140ad62f1a97d0d27a5358f6380337e865b739"
 }
 
 variable "talos_image_platform" {

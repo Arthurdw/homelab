@@ -209,8 +209,9 @@ patch. Builds stay on the worker (the control plane is tainted).
 
 **Schematic:** `talos/schematic.yaml` is the single schematic for production (`nocloud`) and the lab (`metal`);
 only the installer platform differs. It holds `siderolabs/kata-containers`, `siderolabs/qemu-guest-agent` and the
-NVIDIA pair for the Tesla P4 (`siderolabs/nonfree-kmod-nvidia-production`,
-`siderolabs/nvidia-container-toolkit-production`; only `talos-wk-1` loads the driver,
+NVIDIA pair for the Tesla P4 (`siderolabs/nonfree-kmod-nvidia-lts`,
+`siderolabs/nvidia-container-toolkit-lts`: the 580 LTS branch, the last NVIDIA driver series that supports
+Pascal; only `talos-wk-1` loads the driver,
 `talos/patches/gpu-worker.yaml`) (id in `talos/inputs.env`; it must equal `talos_image_schematic_id` in the Proxmox environment). The agent
 extension waits forever for the virtio channel, so with this image `talos_qemu_guest_agent_enabled` (Proxmox)
 and the libvirt `org.qemu.guest_agent.0` channel (lab) must be on.
