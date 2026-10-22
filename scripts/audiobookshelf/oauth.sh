@@ -103,6 +103,8 @@ api() {
 redact='del(.authOpenIDClientSecret)'
 view='(.serverSettings // .) | with_entries(select((.key | startswith("authOpenID")) or .key == "authActiveAuthMethods")) | del(.authOpenIDClientSecret)'
 
+# authOpenIDSubfolderForRedirectURLs prefixes the redirect_uri ABS sends; left unset, ABS sends the literal
+# "/undefined/auth/openid/callback". "" is the settings page's "None": ABS is served at the host root.
 # BEGIN PATCH (kept as one filter so it can be tested offline)
 # shellcheck disable=SC2016 # jq variables, not shell ones
 PATCH='{
@@ -119,7 +121,8 @@ PATCH='{
   authOpenIDButtonText: "Login with Authentik",
   authOpenIDAutoLaunch: false,
   authOpenIDAutoRegister: true,
-  authOpenIDMatchExistingBy: "email"
+  authOpenIDMatchExistingBy: "email",
+  authOpenIDSubfolderForRedirectURLs: ""
 }'
 # END PATCH
 
@@ -141,7 +144,8 @@ api PATCH /api/auth-settings "$TMP/patch.out" "$TMP/patch.json"
 api GET /api/auth-settings "$TMP/after.json"
 # ABS silently drops "openid" from the active methods when a required field is missing.
 if ! jq -e --arg issuer "$ISSUER" '(.serverSettings // .) as $s
-    | $s.authOpenIDIssuerURL == $issuer and (($s.authActiveAuthMethods // []) | index("openid") != null)' \
+    | $s.authOpenIDIssuerURL == $issuer and $s.authOpenIDSubfolderForRedirectURLs == ""
+      and (($s.authActiveAuthMethods // []) | index("openid") != null)' \
     "$TMP/after.json" >/dev/null; then
   echo "PATCH sent but openid is not active with issuer $ISSUER; compare with --dry-run" >&2
   exit 1
