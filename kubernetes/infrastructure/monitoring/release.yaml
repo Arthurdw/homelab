@@ -37,8 +37,26 @@ spec:
   values:
     # Single host: extra replicas buy no availability.
     prometheus:
+      # Internal zone <app>.lab.ardw.be (decisions.md §5.7), TLS from Traefik's default TLSStore (the
+      # *.lab.ardw.be wildcard, as for Grafana below). Prometheus has no login of its own, so the host is behind
+      # Authentik forward-auth, admins only (kubernetes/apps/authentik/forward-auth.yaml, blueprints.yaml).
+      ingress:
+        enabled: true
+        ingressClassName: traefik
+        annotations:
+          traefik.ingress.kubernetes.io/router.middlewares: authentik-forward-auth@kubernetescrd
+        hosts:
+          - prometheus.lab.ardw.be
+        paths:
+          - /
+        pathType: Prefix
+        tls:
+          - hosts:
+              - prometheus.lab.ardw.be
       prometheusSpec:
         replicas: 1
+        # The base of the "Source" links in alert emails; without it they point at the in-cluster Service.
+        externalUrl: https://prometheus.lab.ardw.be
         # Whichever limit is hit first wins. retentionSize stays below the 20Gi claim (about 90%)
         # so the WAL and compaction have headroom. local-path does not enforce the claim size,
         # so this is the actual cap on the worker's data disk (§3.4).
@@ -71,8 +89,27 @@ spec:
                 requests:
                   storage: 20Gi
     alertmanager:
+      # Internal zone <app>.lab.ardw.be (decisions.md §5.7), TLS from Traefik's default TLSStore (the
+      # *.lab.ardw.be wildcard, as for Grafana below). Alertmanager has no login of its own, so the host is behind
+      # Authentik forward-auth, admins only (kubernetes/apps/authentik/forward-auth.yaml, blueprints.yaml).
+      ingress:
+        enabled: true
+        ingressClassName: traefik
+        annotations:
+          traefik.ingress.kubernetes.io/router.middlewares: authentik-forward-auth@kubernetescrd
+        hosts:
+          - alertmanager.lab.ardw.be
+        paths:
+          - /
+        pathType: Prefix
+        tls:
+          - hosts:
+              - alertmanager.lab.ardw.be
       alertmanagerSpec:
         replicas: 1
+        # The base of the "View in Alertmanager" links in alert emails; without it they point at the
+        # in-cluster Service.
+        externalUrl: https://alertmanager.lab.ardw.be
         # Silences and the notification log; tiny.
         storage:
           volumeClaimTemplate:

@@ -55,8 +55,30 @@ spec:
     # No secretName: Traefik's default TLSStore serves the *.lab.ardw.be wildcard.
     - hosts:
         - home.lab.ardw.be
+        - alertmanager.lab.ardw.be
+        - prometheus.lab.ardw.be
   rules:
     - host: home.lab.ardw.be
+      http:
+        paths:
+          - path: /outpost.goauthentik.io
+            pathType: Prefix
+            backend:
+              service:
+                name: authentik-server
+                port:
+                  name: http
+    - host: alertmanager.lab.ardw.be
+      http:
+        paths:
+          - path: /outpost.goauthentik.io
+            pathType: Prefix
+            backend:
+              service:
+                name: authentik-server
+                port:
+                  name: http
+    - host: prometheus.lab.ardw.be
       http:
         paths:
           - path: /outpost.goauthentik.io

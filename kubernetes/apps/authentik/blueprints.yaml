@@ -343,7 +343,7 @@ data:
           enabled: true
           negate: false
   home.yaml: |
-    # Homepage (kubernetes/apps/homepage) behind forward-auth: a proxy provider in forward_single mode, served
+    # Homepage (kubernetes/apps/homepage), Alertmanager and Prometheus behind forward-auth: a proxy provider in forward_single mode, served
     # by the embedded outpost (inside authentik-server). Traefik asks it through the shared Middleware
     # authentik/forward-auth (forward-auth.yaml), and the outpost's own paths on the host are routed to
     # authentik-server by the Ingress `authentik-outpost` there. To protect another host, add a provider and
@@ -374,6 +374,66 @@ data:
           group: Apps
           meta_launch_url: https://home.lab.ardw.be/
           meta_description: Homelab dashboard
+      # Alertmanager (kube-prometheus-stack, kubernetes/infrastructure/monitoring) has no login of its own. The
+      # alert emails link here (its externalUrl).
+      - model: authentik_providers_proxy.proxyprovider
+        id: alertmanager-provider
+        identifiers:
+          name: Alertmanager
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://alertmanager.lab.ardw.be
+      - model: authentik_core.application
+        id: alertmanager-app
+        identifiers:
+          slug: alertmanager
+        attrs:
+          name: Alertmanager
+          provider: !KeyOf alertmanager-provider
+          group: Infrastructure
+          meta_launch_url: https://alertmanager.lab.ardw.be/
+          meta_description: Alerts and silences
+      # Infrastructure: only `authentik Admins` sees the tile and gets past forward-auth.
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !KeyOf alertmanager-app
+          group: !Find [authentik_core.group, [name, authentik Admins]]
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+      # Prometheus (kube-prometheus-stack, kubernetes/infrastructure/monitoring) has no login of its own. The
+      # alert emails link here (its externalUrl).
+      - model: authentik_providers_proxy.proxyprovider
+        id: prometheus-provider
+        identifiers:
+          name: Prometheus
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://prometheus.lab.ardw.be
+      - model: authentik_core.application
+        id: prometheus-app
+        identifiers:
+          slug: prometheus
+        attrs:
+          name: Prometheus
+          provider: !KeyOf prometheus-provider
+          group: Infrastructure
+          meta_launch_url: https://prometheus.lab.ardw.be/
+          meta_description: Metrics and alert rules
+      # Infrastructure: only `authentik Admins` sees the tile and gets past forward-auth.
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !KeyOf prometheus-app
+          group: !Find [authentik_core.group, [name, authentik Admins]]
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
       # The embedded outpost exists from the first start (managed by authentik); this only sets its providers
       # and config. `providers` is the full list: every forward-auth provider must be in it.
       # authentik_host is where the outpost sends browsers to log in. The chart's ServiceAccount gives authentik
@@ -387,6 +447,8 @@ data:
           type: proxy
           providers:
             - !KeyOf home-provider
+            - !KeyOf alertmanager-provider
+            - !KeyOf prometheus-provider
           config:
             authentik_host: https://auth.lab.ardw.be/
             authentik_host_insecure: false

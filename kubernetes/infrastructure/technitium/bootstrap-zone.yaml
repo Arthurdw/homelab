@@ -37,6 +37,10 @@ spec:
     spec:
       backoffLimit: 2
       activeDeadlineSeconds: 300
+      # A failed Job keeps KubeJobFailed firing until it is deleted. After an hour it is: a one-off failure
+      # (a node down during maintenance) clears on its own, while a lasting one keeps failing every 15 minutes
+      # and keeps the alert up.
+      ttlSecondsAfterFinished: 3600
       template:
         metadata:
           labels:
