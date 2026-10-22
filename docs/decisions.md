@@ -466,7 +466,8 @@ The list and the reasons are in `docs/runbooks/upgrades.md` §8.
 
 **14-day minimum release age.** No update is proposed until the release is two weeks old. That gives
 upstreams time to yank broken releases, and it matches the rule already used for Homepage in
-`versions.yaml`.
+`versions.yaml`. ghcr.io is the exception: Renovate gets release dates only from Docker Hub, so ghcr.io
+updates are proposed at once, and they never automerge, so that the owner's review replaces the wait.
 
 ### 5.11 — No overcommit alerts: the cluster cannot survive a node loss anyway — *decided 2026-10-22*
 

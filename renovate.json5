@@ -8,7 +8,9 @@
 // - Every major, every stateful app, the CNI, DNS, SSO, Flux itself and Talos/Kubernetes wait for
 //   the owner.
 // - A release must be 14 days old before Renovate proposes it (versions.yaml: homepage v2.5.0 was
-//   skipped for being "under two weeks old"), which also keeps yanked releases out.
+//   skipped for being "under two weeks old"), which also keeps yanked releases out. Except ghcr.io
+//   images and OCI charts: the registry gives no release date, so they are proposed at once and never
+//   automerge (the ghcr.io rule at the end).
 //
 // versions.yaml duplicates many manifest pins. Its `# renovate:` comments use the same depName as the
 // native manager reports for the manifest, so both land in the same branch and PR and never drift.
@@ -23,7 +25,7 @@
   semanticCommitType: 'chore',
   semanticCommitScope: 'deps',
   minimumReleaseAge: '14 days',
-  // Releases without a timestamp stay pending; bump such a pin by hand if needed.
+  // Releases without a timestamp stay pending, except on ghcr.io (the rule at the end).
   minimumReleaseAgeBehaviour: 'timestamp-required',
   internalChecksFilter: 'strict',
   // Automerge only ever goes through a PR whose required checks (.github/workflows/ci.yml) passed.
@@ -211,7 +213,6 @@
         'traefik',
         'csi-driver-nfs',
         'kube-prometheus-stack',
-        'ghcr.io/rancher/local-path-provisioner/charts/local-path-provisioner',
       ],
       matchUpdateTypes: ['patch'],
       automerge: true,
@@ -247,6 +248,17 @@
         'ghcr.io/gethomepage/homepage',
         'fluxcd/flux2',
       ],
+      automerge: false,
+    },
+    {
+      // Renovate's docker datasource reads release dates from Docker Hub only. With
+      // timestamp-required, nothing on ghcr.io (Immich, its chart and Postgres, Homepage, the
+      // local-path chart) was ever proposed. Taking them without a date skips the 14-day wait, so the
+      // owner's review is the gate here: no automerge, not even for local-path patches.
+      description: 'ghcr.io: no release dates, so no age gate and no automerge',
+      matchDatasources: ['docker'],
+      matchPackageNames: ['ghcr.io/**'],
+      minimumReleaseAgeBehaviour: 'timestamp-optional',
       automerge: false,
     },
     {

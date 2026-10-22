@@ -91,7 +91,9 @@ and lock files, the GitHub Actions, and every pin with a `# renovate:` comment a
 tool versions in `.github/workflows/ci.yml`, `scripts/ci/install-ci-tools.sh`, `scripts/lab/*.sh`). A
 `versions.yaml` pin uses the same dependency name as its manifest, so both change in the same PR.
 
-A release has to be **14 days old** before Renovate proposes it. Merging to `main` is a deploy (Flux applies
+A release has to be **14 days old** before Renovate proposes it. The exception is ghcr.io (Immich and its chart
+and Postgres, Homepage, the local-path chart): Renovate gets release dates only from Docker Hub, so those
+updates open at once and never automerge. Check how old the release is before merging. Merging to `main` is a deploy (Flux applies
 it within minutes, §6), so automerge is limited to changes that apply nothing live, plus patch releases of
 stateless charts. Automerge only happens through a PR whose CI passed.
 
@@ -100,7 +102,8 @@ stateless charts. Automerge only happens through a PR whose CI passed.
 | GitHub Actions: minor, patch, digest | Any major |
 | CI and workstation tools (OpenTofu CLI, helm, kind, sops, linters…): minor, patch | Cilium, MetalLB, Technitium, Authentik |
 | OpenTofu providers and lock files: minor, patch (the owner runs `tofu plan/apply`) | Immich (chart, server, Postgres), Seafile, SeaDoc, MariaDB, memcached, Postgres images |
-| cert-manager, Traefik, csi-driver-nfs, kube-prometheus-stack, local-path-provisioner: patch | Audiobookshelf, Kopia, Stremio, Homepage, Flux (`fluxcd/flux2`, opened as one grouped PR) |
+| cert-manager, Traefik, csi-driver-nfs, kube-prometheus-stack: patch | Audiobookshelf, Kopia, Stremio, Homepage, Flux (`fluxcd/flux2`, opened as one grouped PR) |
+| | Anything on ghcr.io, including local-path-provisioner (no release date, so no 14-day wait) |
 | | Talos and Kubernetes: labelled `manual-upgrade` |
 
 - Minor releases of the stateless charts open a PR and wait for review.
