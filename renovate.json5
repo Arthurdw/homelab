@@ -285,6 +285,18 @@
       ],
     },
     {
+      // PR #13 (Immich Postgres 14 -> 16) was merged as is: Flux rolled the new image onto the old
+      // data directory and the database stopped starting.
+      description: 'Postgres majors: the new binary refuses the old data directory, so the merge alone takes the app down',
+      matchDepNames: ['ghcr.io/immich-app/postgres', 'docker.io/library/postgres'],
+      matchUpdateTypes: ['major'],
+      automerge: false,
+      labels: ['dependencies', 'major', 'manual-upgrade'],
+      prBodyNotes: [
+        '> [!CAUTION]\n> **Do not merge as is.** A new PostgreSQL major cannot open the old data directory. Dump the database, move `PGDATA` to a new per-major directory in the same PR, then restore (docs/apps/immich.md §Upgrade & rollback). Merging only the tag crash-loops the database.',
+      ],
+    },
+    {
       description: 'Talos and Kubernetes: merging only moves the pin; the cluster needs talosctl',
       matchDepNames: ['siderolabs/talos', 'kubernetes/kubernetes'],
       automerge: false,
