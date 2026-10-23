@@ -41,7 +41,7 @@ spec:
             image:
               # The chart README requires this: it does not follow Immich releases on its own.
               # renovate: datasource=docker depName=ghcr.io/immich-app/immich-server
-              tag: v3.2.0
+              tag: v3.3.5
             env:
               TZ: Etc/UTC
 
@@ -134,7 +134,7 @@ spec:
               image:
                 # Keep in step with the server tag above (same Immich release, `-cuda` suffix).
                 # renovate: datasource=docker depName=ghcr.io/immich-app/immich-machine-learning
-                tag: v3.2.0-cuda
+                tag: v3.3.5-cuda
               # Same 1s chart default as the server: during a bulk upload the ping misses it while the
               # models run, and the pod flaps NotReady. Only these keys override the chart.
               probes:
