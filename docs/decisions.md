@@ -269,9 +269,12 @@ pod was rescheduled.
 - **What never moves:** pods with a `local-path` PVC (their data is on one node's disk, §3.4), DaemonSet pods,
   bare pods, system-critical pods, and anything in `kube-system` or `flux-system`. Pods on the NAS (`nas-nfs`)
   and pods with an emptyDir may move. PodDisruptionBudgets are respected.
-- **Traefik: 2 replicas,** a soft hostname spread (`ScheduleAnyway`, so both run on one worker rather than one
-  staying Pending) and a PDB with `maxUnavailable: 1`. The descheduler puts the second pod back on its own
-  worker once both are up.
+- **Traefik: 2 replicas,** a hard hostname spread and a PDB with `maxUnavailable: 1`. cloudflared uses the
+  same spread. The spread is `DoNotSchedule` with `nodeTaintsPolicy: Honor`. A down worker carries the
+  unreachable NoSchedule taint, so it drops out of the count and both pods run on the other worker. Once it
+  returns, the descheduler moves one back. The first version used a soft spread (`ScheduleAnyway`), and the
+  scheduler put each evicted pod straight back on the emptier `talos-wk-2`. Both apps got a pointless restart
+  every 30 minutes until this was fixed (2026-10-23).
 
 **Honest limits:** a moved single-replica app restarts, so it is down for that restart (seconds; longer for
 a slow starter such as Authentik). The balance is by requests, so a pod with no or low requests counts for

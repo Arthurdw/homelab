@@ -41,10 +41,15 @@ spec:
         runAsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
+      # One pod per worker. Hard, not ScheduleAnyway: a soft spread let the scheduler put the pod the
+      # descheduler evicted straight back on the emptier worker, every 30 minutes. nodeTaintsPolicy Honor
+      # leaves out the control plane and a worker that is down, so both pods then share the other worker.
+      # Same reasoning as Traefik (infrastructure/traefik/release.yaml).
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
           labelSelector:
             matchLabels:
               app.kubernetes.io/name: cloudflared

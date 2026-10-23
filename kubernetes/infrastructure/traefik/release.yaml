@@ -24,16 +24,21 @@ spec:
       retries: 3
   values:
     # Two Traefik pods, one per worker, so every app stays reachable while a worker is down or rebooting. The
-    # spread is soft (ScheduleAnyway): with one worker left both pods run there rather than one staying
-    # Pending, and the descheduler (../descheduler) moves one back once the other worker returns. The PDB
-    # keeps a drain from taking both down at once. The LoadBalancer address (MetalLB L2, externalTrafficPolicy
-    # Cluster) is announced by one node and moves when that node fails; Cilium forwards to any ready pod.
+    # spread is hard (DoNotSchedule): a soft one let the scheduler put the evicted pod straight back on the
+    # emptier worker, so the descheduler evicted it again every 30 minutes. nodeTaintsPolicy Honor counts only
+    # nodes the pod may run on: the control plane drops out, and so does a worker that is down (it carries the
+    # unreachable NoSchedule taint), so both pods then run on the other worker and the descheduler
+    # (../descheduler) moves one back once it returns. The GPU taint on talos-wk-1 is PreferNoSchedule, which
+    # Honor ignores. The PDB keeps a drain from taking both down at once. The LoadBalancer address (MetalLB L2,
+    # externalTrafficPolicy Cluster) is announced by one node and moves when that node fails; Cilium forwards
+    # to any ready pod.
     deployment:
       replicas: 2
     topologySpreadConstraints:
       - maxSkew: 1
         topologyKey: kubernetes.io/hostname
-        whenUnsatisfiable: ScheduleAnyway
+        whenUnsatisfiable: DoNotSchedule
+        nodeTaintsPolicy: Honor
         labelSelector:
           matchLabels:
             app.kubernetes.io/name: '{{ template "traefik.name" . }}'

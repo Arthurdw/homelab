@@ -72,7 +72,7 @@ spec:
                         - name: local-path
             # Two pods of the same controller on one node: move one.
             - name: RemoveDuplicates
-            # Also act on the soft (ScheduleAnyway) spreads: Traefik and cloudflared use them.
+            # Traefik and cloudflared use hard spreads (DoNotSchedule); soft ones are covered too.
             - name: RemovePodsViolatingTopologySpreadConstraint
               args:
                 constraints:
