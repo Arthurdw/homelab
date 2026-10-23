@@ -132,6 +132,16 @@ spec:
                 # Keep in step with the server tag above (same Immich release, `-cuda` suffix).
                 # renovate: datasource=docker depName=ghcr.io/immich-app/immich-machine-learning
                 tag: v3.2.0-cuda
+              # Same 1s chart default as the server: during a bulk upload the ping misses it while the
+              # models run, and the pod flaps NotReady. Only these keys override the chart.
+              probes:
+                liveness:
+                  spec:
+                    timeoutSeconds: 5
+                    failureThreshold: 6
+                readiness:
+                  spec:
+                    timeoutSeconds: 5
               resources:
                 requests:
                   cpu: 500m
