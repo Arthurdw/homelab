@@ -121,7 +121,7 @@ app_images:
   # Homepage dashboard (kubernetes/apps/homepage); v2.4.0 is from 2026-09-17; v2.5.0
   # (2026-10-10) was under two weeks old when this was pinned.
   # renovate: datasource=docker depName=ghcr.io/gethomepage/homepage
-  homepage: "ghcr.io/gethomepage/homepage:v2.4.0@sha256:643bd0be730d40f69d58028a55d1a896739333e8815786df42bc97f109ecbe61"
+  homepage: "ghcr.io/gethomepage/homepage:v2.6.0@sha256:3e38fe788223cb46a3ce1f046ef11667b40f7707fdca0dcbfa3f86c5c42bf1e8"
   # Cloudflare Tunnel connector (kubernetes/apps/cloudflared, homelab overlay only; docs/decisions.md §5.13).
   # 2026.9.3 is from 2026-09-24; 2026.10.x was under two weeks old when pinned.
   # renovate: datasource=docker depName=docker.io/cloudflare/cloudflared
