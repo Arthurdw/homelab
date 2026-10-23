@@ -219,7 +219,8 @@ derive_workers() {
       # ext-nvidia-persistenced waits forever for the driver, the boot never completes, and Talos
       # reboots the node when its 70-minute boot timeout runs out.
       patches+=(--patch "@$GPU_WORKER_PATCH")
-      patches+=(--patch "$(printf 'apiVersion: v1alpha1\nkind: UnattendedInstallConfig\ninstaller:\n  image: %s\n' "$GPU_INSTALL_IMAGE")")
+      # The merge drops provisioning.diskSelector when the patch leaves it out, so repeat it.
+      patches+=(--patch "$(printf 'apiVersion: v1alpha1\nkind: UnattendedInstallConfig\ninstaller:\n  image: %s\nprovisioning:\n  diskSelector:\n    match: '"'"'disk.dev_path == "%s"'"'"'\n' "$GPU_INSTALL_IMAGE" "$INSTALL_DISK")")
     fi
     run talosctl machineconfig patch "$dir/worker.yaml" "${patches[@]}" --output "$dir/worker-$node.yaml"
     # Embeds the cluster secrets like worker.yaml; keep it owner-only.
