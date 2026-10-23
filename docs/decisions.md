@@ -332,6 +332,26 @@ This settles the "disk spin-down only if appropriate" line in `docs/SPEC.md` (Lo
 hardware and workload it is not appropriate. Revisit only if the snapshot and backup schedule changes to leave
 long idle windows.
 
+### 4.6 — ZFS transaction groups commit every 30 s, not 5 s — *decided 2026-10-23*
+
+With no real activity the 8 HDDs still clicked and seeked every few seconds. The cause was a trickle of about
+11 KB/min to `main/k8s` (Seafile writing its log files to the NFS share). ZFS commits a transaction group every
+`zfs_txg_timeout` seconds (default 5) whenever anything is dirty, and every commit rewrites metadata and the
+uberblocks on all disks, so a few log lines kept every drive busy.
+
+Two changes:
+
+- Seafile logs to stdout, and its leftover log files go to an emptyDir (`kubernetes/apps/seafile/seafile.yaml`).
+- `zfs_txg_timeout` is 30. A TrueNAS Post Init script (System → Advanced → Init/Shutdown Scripts, type Command)
+  runs `echo 30 > /sys/module/zfs/parameters/zfs_txg_timeout`. The `truenas/truenas` provider has no resource
+  for init scripts, so this setting lives outside OpenTofu; the owner set it in the UI.
+
+Why 30 s is safe: sync writes (NFS from Kubernetes, SMB Time Machine) still go to the SLOG right away (§4.4), so
+nothing that was acknowledged as stable waits for the commit. Only async writes wait longer. A power cut can lose
+up to 30 s of async writes instead of 5 s, and the pool stays consistent (copy-on-write). The dirty-data limits
+still force an earlier commit under heavy writes, so throughput is unchanged. This does not undo §4.5: the drives
+keep spinning, they just commit less often.
+
 ## 5. Operations
 
 ### 5.1 — Alerts: SMTP now, Telegram later — *decided*

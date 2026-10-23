@@ -3,8 +3,10 @@
 # and the file server in one container, on top of MariaDB and memcached (mariadb.yaml). There is no Helm
 # chart, so this is plain manifests; the image is pinned in versions.yaml (app_images.seafile).
 #
-# DATA: /shared (blocks, config, logs) on the NAS over NFS (StorageClass `nas-nfs`, decisions.md §4.1), like
-# the Immich library. TODO(storage): the decision puts this on its own dataset `main/apps/seafile`, but
+# DATA: /shared (blocks, config) on the NAS over NFS (StorageClass `nas-nfs`, decisions.md §4.1), like the
+# Immich library. Logs go to stdout (`kubectl logs`); anything still written to /shared/seafile/logs lands on an
+# emptyDir. On the NAS those few lines every few seconds kept all 8 HDDs seeking (decisions.md §4.6).
+# TODO(storage): the decision puts this on its own dataset `main/apps/seafile`, but
 # `nas-nfs` serves one export (`main/k8s`) with a per-PVC subdirectory. To land on `main/apps/seafile`, the
 # TrueNAS side must export that dataset and a static PV (or a second StorageClass) must point at it.
 #
@@ -201,6 +203,10 @@ spec:
                 secretKeyRef:
                   name: seafile-jwt
                   key: jwt-private-key
+            # Seahub, the file server and seafevents log to stdout instead of /shared/seafile/logs (official
+            # compose: SEAFILE_LOG_TO_STDOUT, default false).
+            - name: SEAFILE_LOG_TO_STDOUT
+              value: "true"
             - name: CACHE_PROVIDER
               value: memcached
             - name: MEMCACHED_HOST
@@ -251,6 +257,10 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /shared
+            # The image's own scripts (enterpoint.log, seafile-monitor.log) still write files here. Lost on a
+            # restart, which is fine for logs; the old files on the NAS are only hidden, not deleted.
+            - name: logs
+              mountPath: /shared/seafile/logs
             - name: local-settings
               mountPath: /opt/seafile/seafile-server-14.0.9/seahub/seahub/local_settings.py
               subPath: local_settings.py
@@ -259,6 +269,11 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: seafile-data
+        # Capped so a runaway log cannot fill the node disk; past the cap the kubelet evicts the pod, and the
+        # restart starts with an empty directory.
+        - name: logs
+          emptyDir:
+            sizeLimit: 512Mi
         - name: local-settings
           configMap:
             name: seafile-local-settings

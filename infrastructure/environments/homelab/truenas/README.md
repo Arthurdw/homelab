@@ -116,3 +116,5 @@ tofu plan                                      # review only; blocked until the 
 
 - Provider: `truenas/truenas` 1.5.14 (validated against OpenTofu 1.13.1).
 - State backend: undecided (`docs/secrets-and-state.md` §5).
+- Not managed here: `zfs_txg_timeout=30`, set by a Post Init script in the TrueNAS UI (the provider has no
+  init-script resource). Why: `docs/decisions.md` §4.6.
