@@ -55,8 +55,10 @@ address is the only thing that differs between the two, so it lives in the node 
 `GPU_WORKER_PATCH` (default `talos/patches/gpu-worker.yaml`) loads the NVIDIA modules for the Tesla P4 and
 marks the node: a label for the device plugin and a soft taint, so ordinary pods prefer `talos-wk-2`.
 `GPU_WORKER_NODE` (default `talos-wk-1`) is the one worker that gets it; `talos-wk-2` has no GPU. The lab sets
-the patch empty. Every node's image carries the NVIDIA extensions (one shared schematic), but without this
-patch nothing loads them. The kubelet sets the taint only when a node registers, so a `talos-wk-1` that is
+the patch empty. The same node also gets the NVIDIA installer (`schematic-gpu.yaml`, `GPU_INSTALL_IMAGE`);
+every other node uses `schematic.yaml`, which has no NVIDIA extensions. An NVIDIA image on a node without the
+card never finishes booting (`ext-nvidia-persistenced` waits for the driver), and Talos reboots it every
+70 minutes. The kubelet sets the taint only when a node registers, so a `talos-wk-1` that is
 already in the cluster needs it once with `kubectl taint` (`patches/gpu-worker.yaml`).
 
 `local-path` volumes stay on `talos-wk-1`'s data disk, so their pods stay there too; moving stateful apps to
@@ -93,10 +95,12 @@ is a gated live operation: follow `docs/runbooks/talos-bootstrap.md`. The guarde
 - `ADDITIONAL_SANS`: an API DNS name, if one is created.
 - `INSTALL_IMAGE`: derived from `TALOS_PLATFORM` and `TALOS_SCHEMATIC` as the Image Factory installer
   (`factory.talos.dev/nocloud-installer/<schematic>:<talos>`). `ghcr.io/siderolabs/installer` is no longer
-  published. The schematic is `talos/schematic.yaml` (`siderolabs/kata-containers`, `siderolabs/qemu-guest-agent`,
-  `siderolabs/nonfree-kmod-nvidia-lts`, `siderolabs/nvidia-container-toolkit-lts`), shared by
-  production and the lab (only the platform differs), and must match `talos_image_schematic_id`
-  in the Proxmox environment. To change it, edit the file, `curl -sX POST --data-binary @talos/schematic.yaml
-  https://factory.talos.dev/schematics`, and update the id in `talos/inputs.env`, `scripts/talos/gen-configs.sh`
-  and the Proxmox environment. Existing nodes pick it up with `talosctl upgrade --image`.
+  published. The schematic is `talos/schematic.yaml` (`siderolabs/kata-containers`, `siderolabs/qemu-guest-agent`),
+  shared by production and the lab (only the platform differs).
+- `GPU_INSTALL_IMAGE`: the same for `GPU_WORKER_NODE`, from `GPU_TALOS_SCHEMATIC`: `talos/schematic-gpu.yaml`
+  (the base plus `siderolabs/nonfree-kmod-nvidia-lts` and `siderolabs/nvidia-container-toolkit-lts`). It must
+  match `talos_image_schematic_id` in the Proxmox environment.
+- To change a schematic, edit the file, `curl -sX POST --data-binary @<file> https://factory.talos.dev/schematics`,
+  and update the id in `talos/inputs.env`, `scripts/talos/gen-configs.sh` (and, for the GPU one, the Proxmox
+  environment). Existing nodes pick it up with `talosctl upgrade --image`.
 - NTP: the Talos default until the internal time source is decided.

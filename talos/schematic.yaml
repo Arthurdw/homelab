@@ -1,17 +1,13 @@
-# Image Factory schematic for every Talos node (production nocloud image and the libvirt lab's metal image).
-# The platform only changes the image type (nocloud-installer vs metal-installer), never this file.
+# Image Factory schematic for the nodes without a GPU: talos-cp-1, talos-wk-2 and the libvirt lab's nodes
+# (production nocloud image and the lab's metal image). The platform only changes the image type
+# (nocloud-installer vs metal-installer), never this file. talos-wk-1 uses talos/schematic-gpu.yaml.
 # The id is the sha256 of the canonical form, returned by:
 #   curl -sX POST --data-binary @talos/schematic.yaml https://factory.talos.dev/schematics
-# After editing, update TALOS_SCHEMATIC (talos/inputs.env, scripts/talos/gen-configs.sh) and
-# talos_image_schematic_id (infrastructure/environments/homelab/proxmox) together. Decision: docs/decisions.md.
-# The NVIDIA pair drives the passed-through Tesla P4. It is Pascal, so: the proprietary modules, not the open ones,
-# and the -lts (580) branch, not -production: NVIDIA dropped Pascal from the 590 driver series on, and 580 is the
-# last branch that supports it (security fixes through 2028). Do not move these to -production.
-# Every node carries it, but only the production worker loads the driver (talos/patches/gpu-worker.yaml).
+# After editing, update TALOS_SCHEMATIC (talos/inputs.env, scripts/talos/gen-configs.sh). Decision: docs/decisions.md §3.5.
+# No NVIDIA extensions here: on a node without the card, ext-nvidia-persistenced waits forever for the driver,
+# the boot never completes, and Talos reboots the node every 70 minutes (its boot timeout).
 customization:
   systemExtensions:
     officialExtensions:
       - siderolabs/kata-containers
-      - siderolabs/nonfree-kmod-nvidia-lts
-      - siderolabs/nvidia-container-toolkit-lts
       - siderolabs/qemu-guest-agent

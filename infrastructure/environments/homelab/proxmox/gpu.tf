@@ -13,7 +13,7 @@
 # docs/risk-register.md). If the mapping was already made by hand, adopt it instead of creating it:
 #   tofu import 'proxmox_hardware_mapping_pci.gpu[0]' tesla-p4
 # Inside the guest, Talos loads the NVIDIA driver from the schematic's nonfree extensions
-# (talos/schematic.yaml, talos/patches/gpu-worker.yaml).
+# (talos/schematic-gpu.yaml, talos/patches/gpu-worker.yaml).
 
 resource "proxmox_hardware_mapping_pci" "gpu" {
   count = var.gpu_passthrough == null ? 0 : 1

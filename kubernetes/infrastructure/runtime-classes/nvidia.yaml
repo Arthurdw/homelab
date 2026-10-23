@@ -1,6 +1,6 @@
 ---
 # NVIDIA container runtime for GPU pods. The `nvidia` handler is registered in containerd by the Talos
-# `siderolabs/nvidia-container-toolkit-lts` extension (talos/schematic.yaml), and only works on a node
+# `siderolabs/nvidia-container-toolkit-lts` extension (talos/schematic-gpu.yaml), and only works on a node
 # that also loads the driver (talos/patches/gpu-worker.yaml: the production worker with the Tesla P4).
 # Name and handler follow the extension's README:
 # https://github.com/siderolabs/extensions/blob/v1.14.4/nvidia-gpu/nvidia-container-toolkit/README.md

@@ -138,10 +138,14 @@ variable "talos_image_datastore_id" {
 
 variable "talos_image_schematic_id" {
   description = <<-EOT
-    Talos Image Factory schematic id. The default is talos/schematic.yaml (siderolabs/kata-containers,
-    siderolabs/qemu-guest-agent, siderolabs/nonfree-kmod-nvidia-lts and
-    siderolabs/nvidia-container-toolkit-lts). To change extensions edit that file, POST it to
-    https://factory.talos.dev/schematics and pass the new id here and as TALOS_SCHEMATIC.
+    Talos Image Factory schematic id of the boot disk every VM is imported from. The default is
+    talos/schematic-gpu.yaml (siderolabs/kata-containers, siderolabs/qemu-guest-agent,
+    siderolabs/nonfree-kmod-nvidia-lts and siderolabs/nvidia-container-toolkit-lts), the same id as
+    GPU_TALOS_SCHEMATIC in talos/inputs.env. Only the GPU worker may keep it: a node without the card never
+    finishes booting it (ext-nvidia-persistenced waits for the driver) and Talos reboots it every 70 minutes,
+    so a recreated non-GPU node needs `talosctl upgrade --image` to its installer image (TALOS_SCHEMATIC,
+    talos/schematic.yaml) before that timeout. To change extensions edit the file, POST it to
+    https://factory.talos.dev/schematics and pass the new id here and as GPU_TALOS_SCHEMATIC.
     The URL built from this id was verified (curl -sI) for the pinned Talos version.
   EOT
   type        = string

@@ -256,9 +256,8 @@ Consequences:
    `TODO(L1)`. If it is not harmless, use `"cloud-init-snippet"` (machine config as
    user-data, the documented manual flow) or the `metal` image with DHCP + `talosctl`.
 
-2. **The QEMU guest agent.** The repo schematic (`talos/schematic.yaml`, id
-   `08d87116314dbc848da5843a26140ad62f1a97d0d27a5358f6380337e865b739`) includes
-   `siderolabs/qemu-guest-agent` (and `kata-containers` and the NVIDIA pair). The module still defaults
+2. **The QEMU guest agent.** Both repo schematics (`talos/schematic.yaml` and `talos/schematic-gpu.yaml`)
+   include `siderolabs/qemu-guest-agent` (and `kata-containers`; the GPU one also the NVIDIA pair). The module still defaults
    `qemu_guest_agent_enabled` to `false`, because with an image *without* the extension Proxmox would wait for an
    agent that never starts. The Proxmox root sets it to `true` (`talos_qemu_guest_agent_enabled`), which the new
    image needs: the extension's Talos service waits for the virtio agent channel, which only exists when the VM

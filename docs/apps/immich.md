@@ -83,7 +83,7 @@ Single worker, 3 vCPU / 16 GiB, no HA — requests are deliberately modest.
 Machine learning (face detection and recognition, smart search) runs on the Tesla P4 (`docs/hardware.md`):
 
 - **Path:** OpenTofu passes the card to `talos-wk-1` (`infrastructure/environments/homelab/proxmox/gpu.tf`);
-  Talos loads the proprietary NVIDIA driver (the P4 is Pascal; `talos/schematic.yaml`,
+  Talos loads the proprietary NVIDIA driver (the P4 is Pascal; `talos/schematic-gpu.yaml`,
   `talos/patches/gpu-worker.yaml`); the device plugin (`kubernetes/infrastructure/nvidia-device-plugin`)
   advertises `nvidia.com/gpu`; the ML pod asks for one and runs under the `nvidia` RuntimeClass with the
   `-cuda` image.

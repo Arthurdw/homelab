@@ -47,6 +47,6 @@
 | Tooling present | tofu, kubectl, talosctl, helm, ansible, nix, docker (124 images) | at audit time; `just lab-tools` now installs kind, flux, etc. |
 
 ## Open hardware questions
-- Is the Tesla P4 passthrough stable under load? Planned combo: `talos-wk-1`, Talos nonfree production driver (`talos/schematic.yaml`).
+- Is the Tesla P4 passthrough stable under load? Planned combo: `talos-wk-1`, Talos nonfree 580 LTS driver (`talos/schematic-gpu.yaml`).
 - Any spare disks/NVMe available to reduce the workstation disk pressure for the lab?
 - Is there a second machine available to host lab fixtures (so labs don't contend with prod)?

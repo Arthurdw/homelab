@@ -371,7 +371,7 @@ variable "qemu_guest_agent_enabled" {
     Enable the Proxmox QEMU guest agent.
 
     Leave false unless the Talos image includes the `siderolabs/qemu-guest-agent`
-    system extension (the repo schematic, talos/schematic.yaml, does): enabling the
+    system extension (both repo schematics, talos/schematic*.yaml, do): enabling the
     agent without it makes Proxmox wait (and time out) for an agent that never
     appears. See the module README.
   EOT

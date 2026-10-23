@@ -199,7 +199,7 @@ disk budget in §3.6.)
 `local-path` PVs stay on `talos-wk-1`, and their pods follow them there; moving a stateful app to
 `talos-wk-2` is a separate, deliberate change (dump, recreate the PVC, restore).
 
-### 3.5 — Untrusted CI build jobs run in Kata microVMs; one Talos schematic for every node — *decided 2026-10-21*
+### 3.5 — Untrusted CI build jobs run in Kata microVMs; a base Talos schematic and a GPU one — *decided 2026-10-21, amended 2026-10-23*
 
 The future Forgejo runner (SPEC §12.7) executes repository code it does not trust. Build pods use
 `runtimeClassName: kata` (`kubernetes/infrastructure/runtime-classes`): each pod gets its own guest kernel in
@@ -207,12 +207,15 @@ a microVM, so a build escape lands in a VM, not on the node. The handlers (`kata
 `kata-qemu` = QEMU) come from the Talos `siderolabs/kata-containers` extension, which needs no machine-config
 patch. Builds stay on the worker (the control plane is tainted).
 
-**Schematic:** `talos/schematic.yaml` is the single schematic for production (`nocloud`) and the lab (`metal`);
-only the installer platform differs. It holds `siderolabs/kata-containers`, `siderolabs/qemu-guest-agent` and the
-NVIDIA pair for the Tesla P4 (`siderolabs/nonfree-kmod-nvidia-lts`,
-`siderolabs/nvidia-container-toolkit-lts`: the 580 LTS branch, the last NVIDIA driver series that supports
-Pascal; only `talos-wk-1` loads the driver,
-`talos/patches/gpu-worker.yaml`) (id in `talos/inputs.env`; it must equal `talos_image_schematic_id` in the Proxmox environment). The agent
+**Schematic:** `talos/schematic.yaml` is the schematic for production (`nocloud`) and the lab (`metal`);
+only the installer platform differs. It holds `siderolabs/kata-containers` and `siderolabs/qemu-guest-agent`
+(id `TALOS_SCHEMATIC` in `talos/inputs.env`). `talos-wk-1` alone gets `talos/schematic-gpu.yaml`, the same plus
+the NVIDIA pair for the Tesla P4 (`siderolabs/nonfree-kmod-nvidia-lts`, `siderolabs/nvidia-container-toolkit-lts`:
+the 580 LTS branch, the last NVIDIA driver series that supports Pascal; `talos/patches/gpu-worker.yaml` loads the
+driver; id `GPU_TALOS_SCHEMATIC`, which must equal `talos_image_schematic_id` in the Proxmox environment).
+*Amended 2026-10-23:* this was one shared schematic, but on a node without the card `ext-nvidia-persistenced`
+waits forever for the driver, the boot never completes, and Talos reboots the node when its 70-minute boot
+timeout runs out. `talos-wk-2` rebooted every ~70 minutes until it moved to the base schematic. The agent
 extension waits forever for the virtio channel, so with this image `talos_qemu_guest_agent_enabled` (Proxmox)
 and the libvirt `org.qemu.guest_agent.0` channel (lab) must be on.
 

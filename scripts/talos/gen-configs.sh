@@ -78,7 +78,10 @@ INSTALL_IMAGE="${INSTALL_IMAGE:-}"
 # Image Factory coordinates for the derived installer. ghcr.io/siderolabs/installer is no longer
 # published (no tags); the installer must also match the platform the node booted (nocloud on Proxmox).
 TALOS_PLATFORM="${TALOS_PLATFORM:-nocloud}"
-TALOS_SCHEMATIC="${TALOS_SCHEMATIC:-08d87116314dbc848da5843a26140ad62f1a97d0d27a5358f6380337e865b739}"
+TALOS_SCHEMATIC="${TALOS_SCHEMATIC:-2ed2e4794ba4c5fff3e18307516a15accd3c0d992408c0c9522d2d457a79429f}"
+# GPU_WORKER_NODE's installer: talos/schematic-gpu.yaml, the base plus the NVIDIA pair (derive_workers).
+GPU_TALOS_SCHEMATIC="${GPU_TALOS_SCHEMATIC:-08d87116314dbc848da5843a26140ad62f1a97d0d27a5358f6380337e865b739}"
+GPU_INSTALL_IMAGE="${GPU_INSTALL_IMAGE:-}"
 ADDITIONAL_SANS="${ADDITIONAL_SANS:-}"
 # Worker patch (the local-path user volume). An inputs file may point this at another file, or at
 # an empty string to skip it, for environments whose worker has no dedicated data disk (the lab).
@@ -109,6 +112,9 @@ fi
 KUBERNETES_VERSION="${KUBERNETES_VERSION#v}"
 if [ -z "$INSTALL_IMAGE" ]; then
   INSTALL_IMAGE="factory.talos.dev/${TALOS_PLATFORM}-installer/${TALOS_SCHEMATIC}:${TALOS_VERSION}"
+fi
+if [ -z "$GPU_INSTALL_IMAGE" ]; then
+  GPU_INSTALL_IMAGE="factory.talos.dev/${TALOS_PLATFORM}-installer/${GPU_TALOS_SCHEMATIC}:${TALOS_VERSION}"
 fi
 
 if [ -z "$CLUSTER_ENDPOINT" ]; then
@@ -209,7 +215,11 @@ derive_workers() {
   for node in $WORKER_NODES; do
     patches=(--patch "@$REPO_ROOT/talos/patches/node-$node.yaml")
     if [ "$node" = "$GPU_WORKER_NODE" ] && has_content "$GPU_WORKER_PATCH"; then
+      # Only this node's installer carries the NVIDIA extensions. On a node without the card,
+      # ext-nvidia-persistenced waits forever for the driver, the boot never completes, and Talos
+      # reboots the node when its 70-minute boot timeout runs out.
       patches+=(--patch "@$GPU_WORKER_PATCH")
+      patches+=(--patch "$(printf 'apiVersion: v1alpha1\nkind: UnattendedInstallConfig\ninstaller:\n  image: %s\n' "$GPU_INSTALL_IMAGE")")
     fi
     run talosctl machineconfig patch "$dir/worker.yaml" "${patches[@]}" --output "$dir/worker-$node.yaml"
     # Embeds the cluster secrets like worker.yaml; keep it owner-only.

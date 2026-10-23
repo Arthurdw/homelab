@@ -4,9 +4,10 @@
 #
 # Loads the NVIDIA driver for the Tesla P4 that OpenTofu passes through to talos-wk-1
 # (infrastructure/environments/homelab/proxmox/gpu.tf, docs/hardware.md). The P4 is Pascal, which the
-# open kernel modules do not support, so the schematic carries the proprietary pair
+# open kernel modules do not support, so its schematic carries the proprietary pair
 # siderolabs/nonfree-kmod-nvidia-lts + siderolabs/nvidia-container-toolkit-lts
-# (talos/schematic.yaml), on the -lts (580) branch because 590 and later no longer support Pascal.
+# (talos/schematic-gpu.yaml, which gen-configs.sh sets as this node's installer), on the -lts (580)
+# branch because 590 and later no longer support Pascal.
 # Kubernetes side: the `nvidia` RuntimeClass and the device plugin (kubernetes/infrastructure). This
 # follows the extension's README at the pinned Talos version:
 # https://github.com/siderolabs/extensions/blob/v1.14.4/nvidia-gpu/nvidia-container-toolkit/README.md

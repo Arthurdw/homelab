@@ -48,6 +48,9 @@ The OS image is the **Talos Image Factory `nocloud` disk**, fetched by Proxmox i
 https://factory.talos.dev/image/08d87116314dbc848da5843a26140ad62f1a97d0d27a5358f6380337e865b739/<version>/nocloud-amd64.raw.zst
 ```
 
+- The id is `talos/schematic-gpu.yaml` (`talos_image_schematic_id`), the GPU worker's image. Every other node
+  must be moved to its installer image (`talos/schematic.yaml`) with `talosctl upgrade --image` after creation:
+  without the card, the NVIDIA extensions block the boot and Talos reboots the node every 70 minutes.
 - `<version>` is parsed from `versions.yaml` (`kubernetes.talos`), so the URL cannot drift
   from the pin. For `v1.14.4` the URL was verified with `curl -sI` (HTTP 200,
   `application/octet-stream`, 231366805 bytes) — see the task report.
