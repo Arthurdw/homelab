@@ -90,6 +90,8 @@ See `docs/network-plan.md`. **Decided at GATE 0** (rationale: `docs/decisions.md
   SSD, never on the NAS. A worker's data disk exists so the node-local `local-path` StorageClass has a
   non-system disk to hold its Talos user volume (`docs/decisions.md` §3.4, §4.3). GPU pods run on
   `talos-wk-1`, which carries a soft `PreferNoSchedule` taint so ordinary pods prefer `talos-wk-2` (§3.6).
+  A descheduler CronJob spreads pods out again after a worker returns, and Traefik runs one pod per worker
+  (§3.7).
   **No HA claim** — one host means host loss is cluster loss.
 - **CNI: Cilium** with kube-proxy replacement (NetworkPolicy support, fewer components on a 4-thread host).
   Provisional — Flannel is the documented fallback if resources prove insufficient.

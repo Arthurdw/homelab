@@ -89,6 +89,9 @@ helm_charts:
   # GPU device plugin for the Tesla P4 (kubernetes/infrastructure/nvidia-device-plugin). Latest as of 2026-10-22.
   # renovate: datasource=helm depName=nvidia-device-plugin registryUrl=https://nvidia.github.io/k8s-device-plugin
   nvidia_device_plugin: "0.20.1"  # https://nvidia.github.io/k8s-device-plugin
+  # Descheduler CronJob (kubernetes/infrastructure/descheduler): rebalances pods after a worker returns.
+  # renovate: datasource=helm depName=descheduler registryUrl=https://kubernetes-sigs.github.io/descheduler
+  descheduler: "0.37.0"           # https://kubernetes-sigs.github.io/descheduler (released 2026-10-04)
 
 app_images:
   # Container images pinned in kubernetes/apps/** (not Helm charts). Pinned by tag@digest where the

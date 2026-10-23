@@ -254,6 +254,31 @@ real usage, not its provisioned size, to leave room; check `lvs` before adding o
 for maintenance, but a pod with a `local-path` PV cannot move while its node is down. Talos sets the taint
 only when a node registers, so the existing `talos-wk-1` needs it once by hand (`docs/runbooks/talos-bootstrap.md`).
 
+### 3.7 — Pods rebalance after a worker returns; Traefik runs on both workers — *decided 2026-10-23*
+
+The scheduler places a pod once and never moves it. After `talos-wk-2` rebooted on 2026-10-23, every pod that
+had moved off it stayed on `talos-wk-1`: 33 pods there (77 % of its CPU requested), `talos-wk-2` empty. And
+Traefik, the one way into every app, ran as a single pod, so losing its worker took every Ingress down until the
+pod was rescheduled.
+
+- **Descheduler** (`kubernetes/infrastructure/descheduler`), a CronJob every 10 minutes running only the
+  balance plugins: `LowNodeUtilization` (pod requests, not live usage: a node under 20 % on CPU, memory and pod
+  count is underused, one over 50 % on any is overused), `RemoveDuplicates` and
+  `RemovePodsViolatingTopologySpreadConstraint` (soft spreads included). At most 5 evictions per node per run,
+  only pods older than 30 minutes, and only when another node can take the pod (`nodeFit`).
+- **What never moves:** pods with a `local-path` PVC (their data is on one node's disk, §3.4), DaemonSet pods,
+  bare pods, system-critical pods, and anything in `kube-system` or `flux-system`. Pods on the NAS (`nas-nfs`)
+  and pods with an emptyDir may move. PodDisruptionBudgets are respected.
+- **Traefik: 2 replicas,** a soft hostname spread (`ScheduleAnyway`, so both run on one worker rather than one
+  staying Pending) and a PDB with `maxUnavailable: 1`. The descheduler puts the second pod back on its own
+  worker once both are up.
+
+**Honest limits:** a moved single-replica app restarts, so it is down for that restart (seconds; longer for
+a slow starter such as Authentik). The balance is by requests, so a pod with no or low requests counts for
+little. The soft taint on `talos-wk-1` (§3.6) is a scheduler preference that `nodeFit` does not see, so a pod
+evicted from `talos-wk-2` may land on it again; the 30-minute age floor and the per-node cap keep that from
+looping fast. Still one host, still no HA (§3.6).
+
 ## 4. Storage
 
 ### 4.1 — Tiered dataset hierarchy with per-dataset recursive snapshot policies — *decided*

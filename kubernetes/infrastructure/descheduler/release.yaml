@@ -1,0 +1,105 @@
+---
+# Descheduler: the scheduler only places a pod once. When a worker goes down, its pods move to the other worker
+# and stay there after it comes back, so one worker carries everything (2026-10-23: 33 pods on talos-wk-1, wk-2
+# empty after its reboot). Every 10 minutes this CronJob evicts a few pods from the busy node; their controllers
+# recreate them and the scheduler places them on the quiet one.
+#   Chart:  descheduler 0.37.0 from https://kubernetes-sigs.github.io/descheduler (../sources.yaml)
+#   Policy: https://github.com/kubernetes-sigs/descheduler/blob/v0.37.0/README.md
+#
+# What it never evicts: DaemonSet pods, bare pods, system-critical pods (the defaults), and pods with a
+# `local-path` PVC: that volume lives on one node's disk, so the pod could only come back on the same node.
+# Pods on the NAS (`nas-nfs`) and pods with an emptyDir may move. Evictions go through the eviction API, so
+# PodDisruptionBudgets are respected. A single-replica app that is moved is down for its restart (seconds).
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: descheduler
+  namespace: descheduler
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: descheduler
+      version: 0.37.0
+      sourceRef:
+        kind: HelmRepository
+        name: descheduler
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    kind: CronJob
+    # The chart default is every 2 minutes; nothing here changes that fast.
+    schedule: "*/10 * * * *"
+    timeZone: Etc/UTC
+    successfulJobsHistoryLimit: 1
+    failedJobsHistoryLimit: 1
+    # The chart reserves 500m/256Mi for a job that runs for seconds; on these nodes that request alone is a
+    # visible share of a worker.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+    # Replaces the chart's whole policy (a list is not merged). Only the balance plugins run; the chart's
+    # deschedule plugins (restarts, taints, affinity) are left off.
+    deschedulerPolicy:
+      # At most 5 evictions per node per run, so a rebalance happens in small steps.
+      maxNoOfPodsToEvictPerNode: 5
+      profiles:
+        - name: default
+          pluginConfig:
+            - name: DefaultEvictor
+              args:
+                # Only evict a pod if another node can take it (taints, selectors, free requests).
+                nodeFit: true
+                # Leave freshly started pods alone, so a pod is not moved twice in a row.
+                minPodAge: 30m
+                podProtections:
+                  defaultDisabled:
+                    - PodsWithLocalStorage
+                  extraEnabled:
+                    - PodsWithPVC
+                  config:
+                    PodsWithPVC:
+                      protectedStorageClasses:
+                        - name: local-path
+            # Two pods of the same controller on one node: move one.
+            - name: RemoveDuplicates
+            # Also act on the soft (ScheduleAnyway) spreads: Traefik and cloudflared use them.
+            - name: RemovePodsViolatingTopologySpreadConstraint
+              args:
+                constraints:
+                  - DoNotSchedule
+                  - ScheduleAnyway
+            # Percentages of node allocatable, measured on pod requests (not live usage). A node is
+            # underused when cpu, memory AND pod count are all below `thresholds`, overused when any one is
+            # above `targetThresholds`. Pods move from overused to underused nodes until neither is true.
+            - name: LowNodeUtilization
+              args:
+                thresholds:
+                  cpu: 20
+                  memory: 20
+                  pods: 20
+                targetThresholds:
+                  cpu: 50
+                  memory: 50
+                  pods: 50
+                evictableNamespaces:
+                  exclude:
+                    - kube-system
+                    - flux-system
+          plugins:
+            balance:
+              enabled:
+                - RemoveDuplicates
+                - RemovePodsViolatingTopologySpreadConstraint
+                - LowNodeUtilization
+            deschedule:
+              enabled: []

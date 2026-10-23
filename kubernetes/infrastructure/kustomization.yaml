@@ -13,3 +13,4 @@ resources:
   - local-path
   - runtime-classes
   - nvidia-device-plugin
+  - descheduler

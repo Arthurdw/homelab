@@ -46,7 +46,7 @@ release failed until someone forces a reconcile.
 ## Versions
 
 `versions.yaml` at the repo root is the single source of truth; this table is a convenience view.
-Every chart version below was verified against its upstream index or registry on **2026-10-16**.
+Every chart version below was verified against its upstream index or registry on **2026-10-16** (the descheduler on 2026-10-23).
 
 | Component | Chart | Version | Source |
 |---|---|---|---|
@@ -61,6 +61,7 @@ Every chart version below was verified against its upstream index or registry on
 | Immich | `immich` (OCI) | 0.13.4 | `oci://ghcr.io/immich-app/immich-charts/immich` |
 | Audiobookshelf | `audiobookshelf` | 2.5.1 | `https://charts.christianhuth.de` |
 | Authentik | `authentik` | 2026.8.4 | `https://charts.goauthentik.io` |
+| Descheduler | `descheduler` | 0.37.0 | `https://kubernetes-sigs.github.io/descheduler` |
 
 Renovate keeps these current (`renovate.json5`; what it automerges and why: `docs/runbooks/upgrades.md` §8).
 

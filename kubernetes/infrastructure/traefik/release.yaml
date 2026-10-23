@@ -23,6 +23,24 @@ spec:
     remediation:
       retries: 3
   values:
+    # Two Traefik pods, one per worker, so every app stays reachable while a worker is down or rebooting. The
+    # spread is soft (ScheduleAnyway): with one worker left both pods run there rather than one staying
+    # Pending, and the descheduler (../descheduler) moves one back once the other worker returns. The PDB
+    # keeps a drain from taking both down at once. The LoadBalancer address (MetalLB L2, externalTrafficPolicy
+    # Cluster) is announced by one node and moves when that node fails; Cilium forwards to any ready pod.
+    deployment:
+      replicas: 2
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: '{{ template "traefik.name" . }}'
+            app.kubernetes.io/instance: '{{ .Release.Name }}-{{ include "traefik.namespace" . }}'
+    podDisruptionBudget:
+      enabled: true
+      maxUnavailable: 1
     # LoadBalancer Service with a FIXED address from the MetalLB pool (configs/metallb-pool.yaml), so
     # Technitium's *.lab.ardw.be records can point at it. `${TRAEFIK_LB_IP}` is per-cluster
     # (cluster-settings). `metallb.io/loadBalancerIPs` is the current MetalLB annotation; the old

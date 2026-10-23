@@ -72,3 +72,12 @@ metadata:
 spec:
   interval: 1h
   url: https://nvidia.github.io/k8s-device-plugin
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: descheduler
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://kubernetes-sigs.github.io/descheduler

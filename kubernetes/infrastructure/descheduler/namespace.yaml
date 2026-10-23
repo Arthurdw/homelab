@@ -1,0 +1,7 @@
+---
+# Pod Security: the descheduler runs non-root with a read-only root filesystem and no host access, so the
+# Talos default (baseline) is enough; no label needed.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: descheduler
