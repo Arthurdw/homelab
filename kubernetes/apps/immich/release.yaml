@@ -124,6 +124,9 @@ spec:
     machine-learning:
       controllers:
         main:
+          # One GPU: a rolling update starts the new pod while the old one holds it, so the new pod
+          # stays Pending forever. Stop the old pod first.
+          strategy: Recreate
           pod:
             runtimeClassName: nvidia
           containers:
