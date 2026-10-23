@@ -14,7 +14,7 @@ transcoding, smart search) plus a machine-learning worker.
 | Helm chart | `0.13.4` (`appVersion v3.2.0`) | `source.yaml` (`ref.tag`), `release.yaml` | `helm show chart` (OCI), 2026-10-16 |
 | Immich server image | `v3.2.0` | `release.yaml` (`controllers…image.tag`) | chart `values.yaml` default / README requires the tag |
 | Immich ML image | `v3.2.0-cuda` | `release.yaml` (`machine-learning…image.tag`) | Immich's CUDA build of the same release; Renovate groups it with the server |
-| PostgreSQL image | `14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf6335…` | `postgres.yaml`, `backup.yaml` | exact tag@digest from Immich `docker/docker-compose.yml` |
+| PostgreSQL image | `16-vectorchord0.4.3-pgvectors0.2.0@sha256:1a078b2…` | `postgres.yaml`, `backup.yaml` | Immich's own image for PG16; moved from 14 on 2026-10-23 by dump and restore |
 | Valkey image | chart default (`9.1.2-alpine@sha256:48332…`) | `release.yaml` (`valkey.enabled`) | chart `values.yaml` |
 
 Chart version is recorded in `versions.yaml` (`helm_charts.immich`); the DB image is in
@@ -134,6 +134,25 @@ Machine learning (face detection and recognition, smart search) runs on the Tesl
   releases, so this must be bumped deliberately.
 - **Database:** immutable-ish; **do not** jump PostgreSQL major versions in place. Immich upgrades must
   match the migrations shipped in the app version.
+- **PostgreSQL major (e.g. 16 → 17):** a new binary refuses the old data directory, so bumping only the
+  tag crash-loops the database (PR #13 did that on 2026-10-23). Each major lives in its own
+  subdirectory of the volume (`PGDATA=/var/lib/postgresql/data/pg<major>` in `postgres.yaml`), so the
+  old files stay as a fallback. The owner runs it:
+  1. `flux suspend kustomization apps`, `flux suspend helmrelease immich -n immich`, and scale
+     `immich-server` to 0.
+  2. Dump on the old major: `kubectl -n immich exec immich-postgres-0 -- sh -c 'pg_dumpall --clean
+     --if-exists -U "$POSTGRES_USER"' | gzip > immich.sql.gz`, plus a NAS copy with
+     `kubectl -n immich create job --from=cronjob/immich-db-dump immich-db-dump-premajor`.
+  3. One PR moves the tag in `postgres.yaml`, `backup.yaml` and `versions.yaml` **and** `PGDATA` to
+     the new major's directory. Merge it, then `flux resume kustomization apps`. The pod starts on an
+     empty new cluster.
+  4. Restore with Immich's search_path fix:
+     `gunzip < immich.sql.gz | sed "s/SELECT pg_catalog.set_config('search_path', '', false);/SELECT
+     pg_catalog.set_config('search_path', 'public, pg_catalog', true);/g" | kubectl -n immich exec -i
+     immich-postgres-0 -- sh -c 'psql -U "$POSTGRES_USER" -d postgres'`. Errors about the role that
+     already exists are expected.
+  5. Scale `immich-server` back to 1, `flux resume helmrelease immich -n immich`, check the library.
+  6. Weeks later, delete the old major's files from the volume.
 - **Rollback:** `helm`/Flux rolls back the Deployment to the previous image; the DB schema may already be
   migrated forward, so **restore the DB dump from before the upgrade** if a downgrade needs the old
   schema. Always take a manual dump immediately before an upgrade:

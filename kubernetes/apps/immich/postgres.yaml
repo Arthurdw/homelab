@@ -1,5 +1,5 @@
 ---
-# Immich database — PostgreSQL 14 + VectorChord + pgvecto.rs + pgvector.
+# Immich database — PostgreSQL 16 + VectorChord + pgvecto.rs + pgvector.
 #
 # Immich v3.x requires VectorChord; the upstream chart removed its postgres subchart and expects an
 # external instance. This is a plain single-replica StatefulSet using the *exact* image Immich itself
@@ -80,6 +80,12 @@ spec:
                   key: password
             - name: POSTGRES_INITDB_ARGS
               value: --data-checksums
+            # One subdirectory per major: a new major starts in an empty directory beside the old
+            # one, and the data moves across by dump and restore (docs/apps/immich.md §Upgrade). A
+            # new binary refuses the old files, so bump this together with the image tag. The PG14
+            # files at the volume root are the copy from before 16; the owner deletes them later.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pg16
             - name: TZ
               value: Etc/UTC
           volumeMounts:
