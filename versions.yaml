@@ -94,7 +94,7 @@ app_images:
   # Container images pinned in kubernetes/apps/** (not Helm charts). Pinned by tag@digest where the
   # upstream project itself pins an exact image.
   # renovate: datasource=docker depName=ghcr.io/immich-app/postgres
-  immich_postgres: "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23"
+  immich_postgres: "ghcr.io/immich-app/postgres:16-vectorchord0.4.3-pgvectors0.2.0@sha256:1a078b237c1d9b420b0ee59147386b4aa60d3a07a8e6a402fc84a57e41b043a4"
   # ^ exact image Immich ships in docker/docker-compose.yml; provides the VectorChord extension v3.x needs
   # Authentik dump CronJob (kubernetes/apps/authentik/backup.yaml) and scripts/backup/db-restore-test.sh,
   # which reuses the CronJob images (the immich one above, and this one). Same major as the chart's PostgreSQL.
