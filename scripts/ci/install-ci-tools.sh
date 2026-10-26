@@ -29,7 +29,7 @@ set -euo pipefail
 # renovate: datasource=github-releases depName=helm/helm extractVersion=^v(?<version>.+)$
 HELM_VERSION="${HELM_VERSION:-4.3.1}"          # versions.yaml: ci_tools.helm
 # renovate: datasource=github-releases depName=mikefarah/yq
-YQ_VERSION="${YQ_VERSION:-v4.47.2}"
+YQ_VERSION="${YQ_VERSION:-v4.54.1}"
 # renovate: datasource=github-releases depName=rhysd/actionlint extractVersion=^v(?<version>.+)$
 ACTIONLINT_VERSION="${ACTIONLINT_VERSION:-1.7.12}"
 # renovate: datasource=github-releases depName=koalaman/shellcheck extractVersion=^v(?<version>.+)$
