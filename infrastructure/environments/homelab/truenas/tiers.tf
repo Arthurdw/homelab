@@ -16,7 +16,9 @@
 # What §4.1 leaves open, and this file therefore does not decide: quotas and reservations, the SMB and NFS
 # shares themselves (names, users, ACLs, allowed networks) and which person's data lands where. Each is a
 # TODO(owner) below. Datasets without a share are not reachable by anything yet, which is the safe default.
-# Compression, recordsize, encryption etc. are inherited from the pool on purpose, as in k8s.tf.
+# The one exception so far is jolien's share and photo archive (decisions.md §5.17), at the end of the Tier 1
+# section. Compression, recordsize, encryption etc. are inherited from the pool on purpose, as in k8s.tf;
+# only the photo archive sets its own recordsize.
 
 # -----------------------------------------------------------------------------
 # Tier 1: personal data (SMB), hourly / 30 d
@@ -32,8 +34,8 @@ resource "truenas_dataset" "tier1" {
 }
 
 # One dataset per person, so each has their own snapshots, and a quota can be set per person later.
-# TODO(owner): quotas, the SMB share per person and its account/ACL are not in §4.1 (compare the
-# Time Machine share in backups.tf). Which existing data belongs to which tier is the owner's call too.
+# TODO(owner): quotas, the SMB share per person and its account/ACL for arthur and dunia are not in §4.1
+# (jolien's are below, §5.17). Which existing data belongs to which tier is the owner's call too.
 resource "truenas_dataset" "tier1_arthur" {
   name     = "main/tier1/arthur"
   comments = "Managed by OpenTofu: arthur's personal data (Tier 1)"
@@ -47,11 +49,13 @@ resource "truenas_dataset" "tier1_arthur" {
   depends_on = [truenas_dataset.tier1]
 }
 
+# The quota covers the photos child and the snapshots of both (decisions.md §5.17).
 resource "truenas_dataset" "tier1_jolien" {
   name     = "main/tier1/jolien"
   comments = "Managed by OpenTofu: jolien's personal data (Tier 1)"
 
   share_type = "SMB"
+  quota      = var.tier1_jolien_quota_gib * 1024 * 1024 * 1024
 
   lifecycle {
     prevent_destroy = true
@@ -71,6 +75,96 @@ resource "truenas_dataset" "tier1_dunia" {
   }
 
   depends_on = [truenas_dataset.tier1]
+}
+
+# jolien's share and photo archive (decisions.md §5.17; docs/runbooks/household-backups.md, section d).
+# FreeFileSync on her Mac copies each external drive to photos/drives/<drive name>/ over SMB. The tier1
+# task below snapshots it hourly, so a file deleted or overwritten on the NAS stays restorable for 30 days.
+#
+# photos is its own dataset for three reasons:
+# - its recordsize can differ: 1M suits multi-MB RAW and project files (less metadata, better compression),
+#   and recordsize only applies to blocks written after it is set, so it has to be right from the start;
+# - offsite replication and an Immich external library can later take the archive alone;
+# - its usage shows up on its own in the UI.
+resource "truenas_dataset" "tier1_jolien_photos" {
+  name     = "main/tier1/jolien/photos"
+  comments = "Managed by OpenTofu: jolien's photo archive, a FreeFileSync copy of her external drives (Tier 1)"
+
+  share_type = "SMB"
+  recordsize = "1M"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  depends_on = [truenas_dataset.tier1_jolien]
+}
+
+# The same owner-only ACL as the Time Machine share (backups.tf): jolien owns both paths, and INHERIT
+# passes it on to every file and folder she creates. photos gets its own ACL because a child dataset is a
+# separate filesystem with its own root, created with the SMB preset's default ACL, not the parent's.
+# The NAS admin (root) can still read everything for a restore.
+resource "truenas_filesystem_acl" "tier1_jolien" {
+  path = "/mnt/${truenas_dataset.tier1_jolien.name}"
+  uid  = truenas_user.jolien.uid
+
+  entries = jsonencode([
+    {
+      tag   = "owner@"
+      id    = null
+      type  = "ALLOW"
+      perms = { BASIC = "FULL_CONTROL" }
+      flags = { BASIC = "INHERIT" }
+    },
+  ])
+}
+
+resource "truenas_filesystem_acl" "tier1_jolien_photos" {
+  path = "/mnt/${truenas_dataset.tier1_jolien_photos.name}"
+  uid  = truenas_user.jolien.uid
+
+  entries = jsonencode([
+    {
+      tag   = "owner@"
+      id    = null
+      type  = "ALLOW"
+      perms = { BASIC = "FULL_CONTROL" }
+      flags = { BASIC = "INHERIT" }
+    },
+  ])
+}
+
+# One share at the top of her dataset, so photos/ shows up as a folder in it. DEFAULT_SHARE is the
+# plain-file preset; no per-purpose options are needed (Apple's SMB extensions are already on NAS-wide
+# for Time Machine). Snapshots come from the tier1 task, not the share.
+resource "truenas_smb_share" "tier1_jolien" {
+  name    = var.tier1_jolien_share_name
+  path    = "/mnt/${truenas_dataset.tier1_jolien.name}"
+  comment = "Managed by OpenTofu: jolien's personal data and photo archive"
+  enabled = true
+  purpose = "DEFAULT_SHARE"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  depends_on = [
+    truenas_filesystem_acl.tier1_jolien,
+    truenas_filesystem_acl.tier1_jolien_photos,
+  ]
+}
+
+# Share-level access: jolien only, by UID like the Time Machine share.
+resource "truenas_smb_share_acl" "tier1_jolien" {
+  share_name = truenas_smb_share.tier1_jolien.name
+
+  share_acl = [
+    {
+      ae_who_id = { id_type = "USER", id = truenas_user.jolien.uid }
+      ae_perm   = "FULL"
+      ae_type   = "ALLOWED"
+    },
+  ]
 }
 
 # Hourly / 30 d, recursive, so every person's dataset is covered (decisions.md §4.1).

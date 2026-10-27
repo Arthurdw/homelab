@@ -11,6 +11,7 @@ section for the device you are on.
 | (a) Mac, Time Machine | the NAS only (the TrueNAS root applied). No cluster. |
 | (b) Windows and Linux, Kopia | **the cluster live**: Kopia server up at `https://kopia.lab.ardw.be`, a client account created by the server admin |
 | (c) Seafile | **the cluster live**: `seafile.lab.ardw.be` |
+| (d) Mac, photo drives (FreeFileSync) | the NAS only (the TrueNAS root applied, with `tier1_jolien_quota_gib` set). No cluster. |
 
 Pre-checks: the TrueNAS root (`infrastructure/environments/homelab/truenas`, `backups.tf`) is applied, which
 needs a NAS on TrueNAS >= 25.04 (see its README). Nothing here has run against the real NAS yet.
@@ -126,3 +127,57 @@ sides.
 
 The clients keep their own tokens either way (decisions §5.8). Seafile is for files you want everywhere. It is
 not a device backup: keep the Kopia or Time Machine job running as well.
+
+## (d) Photo drives: FreeFileSync (needs the NAS only)
+
+jolien's photo work (RAWs, project files) lives on external drives that Time Machine does not cover
+(decisions §5.17). FreeFileSync copies each drive to its own folder on the `jolien` share, and RealTimeSync
+re-runs that copy when a drive changes or is plugged in. Both are free and open source (freefilesync.org).
+
+Owner steps on the NAS, once:
+
+1. Add `tier1_jolien_quota_gib` to `terraform.tfvars` (10240 = 10 TiB; it covers the archive and its
+   snapshots). Export the API key and the household passwords as for the first apply (part (a), step 1), then
+   `tofu plan` and `tofu apply` in `infrastructure/environments/homelab/truenas`.
+2. Check: Shares, Windows (SMB) shows `jolien` (default purpose); Datasets shows `main/tier1/jolien/photos`
+   with record size 1M and a quota on `main/tier1/jolien`.
+
+On the Mac:
+
+1. Finder, Go, Connect to Server, `smb://hercules-nas.<domain>/jolien`, sign in as `jolien` and save the
+   password to the keychain. It mounts at `/Volumes/jolien`. Create `photos/drives/` in it.
+2. To mount it at login: System Settings, General, Login Items, add the mounted `jolien` volume.
+3. Install FreeFileSync (it ships RealTimeSync). System Settings, Privacy & Security, Full Disk Access: add
+   both apps, or macOS blocks them from reading external drives and the share.
+4. Give every drive a unique name (Finder, rename the volume). The name becomes the folder on the NAS, so two
+   drives called `Untitled` would land in the same folder. Write the names down.
+5. A drive encrypted with Samsung Magician: unlock it first. FreeFileSync only sees it while it is unlocked
+   and mounted; a locked drive is skipped, not emptied, on the NAS.
+6. In FreeFileSync, one folder pair per drive: left `/Volumes/<drive>`, right
+   `/Volumes/jolien/photos/drives/<drive>`. Synchronization settings (green gear): **Update** (the `>` arrow
+   variant), never Mirror or Two way. Exclude `.Spotlight-V100`, `.fseventsd`, `.Trashes` and
+   `.TemporaryItems` (FreeFileSync excludes most of these by default).
+7. Run it once by hand: Compare, check the totals, Synchronize. The first copy of several terabytes takes
+   a day or more over the network; keep the Mac awake, on power and wired if possible.
+8. File, Save as batch job: tick **Auto-close** and set error handling to **Ignore** (a drive that is not
+   plugged in then just fails its pair and the rest carries on). Save it, for example
+   `~/Documents/photo-backup.ffs_batch`.
+9. Open RealTimeSync, File, Open, the `.ffs_batch` file: it fills in the drive folders to watch and the
+   command. Set the idle time to a few minutes (300 s), so a long import finishes before the copy starts.
+   Start it, then add RealTimeSync to Login Items so it runs after every restart. It also runs the job when
+   a watched drive is plugged in.
+
+Verify: the menu-bar RealTimeSync icon shows it is watching; copy a test file onto a drive and it shows up on the
+share after the idle time. FreeFileSync's logs (Tools, Show log folder) list each run and its errors. Nothing
+on the NAS alerts on a stopped sync yet: look at the share's newest files now and then.
+
+Test a restore once: copy a folder from `/Volumes/jolien/photos/drives/<drive>` back to a scratch location and
+open a few RAWs and a project. An older version of a file that was overwritten: on the NAS, Datasets,
+`main/tier1/jolien`, Snapshots, or browse the read-only copies under `/mnt/main/tier1/jolien/photos/.zfs/snapshot/`
+as root (30 days back).
+
+Keep the old drives until there is an offsite copy (decisions §5.5, §5.17): until then the NAS is the only
+second copy. Deletes on the drives never reach the NAS; to free space, delete on the share by hand.
+
+Rollback or remove: quit RealTimeSync and remove it from Login Items. The data on the NAS stays until the
+dataset is deleted by hand (the IaC refuses to destroy it).

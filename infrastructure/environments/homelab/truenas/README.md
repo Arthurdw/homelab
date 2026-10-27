@@ -36,7 +36,8 @@ the provider can only import PHYSICAL interfaces, never configure them.
 | `users.tf`: `truenas_user.arthur` | the owner's existing admin login, **imported** by an `import` block (id looked up by name), never changed: groups, sudo, shell, password, home, lock state and UID are in `ignore_changes`; `prevent_destroy` | |
 | `truenas_nfs_share.{kopia,seafile}` | `main/backups/kopia`, `main/apps/seafile`; same networks and maproot as the k8s export | decisions §5.8, §5.9 |
 | snapshot tasks | `timemachine` daily / 7 d, `kopia` daily / 14 d, `main/apps` hourly / 14 d | decisions §4.1 |
-| `tiers.tf`: `main/tier1` + `{arthur,jolien,dunia}` (SMB), `main/media`, `main/scratch` | datasets, `prevent_destroy`; no shares, no quotas | decisions §4.1 |
+| `tiers.tf`: `main/tier1` + `{arthur,jolien,dunia}` (SMB), `main/media`, `main/scratch` | datasets, `prevent_destroy`; no shares or quotas except jolien's (next row) | decisions §4.1 |
+| `tiers.tf`: `main/tier1/jolien` quota, `main/tier1/jolien/photos`, `truenas_smb_share.tier1_jolien` + `_acl`, two `truenas_filesystem_acl` | quota `tier1_jolien_quota_gib` (no default; photos and snapshots count), `photos` with `recordsize = "1M"`, share `jolien` (`DEFAULT_SHARE`), one user only (`truenas_user.jolien`); FreeFileSync target for her external drives | decisions §5.17 |
 | `tiers.tf` snapshot tasks | `tier1` hourly (minute 10) / 30 d, recursive; `media` weekly (Sun 01:00) / 4 w; **none** for `scratch` | decisions §4.1 |
 
 `backups.tf` needs one manual prerequisite on the NAS: **Apple SMB2/3 protocol extensions** on (NAS-wide, so
@@ -47,7 +48,7 @@ already (the plan fails at the lookup otherwise) and the two password variables 
 
 - **A Proxmox backups/ISO export.** decisions §4.2 says they go to a NAS NFS export
   (prune 7d/4w/6m), but it names no dataset or path. Add one once that is decided (`main/backups` now exists).
-- **Shares, quotas and the media protocol for the tier datasets** (`tiers.tf`). decisions §4.1 names no share
+- **Shares, quotas and the media protocol for the tier datasets** (`tiers.tf`), except jolien's (§5.17). decisions §4.1 names no share
   names, accounts, quotas or, for `main/media`, which of SMB/NFS applies, so none are invented. Each is a
   `TODO(owner)` in the file. `main/scratch` has no snapshot task on purpose (§4.1: none).
 - **Which data goes in which tier.** The datasets exist and are empty. Classifying the owner's future data

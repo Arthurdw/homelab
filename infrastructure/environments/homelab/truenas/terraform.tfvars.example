@@ -21,6 +21,11 @@ truenas_insecure = true
 timemachine_jolien_quota_gib = 1024
 # timemachine_jolien_share_name = "timemachine-jolien"
 
+# jolien's Tier 1 share and photo archive (tiers.tf, decisions.md §5.17). TODO(owner): required, no default.
+# The size of her drives plus room to grow and for 30 days of snapshots (6-8 TB of drives -> 10240).
+tier1_jolien_quota_gib = 10240
+# tier1_jolien_share_name = "jolien"
+
 # Household accounts (users.tf). jolien and dunia are created by OpenTofu; arthur already exists and is
 # imported, never changed. The two passwords have no default and do NOT go in this file: they are
 # ephemeral variables, read from the shell on the apply that creates the accounts:

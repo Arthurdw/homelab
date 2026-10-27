@@ -623,6 +623,44 @@ pay for in seeks (compare the Seafile logging fix). Everything in it is recovera
 logins in a SOPS Secret are optional; a TOTP seed stored there trades the account's second factor for unattended
 runs, so that is the owner's call per store.
 
+### 5.17 — jolien's photo archive: FreeFileSync from her drives to an SMB share on Tier 1 — *decided 2026-10-27*
+
+jolien is a photographer. Her RAW files and project files (6-8 TB today) live on several external drives, not on
+the Mac, so Time Machine (§5.9) does not cover them. **FreeFileSync on the Mac copies each drive to
+`main/tier1/jolien/photos/drives/<drive name>/`** over the SMB share `jolien`, and RealTimeSync re-runs that copy
+when a drive changes or is plugged in. Runbook: `docs/runbooks/household-backups.md` (d); NAS side:
+`infrastructure/environments/homelab/truenas/tiers.tf`.
+
+Why:
+
+- **Not Seafile** (§5.8). Seafile stores libraries as blocks, so terabytes of RAWs would be readable only through
+  Seafile, and its client syncs folders on the Mac, not drives that come and go.
+- **Not Time Machine.** Time Machine can include external drives, but it then needs them connected for every
+  backup, and the result is a sparsebundle that only a Mac can open.
+- **Not Carbon Copy Cloner or ChronoSync.** The owner does not want a paid tool. FreeFileSync and RealTimeSync are
+  free and open source (GPL-3.0); the optional donation edition adds nothing this setup needs.
+- **"Update" mode, not mirror.** It copies new and changed files and never deletes on the NAS, so a file deleted
+  or a drive wiped by mistake stays in the archive. The cost: a renamed or moved folder is copied again under its
+  new name, and space is freed only by deleting by hand on the share.
+- **Plain files on SMB.** The archive opens from any computer with the share mounted, with no restore tool.
+  Hourly snapshots (§4.1, 30 d) undo an overwrite or a deletion on the NAS itself.
+
+Consequences:
+
+- `main/tier1/jolien` has a quota (`tier1_jolien_quota_gib`, owner's number: 10 TiB at the time of writing).
+  It counts the archive and its snapshots. About 8 TB of archive plus the 3 TiB Time Machine quota and the
+  cluster's data leaves the pool (about 21.8 TiB usable) around 60 % full.
+- `photos` is its own dataset with `recordsize = 1M`, set at creation because recordsize only applies to newly
+  written blocks.
+- The pool is not encrypted at rest. A drive encrypted with Samsung's software is unlocked on the Mac, so the
+  copy on the NAS is plain files. Access control (one account, owner-only ACL) protects it. If jolien needs
+  the archive encrypted at rest (a client requirement, say), that needs a new encrypted dataset and a fresh copy:
+  ZFS encryption cannot be added to an existing dataset.
+- **Offsite: yes, undecided how** (§5.5). This archive is the second copy of irreplaceable work; until there is a
+  third copy outside the house, jolien keeps her older drives. Options: a cloud target (on the order of
+  20-50 EUR a month at this size), or rotating her old drives to a relative's.
+- **Later:** an Immich external library (read-only) over `photos`, for browsing the archive remotely.
+
 ## 6. Findings that changed the plan
 
 ### 6.1 — The NAS has pointed at a dead resolver — *found 2026-10-16, read-only*

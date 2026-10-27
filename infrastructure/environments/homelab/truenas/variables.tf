@@ -68,6 +68,22 @@ variable "timemachine_jolien_share_name" {
   default     = "timemachine-jolien"
 }
 
+variable "tier1_jolien_quota_gib" {
+  description = "Quota for main/tier1/jolien in GiB, covering the photos archive and all snapshots (decisions.md §5.17). No default: it is the ceiling for her drives plus headroom. Raise it with a change and an apply; a quota below what is used blocks writes, it never deletes anything."
+  type        = number
+
+  validation {
+    condition     = var.tier1_jolien_quota_gib >= 1 && floor(var.tier1_jolien_quota_gib) == var.tier1_jolien_quota_gib
+    error_message = "Give a whole number of GiB, at least 1. A quota of 0 (unlimited) is not allowed."
+  }
+}
+
+variable "tier1_jolien_share_name" {
+  description = "SMB share name for jolien's Tier 1 data and photo archive (smb://<nas>/<name>)."
+  type        = string
+  default     = "jolien"
+}
+
 # -----------------------------------------------------------------------------
 # Household accounts (users.tf). Passwords only; arthur is imported and has none here.
 # -----------------------------------------------------------------------------
