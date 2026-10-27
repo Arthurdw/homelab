@@ -1,5 +1,12 @@
 ---
+# Pod Security: the claimer must run as root (claimer.yaml), so it can never fit `restricted`. `baseline` is
+# enforced like the other app namespaces, and warned/audited at `baseline` too, so `kubectl rollout restart` does
+# not print the known runAsNonRoot violation every time.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: free-games-claimer
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: baseline
+    pod-security.kubernetes.io/audit: baseline

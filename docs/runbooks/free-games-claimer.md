@@ -33,7 +33,8 @@ The claimers wait `LOGIN_TIMEOUT` (600 s in the manifest, waited twice: email/pa
 login whenever a store session is missing.
 
 1. `kubectl -n free-games-claimer rollout restart deploy/free-games-claimer` to start a fresh run.
-2. Open `https://free-games.lab.ardw.be/`, sign in with an Authentik admin, click **Connect** in noVNC.
+2. Open `https://free-games.lab.ardw.be/` (or the **Free games** tile on Homepage or in Authentik's app library)
+   and sign in with an Authentik admin. noVNC connects by itself (`vnc_auto.html`) and shows the browser.
 3. Log in to each store as the browser reaches it (Epic, then Prime, then GOG), including 2FA and captchas.
    Missed the window? Restart again; the stores already logged in stay logged in.
 4. Follow the run in `kubectl -n free-games-claimer logs -f deploy/free-games-claimer`.
