@@ -45,7 +45,7 @@ iac:
       note: "newest stable (2026-10-03). 0.60.0-beta.0 exists; do NOT use betas for critical network automation"
     cloudflare/cloudflare:
       # renovate: datasource=terraform-provider depName=cloudflare packageName=cloudflare/cloudflare
-      version: "5.27.0"
+      version: "5.28.0"
       opentofu_compat: "verified 2026-10-22 (tofu 1.13.1 validate, infrastructure/environments/homelab/cloudflare)"
       note: "5.27.0 is from 2026-10-03; 5.28.x was under two weeks old when pinned"
     hashicorp/random:
