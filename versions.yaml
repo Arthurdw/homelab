@@ -110,7 +110,7 @@ app_images:
   # SeaDoc for Seafile wikis and .sdoc files (kubernetes/apps/seafile/seadoc.yaml). Seafile 14.0's docs ship the
   # 2.0 line (seadoc.yml: sdoc-server:2.0-latest); take a new major only once the Seafile docs move to it.
   # renovate: datasource=docker depName=docker.io/seafileltd/sdoc-server
-  seafile_seadoc: "docker.io/seafileltd/sdoc-server:2.0.9@sha256:5b1bf5a8bfdb8bc5db957e7faee2220111fd6eff00795eaaf172e2f80bb999a5"
+  seafile_seadoc: "docker.io/seafileltd/sdoc-server:3.0.6@sha256:324113195143e713a170f41ef894c01346170765a54b1aae3366ef2fe5b3de14"
   # renovate: datasource=docker depName=docker.io/library/mariadb
   seafile_mariadb: "docker.io/library/mariadb:12.3.2@sha256:a02fe89cb597d4375812b2eac90cf9d0775d4686daa7f7cc750ebbcad7525bbc"
   # renovate: datasource=docker depName=docker.io/library/memcached
