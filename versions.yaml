@@ -121,6 +121,11 @@ app_images:
   # Stremio streaming server (kubernetes/apps/stremio); local-only, SPEC §12.6. v4.22.4 is from 2026-10-20.
   # renovate: datasource=docker depName=docker.io/stremio/server
   stremio: "docker.io/stremio/server:v4.22.4@sha256:bfce9268487bcf4b7baebc79e3504e14c2fac5a19aab2dbd722b151276f9db22"
+  # free-games-claimer (kubernetes/apps/free-games-claimer; decisions.md §5.16). The `dev` tag on purpose: that is
+  # where upstream builds now; main/latest is still the May 2025 Firefox build. This digest is the dev build of
+  # 2026-09-02 (commit f282d3c). Renovate tracks the digest of the moving tag.
+  # renovate: datasource=docker depName=ghcr.io/vogler/free-games-claimer
+  free_games_claimer: "ghcr.io/vogler/free-games-claimer:dev@sha256:54ae1b0d8deafc41b54720bde29481c78bbaa608dc436358ca8640c38721c4e4"
   # Homepage dashboard (kubernetes/apps/homepage); v2.4.0 is from 2026-09-17; v2.5.0
   # (2026-10-10) was under two weeks old when this was pinned.
   # renovate: datasource=docker depName=ghcr.io/gethomepage/homepage

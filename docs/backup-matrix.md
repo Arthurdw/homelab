@@ -30,6 +30,7 @@ Legend: **T** = tier · **Irrep.** = irreplaceable? · **Snap** = local snapshot
 | Authentik DB + `authentik-credentials` Secret | TBD | yes (users, flows, providers) | app | TBD | daily `pg_dump` to `nas-nfs` (`kubernetes/apps/authentik/backup.yaml`), 14 kept; alerts on stale, failed and size-anomalous dumps | restore with the same `secret-key`; `scripts/backup/db-restore-test.sh authentik` proves the dump (lab: restored, 230 tables) |
 | Dunia/arthur devices (Kopia clients) | 2 | yes | the device | yes, via `main/backups/kopia` | Kopia snapshot of the home dir | decisions §5.9; run `kopia snapshot list` after setup and check each client has a snapshot under a week old |
 | Audiobookshelf config/media | TBD | depends | app | TBD | TBD | classify media by replaceability |
+| free-games-claimer data (`local-path`) | 3 | no | the stores | no | none | browser profile and claim logs; on loss, log in again via noVNC (`docs/runbooks/free-games-claimer.md`) |
 | Flux repo (+ secret decryption) | 2 | yes | Git | yes | Git + encrypted secrets | repo is public; secrets separate |
 | UniFi config export | 2 | yes | UDM Pro | yes | file | export before each change |
 | Proxmox VM configs | 2 | yes | host | yes | file | `/etc/pve` export |

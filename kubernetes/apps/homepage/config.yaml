@@ -99,6 +99,12 @@ data:
             icon: prometheus.png
             namespace: monitoring
             app: prometheus
+        - Free games:
+            href: https://free-games.lab.ardw.be/
+            description: Game claimer (Epic, Prime, GOG) via noVNC
+            icon: mdi-gift
+            namespace: free-games-claimer
+            app: free-games-claimer
         - DNS:
             href: https://dns.lab.ardw.be/
             description: Technitium DNS

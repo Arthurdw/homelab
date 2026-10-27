@@ -245,7 +245,7 @@ cluster on **2026-10-22**.
       user, worked end to end (Seahub user created, uid = hashed `sub`, contact email set), after fixing the
       provider's grant types and, lab only, in-cluster DNS and CA trust for Seahub. Production: blueprints
       also cover Grafana, Immich, Audiobookshelf, Proxmox, Technitium, Homepage, Kopia, TrueNAS, UniFi, and
-      forward-auth for Alertmanager and Prometheus (`kubernetes/apps/authentik/blueprints.yaml`))*
+      forward-auth for Alertmanager, Prometheus and free-games-claimer (`kubernetes/apps/authentik/blueprints.yaml`))*
 - [x] Seafile (decisions §5.8) at `seafile.lab.ardw.be`, MariaDB with a daily dump *(proven in the lab
       2026-10-21: login page, admin API token. Authentik OIDC sign-in added the same day)*
 - [x] Household device backups (decisions §5.9): Time Machine share for jolien, Kopia server at
@@ -254,6 +254,8 @@ cluster on **2026-10-22**.
 - [x] Stremio streaming server (decisions §5.15) at `stremio.lab.ardw.be`, local-only (SPEC §12.6) *(running in
       production. Runbook: `docs/runbooks/stremio.md`. Debrid keys
       stay in the user's Stremio account; no debrid service runs in the cluster)*
+- [ ] free-games-claimer (decisions §5.16) at `free-games.lab.ardw.be`, noVNC behind forward-auth (admins)
+      *(manifests in Git; first store logins pending. Runbook: `docs/runbooks/free-games-claimer.md`)*
 - [x] Public share links (decisions §5.13): Seafile at `files.ardw.be` and Immich through immich-public-proxy at
       `photos.ardw.be`, via a Cloudflare Tunnel with a path allowlist *(live 2026-10-22, reviewed and confirmed
       working by the owner; cloudflared runs 2 replicas. Runbook: `docs/runbooks/public-shares.md`)*

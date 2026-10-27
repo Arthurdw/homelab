@@ -597,6 +597,32 @@ unused. The pod runs as uid 1000 on a read-only root, with an `emptyDir` for the
 cache is disposable; settings reset on a restart. A self-hosted stremio-web was not added: web.stremio.com
 works against the HTTPS server.
 
+### 5.16 — free-games-claimer: a long-running pod with noVNC, admins only, data not backed up — *decided 2026-10-27*
+
+**`free-games.lab.ardw.be` runs upstream's `ghcr.io/vogler/free-games-claimer` image on the `dev` tag**
+(`kubernetes/apps/free-games-claimer/`), pinned by digest. Upstream now builds the Chromium-based image there;
+`latest` is still the older Firefox build. The project is semi-maintained and Epic often shows the container's
+browser a captcha (upstream issue #183), so a store failing for a while is accepted, not alerted on.
+
+**A Deployment, not a CronJob.** Store logins, 2FA and captchas need a human in the browser, so the noVNC view
+must be reachable between runs. The container loops upstream's suggested `sleep 1d`; a `rollout restart` runs it
+now. A CronJob would leave nothing to connect to outside its run.
+
+**Forward-auth, Authentik Admins only.** The noVNC page is the logged-in browser with the store accounts behind
+it, so it gets the same policy as Alertmanager and Prometheus. Internal DNS only, no tunnel route; raw VNC (5900,
+no password) is not exposed by the Service.
+
+**Root without capabilities.** The image keeps Playwright's browsers under `/root` (mode 700), so a non-root uid
+cannot start them. The container drops every capability, forbids privilege escalation and runs on a read-only
+root; `HOME` moves to an `emptyDir`. Verified with docker under the same restrictions. Because `/tmp` is an
+`emptyDir` that survives a container restart, the command removes the stale X socket before the entrypoint, or
+TurboVNC refuses display :1.
+
+**Data on `local-path`, not backed up.** The Chromium profile is rewritten constantly, which `nas-nfs` HDDs would
+pay for in seeks (compare the Seafile logging fix). Everything in it is recoverable by logging in again. Store
+logins in a SOPS Secret are optional; a TOTP seed stored there trades the account's second factor for unattended
+runs, so that is the owner's call per store.
+
 ## 6. Findings that changed the plan
 
 ### 6.1 — The NAS has pointed at a dead resolver — *found 2026-10-16, read-only*

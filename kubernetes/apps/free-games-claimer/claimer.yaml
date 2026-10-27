@@ -1,0 +1,196 @@
+---
+# free-games-claimer (docs/runbooks/free-games-claimer.md, decisions.md §5.16): a headed Chromium driven by
+# Playwright that claims the weekly free games on Epic Games, Prime Gaming and GOG. The image runs TurboVNC with
+# noVNC on 6080, so the browser it drives is visible (and usable, for logins and captchas) at
+# https://free-games.lab.ardw.be.
+#
+# SCHEDULE: a Deployment, not a CronJob, so the noVNC view stays reachable between runs for logging in again. The
+# container runs the three claimers once at start, then once every 24 h (upstream's suggested `sleep 1d` loop).
+# `kubectl -n free-games-claimer rollout restart deploy/free-games-claimer` starts a run now.
+#
+# ACCESS: Authentik forward-auth, admins only (blueprints.yaml, Infrastructure group). The noVNC session is the
+# logged-in browser itself (store accounts, payment methods on file), so nobody else gets it. VNC itself (5900)
+# has no password and is not in the Service; noVNC's websocket is same-origin, so it carries the auth cookie.
+# Internal zone only: no tunnel route, no public DNS.
+#
+# STORAGE: /fgc/data on the node SSD (`local-path`, decisions.md §4.3). It holds the Chromium profile (the store
+# sessions), the claimed-games JSON, screenshots and TurboVNC.log. Not backed up: losing it means logging in to
+# each store again via noVNC. Not on nas-nfs: Chromium writes its profile constantly and the NAS HDDs would seek.
+#
+# SECRETS (optional): `free-games-claimer/free-games-claimer`, every key becomes an env var. Useful keys are
+# NOTIFY (an apprise URL) and the store logins EMAIL/PASSWORD, EG_*, PG_*, GOG_* with EG_OTPKEY/PG_OTPKEY for 2FA
+# (see the runbook). Without it the claimer waits LOGIN_TIMEOUT for a manual login in noVNC.
+#
+# Runs as ROOT: Playwright's browsers sit in /root/.cache/ms-playwright and /root is mode 700, so another uid
+# cannot start them. It is otherwise locked down: no capabilities at all (not even DAC_OVERRIDE), no privilege
+# escalation, read-only root filesystem, RuntimeDefault seccomp. HOME moves to a writable emptyDir (vncserver,
+# Chromium's ~/.config and ~/.pki); PLAYWRIGHT_BROWSERS_PATH pins the browsers to where the image put them.
+# local-path creates its directories 0777, which is what lets a capability-less root write /fgc/data. Verified
+# locally with docker (--cap-drop ALL --read-only --security-opt no-new-privileges): TurboVNC and noVNC start and
+# a headed Chromium loads pages.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: free-games-claimer-data
+  namespace: free-games-claimer
+  labels:
+    app.kubernetes.io/name: free-games-claimer
+    app.kubernetes.io/part-of: free-games-claimer
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: free-games-claimer
+  namespace: free-games-claimer
+  labels:
+    app.kubernetes.io/name: free-games-claimer
+    app.kubernetes.io/part-of: free-games-claimer
+spec:
+  replicas: 1
+  # RWO volume and one Chromium profile: the old pod must be gone before the new one starts.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: free-games-claimer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: free-games-claimer
+        app.kubernetes.io/part-of: free-games-claimer
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: claimer
+          # versions.yaml app_images.free_games_claimer
+          image: ghcr.io/vogler/free-games-claimer:dev@sha256:54ae1b0d8deafc41b54720bde29481c78bbaa608dc436358ca8640c38721c4e4
+          imagePullPolicy: IfNotPresent
+          # The image's entrypoint starts TurboVNC on display :1, then execs the args. It clears /tmp/.X1-lock but
+          # not the /tmp/.X11-unix/X1 socket, and vncserver treats :1 as taken while that socket exists. /tmp is an
+          # emptyDir, which survives a container restart (liveness failure, OOM), so without this the restarted
+          # container exits 2 at once and the pod crash-loops.
+          command: ["bash", "-c", "rm -f /tmp/.X11-unix/X1; exec docker-entrypoint.sh \"$@\"", "--"]
+          args:
+            - bash
+            - -c
+            - while :; do node epic-games; node prime-gaming; node gog; echo "Next run in 24 h"; sleep 1d; done
+          ports:
+            - name: http
+              containerPort: 6080
+          env:
+            - name: HOME
+              value: /home/fgc
+            - name: PLAYWRIGHT_BROWSERS_PATH
+              value: /root/.cache/ms-playwright
+            # Seconds per wait for a manual login in noVNC (waited twice); the default 180 is tight for 2FA.
+            - name: LOGIN_TIMEOUT
+              value: "600"
+          envFrom:
+            - secretRef:
+                name: free-games-claimer
+                optional: true
+          # Probes hit noVNC (websockify), not the claimer: node only runs a few minutes a day.
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              # No CPU limit: page loads are bursty and idle the rest of the day.
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /fgc/data
+            - name: home
+              mountPath: /home/fgc
+            # X sockets, and Chromium's shared memory (Playwright passes --disable-dev-shm-usage).
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: free-games-claimer-data
+        - name: home
+          emptyDir:
+            sizeLimit: 512Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: free-games-claimer
+  namespace: free-games-claimer
+  labels:
+    app.kubernetes.io/name: free-games-claimer
+    app.kubernetes.io/part-of: free-games-claimer
+spec:
+  selector:
+    app.kubernetes.io/name: free-games-claimer
+  ports:
+    - name: http
+      port: 6080
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: free-games-claimer
+  namespace: free-games-claimer
+  labels:
+    app.kubernetes.io/name: free-games-claimer
+    app.kubernetes.io/part-of: free-games-claimer
+  annotations:
+    # Authentik forward-auth (kubernetes/apps/authentik/forward-auth.yaml). The outpost's own paths on this host
+    # are routed by the Ingress `authentik-outpost` in the authentik namespace.
+    traefik.ingress.kubernetes.io/router.middlewares: authentik-forward-auth@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    # Internal zone <app>.lab.ardw.be (decisions.md §5.7), served by Technitium only.
+    - host: free-games.lab.ardw.be
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: free-games-claimer
+                port:
+                  name: http
+  # TLS on websecure with NO secretName: Traefik serves its default TLSStore certificate, the
+  # *.lab.ardw.be wildcard (decisions.md §5.7).
+  tls:
+    - hosts:
+        - free-games.lab.ardw.be

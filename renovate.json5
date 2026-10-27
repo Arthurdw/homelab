@@ -246,6 +246,7 @@
         'docker.io/kopia/kopia',
         'docker.io/stremio/server',
         'ghcr.io/gethomepage/homepage',
+        'ghcr.io/vogler/free-games-claimer',
         'fluxcd/flux2',
       ],
       automerge: false,

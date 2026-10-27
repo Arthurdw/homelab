@@ -17,7 +17,7 @@ failed blueprint without a change, click **Apply** on it.
 | Audiobookshelf | OIDC, client `audiobookshelf` | `just audiobookshelf-oauth`, once (below) |
 | Proxmox | OIDC, client `proxmox` (realm `authentik`) | Proxmox, once with `pveum` (below) |
 | Technitium | OIDC, client `technitium` | `just technitium-sso`, once (below) |
-| Homepage, Alertmanager, Prometheus | Forward-auth (embedded outpost) | Git: `kubernetes/apps/authentik/forward-auth.yaml`, `blueprints.yaml` (`home.yaml`) |
+| Homepage, Alertmanager, Prometheus, free-games-claimer | Forward-auth (embedded outpost) | Git: `kubernetes/apps/authentik/forward-auth.yaml`, `blueprints.yaml` (`home.yaml`) |
 | Kopia, TrueNAS, UniFi | Own login, link only: no generic OIDC login. Kopia keeps its basic auth, see [Kopia](#kopia) | n/a |
 
 Immich, Audiobookshelf, Proxmox and Technitium keep their OIDC settings in their own configuration. Immich
