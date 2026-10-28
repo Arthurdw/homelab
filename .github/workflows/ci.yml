@@ -119,7 +119,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           # renovate needs node ^24.11 (the config validator step below).
-          node-version: "24"
+          node-version: "26"
       - name: install binary linters (pinned)
         run: scripts/ci/install-ci-tools.sh actionlint shellcheck
       - name: install markdownlint-cli2 (pinned)
