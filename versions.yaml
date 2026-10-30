@@ -133,7 +133,7 @@ app_images:
   # Cloudflare Tunnel connector (kubernetes/apps/cloudflared, homelab overlay only; docs/decisions.md §5.13).
   # 2026.9.3 is from 2026-09-24; 2026.10.x was under two weeks old when pinned.
   # renovate: datasource=docker depName=docker.io/cloudflare/cloudflared
-  cloudflared: "docker.io/cloudflare/cloudflared:2026.10.0@sha256:9b49eed8f62806d5d45ddf59ecefb5710429598ea6d3fcccd2af938f621b2b07"
+  cloudflared: "docker.io/cloudflare/cloudflared:2026.10.1@sha256:a15a3b50b8dabd57ac2090e9484c0247dba9dfa1f0df4d298d4317f9d69eb2d5"
   # Public share proxy for Immich (kubernetes/apps/immich/public-proxy.yaml). 4.0.0 is from 2026-10-07;
   # 4.1.x was under two weeks old when pinned.
   # renovate: datasource=docker depName=docker.io/alangrainger/immich-public-proxy
