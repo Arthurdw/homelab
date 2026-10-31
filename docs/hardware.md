@@ -51,8 +51,10 @@
 
 ## Open hardware questions
 - Why does the GPU fan top out at ~2930 rpm instead of the rated 4000? The tach reading itself is right (PWM mode,
-  2 pulses per turn). Both ends sit at ~72 % of the rating, which looks like the fan gets less than 12 V: check its
-  cable for a low-noise adapter, a resistor or a splitter.
+  2 pulses per turn). Ruled out on 2026-10-31: the cable is a plain extension (no low-noise adapter, resistor or
+  splitter), the header is in PWM mode (`pwm3_mode` 1, so a steady 12 V), and the 12 V rail reads ~12.2 V (`in1`
+  1.016 V, ×12 on ASUS boards). Most likely the fan is just slower than its box says. Only a test with the fan
+  straight on the header, without the extension, would settle it. The curve is measured on this setup either way.
 - Is the Tesla P4 passthrough stable under load? Planned combo: `talos-wk-1`, Talos nonfree 580 LTS driver (`talos/schematic-gpu.yaml`).
 - Any spare disks/NVMe available to reduce the workstation disk pressure for the lab?
 - Is there a second machine available to host lab fixtures (so labs don't contend with prod)?
