@@ -1,0 +1,57 @@
+---
+# Who may talk to the two pods (docs/decisions.md §5.18), enforced by Cilium. Ingress only: both need the internet
+# (Ollama pulls models from ollama.com, Open WebUI fetches its embedding model and web pages for chats). Kubelet
+# probes come from the node and are always allowed by Cilium.
+#
+# Open WebUI trusts the X-authentik-email header as the logged-in user. Traefik's forward-auth sets it from
+# Authentik's answer and replaces any value the client sent, but a pod talking to Open WebUI directly could set
+# it to anyone. So only Traefik may reach Open WebUI.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: open-webui
+  namespace: ollama
+  labels:
+    app.kubernetes.io/name: open-webui
+    app.kubernetes.io/part-of: ollama
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: open-webui
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+# Ollama's API has no login at all: anyone who reaches it can pull, delete and run models. Only Open WebUI may.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ollama
+  namespace: ollama
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/part-of: ollama
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ollama
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: open-webui
+      ports:
+        - protocol: TCP
+          port: 11434

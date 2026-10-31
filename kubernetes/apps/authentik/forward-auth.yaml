@@ -58,6 +58,7 @@ spec:
         - alertmanager.lab.ardw.be
         - prometheus.lab.ardw.be
         - free-games.lab.ardw.be
+        - chat.lab.ardw.be
   rules:
     - host: home.lab.ardw.be
       http:
@@ -90,6 +91,16 @@ spec:
                 port:
                   name: http
     - host: free-games.lab.ardw.be
+      http:
+        paths:
+          - path: /outpost.goauthentik.io
+            pathType: Prefix
+            backend:
+              service:
+                name: authentik-server
+                port:
+                  name: http
+    - host: chat.lab.ardw.be
       http:
         paths:
           - path: /outpost.goauthentik.io

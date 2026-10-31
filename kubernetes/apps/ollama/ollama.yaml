@@ -1,0 +1,151 @@
+---
+# Ollama (docs/runbooks/ollama.md, decisions.md §5.18): runs local language models on the Tesla P4. Its API has no
+# login, so it is internal only: a ClusterIP Service, no Ingress, and networkpolicy.yaml lets only Open WebUI
+# (open-webui.yaml) reach it. Models are pulled, tried and deleted from Open WebUI's admin settings.
+#
+# GPU: one time-sliced `nvidia.com/gpu` (nvidia-device-plugin/release.yaml), shared with Immich ML and the Immich
+# server. Time-slicing shares the card's time, not its memory: every pod sees all 8 GB. So Ollama keeps at most one
+# model loaded, unloads it 15 min after the last request (OLLAMA_KEEP_ALIVE), and leaves OLLAMA_GPU_OVERHEAD free
+# for Immich when it sizes a model. When a model does not fit in what is free, Ollama puts the rest of its layers on
+# the CPU: slower, not an error. While nothing is loaded, Immich has the whole card.
+#
+# STORAGE: models on the node SSD (`local-path`, decisions.md §4.3). The GPU pins the pod to talos-wk-1, so the
+# volume binds there. Not backed up: every model is pulled again from ollama.com.
+#
+# Runs as uid 1000 (the image defaults to root) with no capabilities and a read-only root; verified locally with
+# docker on 2026-10-31 by pulling and running a model. HOME is the volume, so the models (~/.ollama/models) and
+# Ollama's key (~/.ollama/id_ed25519) persist. local-path creates its directories 0777, which lets uid 1000 write.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-models
+  namespace: ollama
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/part-of: ollama
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: ollama
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/part-of: ollama
+spec:
+  replicas: 1
+  # RWO volume, and two copies would each load a model into the same 8 GB: stop the old pod first.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ollama
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ollama
+        app.kubernetes.io/part-of: ollama
+    spec:
+      # The lab overlay removes this and the GPU limit: no GPU there, Ollama runs on the CPU.
+      runtimeClassName: nvidia
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ollama
+          # versions.yaml app_images.ollama
+          image: docker.io/ollama/ollama:0.40.6@sha256:265409e1d931028a8f7d5a32bcbafddd7bffbc6cc629d77efe9560adf692a5e7
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 11434
+          env:
+            - name: HOME
+              value: /ollama
+            - name: OLLAMA_HOST
+              value: 0.0.0.0:11434
+            # One model at a time, one request at a time: the card is 8 GB and shared with Immich.
+            - name: OLLAMA_MAX_LOADED_MODELS
+              value: "1"
+            - name: OLLAMA_NUM_PARALLEL
+              value: "1"
+            # Unload 15 min after the last request, so Immich gets the memory back.
+            - name: OLLAMA_KEEP_ALIVE
+              value: 15m
+            # Bytes Ollama leaves free on the card when it sizes a model (2 GiB), on top of what Immich already
+            # holds at that moment: room for Immich ML to load a model later without running the card out.
+            - name: OLLAMA_GPU_OVERHEAD
+              value: "2147483648"
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: compute,utility
+          # `GET /` answers "Ollama is running" without touching a model.
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              # No CPU limit: a model that spills onto the CPU needs every core while it answers, and idles after.
+              # The memory limit covers those CPU layers; with the model fully on the card the pod stays near 1 GiB.
+              memory: 6Gi
+              nvidia.com/gpu: 1
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: models
+              mountPath: /ollama
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: ollama-models
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: ollama
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/part-of: ollama
+spec:
+  selector:
+    app.kubernetes.io/name: ollama
+  ports:
+    - name: http
+      port: 11434
+      targetPort: http

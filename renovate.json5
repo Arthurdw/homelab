@@ -247,6 +247,8 @@
         'docker.io/stremio/server',
         'ghcr.io/gethomepage/homepage',
         'ghcr.io/vogler/free-games-claimer',
+        'docker.io/ollama/ollama',
+        'ghcr.io/open-webui/open-webui',
         'fluxcd/flux2',
       ],
       automerge: false,

@@ -72,6 +72,12 @@ data:
             icon: stremio.png
             namespace: stremio
             app: stremio
+        - Chat:
+            href: https://chat.lab.ardw.be/
+            description: Local AI models (Open WebUI and Ollama)
+            icon: open-webui.png
+            namespace: ollama
+            app: open-webui
     - Infrastructure:
         - Authentik:
             href: https://auth.lab.ardw.be/if/user/

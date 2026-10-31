@@ -13,6 +13,10 @@ Secret. Its access boundary is internal DNS plus a private-ranges ipAllowList (`
 noVNC behind Authentik forward-auth (admins only). Its store logins are an optional homelab Secret
 (`docs/runbooks/free-games-claimer.md`).
 
+`ollama/` is Ollama (local language models on the Tesla P4) with Open WebUI in front at `chat.lab.ardw.be`,
+behind Authentik forward-auth. Ollama has no Ingress; NetworkPolicies let only Traefik reach Open WebUI and only
+Open WebUI reach Ollama (`docs/runbooks/ollama.md`).
+
 Secrets are SOPS-encrypted and created out-of-band (`docs/runbooks/secrets.md`).
 
 Recovery-critical app data (Immich DB + media, Audiobookshelf library) is in the backup matrix —

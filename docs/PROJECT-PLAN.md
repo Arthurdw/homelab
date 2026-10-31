@@ -266,7 +266,9 @@ cluster on **2026-10-22**.
       label or the GPU taint yet, so the device plugin schedules no pod and the GPU pod can't start. The
       `immich` HelmRelease rolls back and stalls, which also holds back the server's 4Gi memory fix. Owner
       step: apply the regenerated wk-1 machine config and taint the node (`talos/patches/gpu-worker.yaml`))*
-- [ ] GPU time-slicing (4 slots), temperature exporter and alerts, and the host fan controller (decisions §3.8)
+- [ ] Ollama and Open WebUI (decisions §5.18) at `chat.lab.ardw.be`, behind forward-auth, sharing the P4 with
+      Immich *(manifests in Git; first login pending. Runbook: `docs/runbooks/ollama.md`)*
+- [ ] GPU time-slicing (6 slots), temperature exporter and alerts, and the host fan controller (decisions §3.8)
       *(in the repo, not applied. Owner: push for Flux, then find the fan header and run `just apply-proxmox`;
       runbook: `docs/runbooks/gpu-fan-control.md`)*
 

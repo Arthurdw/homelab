@@ -68,3 +68,13 @@ patches:
         path: /spec/values/server/controllers/main/pod/runtimeClassName
       - op: remove
         path: /spec/values/server/controllers/main/containers/main/resources/limits/nvidia.com~1gpu
+  # Lab only: the same for Ollama, which then runs its models on the CPU.
+  - target:
+      kind: Deployment
+      name: ollama
+      namespace: ollama
+    patch: |-
+      - op: remove
+        path: /spec/template/spec/runtimeClassName
+      - op: remove
+        path: /spec/template/spec/containers/0/resources/limits/nvidia.com~1gpu

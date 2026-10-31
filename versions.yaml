@@ -126,6 +126,13 @@ app_images:
   # 2026-09-02 (commit f282d3c). Renovate tracks the digest of the moving tag.
   # renovate: datasource=docker depName=ghcr.io/vogler/free-games-claimer
   free_games_claimer: "ghcr.io/vogler/free-games-claimer:dev@sha256:54ae1b0d8deafc41b54720bde29481c78bbaa608dc436358ca8640c38721c4e4"
+  # Ollama (kubernetes/apps/ollama; decisions.md §5.18), runs local language models on the Tesla P4.
+  # 0.40.6 is from 2026-10-16.
+  # renovate: datasource=docker depName=docker.io/ollama/ollama
+  ollama: "docker.io/ollama/ollama:0.40.6@sha256:265409e1d931028a8f7d5a32bcbafddd7bffbc6cc629d77efe9560adf692a5e7"
+  # Open WebUI (kubernetes/apps/ollama), the chat page and model manager for Ollama. v0.12.3 is from 2026-10-16.
+  # renovate: datasource=docker depName=ghcr.io/open-webui/open-webui
+  open_webui: "ghcr.io/open-webui/open-webui:v0.12.3@sha256:a537bbe1e6b428820f52ed4a029d7fff97062e24d5cf32c365fba36fd0542def"
   # Homepage dashboard (kubernetes/apps/homepage); v2.4.0 is from 2026-09-17; v2.5.0
   # (2026-10-10) was under two weeks old when this was pinned.
   # renovate: datasource=docker depName=ghcr.io/gethomepage/homepage

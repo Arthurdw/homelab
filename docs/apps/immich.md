@@ -95,11 +95,12 @@ Machine learning (face detection and recognition, smart search) runs on the Tesl
   (Pascal) encodes H.264 and HEVC, not AV1 or VP9, so keep the target codec on one of those.
 - **Lab:** no GPU. `kubernetes/overlays/lab/apps` removes the RuntimeClass and the GPU limit from both pods;
   the CUDA image and the transcoder fall back to the CPU.
-- **Sharing:** the plugin time-slices the card into 4 `nvidia.com/gpu` (decisions §3.8): ML, the server and
-  the temperature exporter take one each, one is spare (the server's rolling update uses it briefly). Every
-  pod sees the full 8 GB with no memory isolation.
+- **Sharing:** the plugin time-slices the card into 6 `nvidia.com/gpu` (decisions §3.8): ML, the server, the
+  temperature exporter and Ollama take one each, two are spare (rolling updates use them briefly). Every pod
+  sees the full 8 GB with no memory isolation. Immich is not capped: Ollama unloads its model when idle and
+  leaves room when it loads one (decisions §5.18), so with no model loaded Immich has the whole card.
 - **Verify:** `kubectl get node talos-wk-1 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}'` returns
-  `4`, and the ML logs list `CUDAExecutionProvider` when a model loads.
+  `6`, and the ML logs list `CUDAExecutionProvider` when a model loads.
 - **Cooling:** the P4 is passive; a host fan header follows its temperature
   (`docs/runbooks/gpu-fan-control.md`).
 - **If the GPU is missing** (passthrough off, driver not loaded), the ML **and server** pods stay Pending

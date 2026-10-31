@@ -32,6 +32,8 @@ Legend: **T** = tier · **Irrep.** = irreplaceable? · **Snap** = local snapshot
 | Dunia/arthur devices (Kopia clients) | 2 | yes | the device | yes, via `main/backups/kopia` | Kopia snapshot of the home dir | decisions §5.9; run `kopia snapshot list` after setup and check each client has a snapshot under a week old |
 | Audiobookshelf config/media | TBD | depends | app | TBD | TBD | classify media by replaceability |
 | free-games-claimer data (`local-path`) | 3 | no | the stores | no | none | browser profile and claim logs; on loss, log in again via noVNC (`docs/runbooks/free-games-claimer.md`) |
+| Ollama models (`local-path`) | 3 | no | ollama.com | no | none | pulled again from Open WebUI (`docs/runbooks/ollama.md`) |
+| Open WebUI data (`local-path`) | 3 | no | app | no | none | SQLite with users, chats and settings; on loss, the first login becomes admin again |
 | Flux repo (+ secret decryption) | 2 | yes | Git | yes | Git + encrypted secrets | repo is public; secrets separate |
 | UniFi config export | 2 | yes | UDM Pro | yes | file | export before each change |
 | Proxmox VM configs | 2 | yes | host | yes | file | `/etc/pve` export |

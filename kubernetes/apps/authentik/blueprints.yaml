@@ -343,8 +343,8 @@ data:
           enabled: true
           negate: false
   home.yaml: |
-    # Homepage (kubernetes/apps/homepage), Alertmanager, Prometheus and free-games-claimer's noVNC
-    # (kubernetes/apps/free-games-claimer) behind forward-auth: a proxy provider in forward_single mode, served
+    # Homepage (kubernetes/apps/homepage), Alertmanager, Prometheus, free-games-claimer's noVNC
+    # (kubernetes/apps/free-games-claimer) and Open WebUI (kubernetes/apps/ollama) behind forward-auth: a proxy provider in forward_single mode, served
     # by the embedded outpost (inside authentik-server). Traefik asks it through the shared Middleware
     # authentik/forward-auth (forward-auth.yaml), and the outpost's own paths on the host are routed to
     # authentik-server by the Ingress `authentik-outpost` there. To protect another host, add a provider and
@@ -465,6 +465,27 @@ data:
           order: 0
           enabled: true
           negate: false
+      # Open WebUI (kubernetes/apps/ollama/open-webui.yaml) logs users in from the X-authentik-email and
+      # X-authentik-name headers this sets, so its own login form is never shown. Any Authentik user, like Home.
+      - model: authentik_providers_proxy.proxyprovider
+        id: chat-provider
+        identifiers:
+          name: Chat
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://chat.lab.ardw.be
+      - model: authentik_core.application
+        id: chat-app
+        identifiers:
+          slug: chat
+        attrs:
+          name: Chat
+          provider: !KeyOf chat-provider
+          group: Apps
+          meta_launch_url: https://chat.lab.ardw.be/
+          meta_description: Local language models (Open WebUI and Ollama)
       # The embedded outpost exists from the first start (managed by authentik); this only sets its providers
       # and config. `providers` is the full list: every forward-auth provider must be in it.
       # authentik_host is where the outpost sends browsers to log in. The chart's ServiceAccount gives authentik
@@ -481,6 +502,7 @@ data:
             - !KeyOf alertmanager-provider
             - !KeyOf prometheus-provider
             - !KeyOf free-games-provider
+            - !KeyOf chat-provider
           config:
             authentik_host: https://auth.lab.ardw.be/
             authentik_host_insecure: false

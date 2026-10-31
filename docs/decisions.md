@@ -289,10 +289,11 @@ temperature for fan control. Rejected: Talos is an OS and cannot run as a contai
 privileged container with relaxed AppArmor and cgroup settings, and the host would need the NVIDIA driver for
 the card, which ends the clean vfio passthrough (§3.5, §3.6). The VM boundary stays.
 
-**Time-slicing, 4 slots.** The device plugin advertises the P4 as 4 `nvidia.com/gpu`
-(`kubernetes/infrastructure/nvidia-device-plugin/release.yaml`, `failRequestsGreaterThanOne`), so Immich ML,
-Immich's NVENC transcoding (the server pod) and a later model can share the card without any of them holding it
-while idle. A pod asks for 1, never more.
+**Time-slicing, 6 slots** (4 until 2026-10-31, raised for Ollama, §5.18). The device plugin advertises the P4
+as 6 `nvidia.com/gpu` (`kubernetes/infrastructure/nvidia-device-plugin/release.yaml`,
+`failRequestsGreaterThanOne`), so Immich ML, Immich's NVENC transcoding (the server pod), the temperature exporter
+and Ollama can share the card without any of them holding it while idle; the two spare slots cover rolling
+updates. A pod asks for 1, never more.
 
 - **No memory isolation.** Every pod sees the full 8 GB; two pods loading large models at once can run the card
   out of memory. Immich ML keeps `strategy: Recreate` so an upgrade never has two copies loaded.
@@ -728,6 +729,39 @@ Consequences:
   third copy outside the house, jolien keeps her older drives. Options: a cloud target (on the order of
   20-50 EUR a month at this size), or rotating her old drives to a relative's.
 - **Later:** an Immich external library (read-only) over `photos`, for browsing the archive remotely.
+
+### 5.18 — Ollama and Open WebUI on the Tesla P4, sharing the card with Immich — *decided 2026-10-31*
+
+**`chat.lab.ardw.be` runs Open WebUI in front of Ollama** (`kubernetes/apps/ollama/`), both upstream images pinned
+by digest. Ollama runs the models on the P4; Open WebUI is the chat page and the place to pull, try and delete
+models (Admin Panel → Settings → Models), so trying a model needs no `kubectl`. Runbook: `docs/runbooks/ollama.md`.
+
+**Login: Authentik forward-auth, Open WebUI trusts its headers.** Any Authentik user may open it, like Home.
+Open WebUI reads `X-authentik-email` and `X-authentik-name` and creates the account on the first visit; the first
+account becomes admin, later ones `user`. A header login is only safe if nobody else can send that header, so a
+NetworkPolicy lets only Traefik reach Open WebUI, and only Open WebUI reach Ollama, whose API has no login at
+all. No Ingress for Ollama.
+
+**One card, two users, no memory isolation** (§3.8). Time-slicing shares the card's time, not its 8 GB, and
+nothing caps Immich. Instead Ollama is the one that yields:
+
+- At most one model loaded (`OLLAMA_MAX_LOADED_MODELS=1`), one request at a time, unloaded 15 min after the last
+  request (`OLLAMA_KEEP_ALIVE`). While nothing is loaded, Immich has the whole card.
+- When it loads a model, Ollama sizes it against the memory that is free at that moment, minus 2 GiB
+  (`OLLAMA_GPU_OVERHEAD`) for Immich ML to load a model later. What does not fit runs on the CPU: slower, not an
+  error. The pod's 6 GiB memory limit covers those CPU layers.
+- Immich ML unloads its own models after 5 min idle (`MACHINE_LEARNING_MODEL_TTL`), so the two rarely peak at
+  once. If they do and the card runs out, the request that hit it fails and is retried; nothing is lost.
+- Practical size: models up to about 7-8 B parameters at 4-bit quantisation (4-5 GB) fit beside an idle Immich.
+
+**Non-root, read-only root.** Both images default to root; both run as uid 1000 with no capabilities and a
+read-only root (Open WebUI's static files move to `/tmp`). Verified locally with docker before pinning, so the
+namespace warns and audits at `restricted`.
+
+**Data on `local-path`, not backed up.** Models (up to 50 GiB) are pulled again from ollama.com; Open WebUI's
+SQLite database holds chats and settings only. Losing it means a fresh first login.
+
+**Lab:** no GPU; the lab overlay removes the RuntimeClass and GPU limit and Ollama runs on the CPU.
 
 ## 6. Findings that changed the plan
 
