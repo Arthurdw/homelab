@@ -266,6 +266,9 @@ cluster on **2026-10-22**.
       label or the GPU taint yet, so the device plugin schedules no pod and the GPU pod can't start. The
       `immich` HelmRelease rolls back and stalls, which also holds back the server's 4Gi memory fix. Owner
       step: apply the regenerated wk-1 machine config and taint the node (`talos/patches/gpu-worker.yaml`))*
+- [ ] GPU time-slicing (4 slots), temperature exporter and alerts, and the host fan controller (decisions §3.8)
+      *(in the repo, not applied. Owner: push for Flux, then find the fan header and run `just apply-proxmox`;
+      runbook: `docs/runbooks/gpu-fan-control.md`)*
 
 ### Phase 8: Backup automation and verification, ⛔ GATE 8 after a successful restore test
 
@@ -337,6 +340,8 @@ The ordered go-live checklist, with each open input and the step it blocks, is `
 - **Offsite:** hardware to purchase or build (decisions §5.5).
 - **GPU node:** apply the wk-1 machine config and taint the node, so the device plugin advertises the
   Tesla P4 and the `immich` HelmRelease can upgrade (Phase 7).
+- **GPU fan:** which Super I/O chip and PWM header the P4's fan is on, and whether `poseidon` reaches
+  `10.20.0.12:9835` (`docs/runbooks/gpu-fan-control.md`).
 - **Production LoadBalancer IPs:** `cluster-settings` proposes `10.20.0.100` (Traefik) and `10.20.0.101`
   (Technitium); not yet in `docs/decisions.md`.
 - **Flux on K8s 1.37.1:** the whole tree is Ready on the lab and in production at 1.37.1; keep it.

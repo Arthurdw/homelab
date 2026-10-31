@@ -98,3 +98,24 @@ proxmox_host_memory_reserve_mb = 8192
 #   iommu_group  = 2
 #   vm           = "talos-wk-1"   # null keeps the mapping but gives the card to no Talos VM
 # }
+
+# The GPU fan controller on the host (fan-control.tf; defaults shown). Find the chip and header first
+# (docs/runbooks/gpu-fan-control.md). null = not installed; setting it back to null hands the header to the BIOS.
+# gpu_fan_control = {
+#   hwmon_name            = "nct6793"   # poseidon; cat /sys/class/hwmon/hwmon*/name
+#   pwm_channel           = 3           # poseidon's GPU fan header, found by test (runbook §1)
+#   kernel_module         = "nct6775"   # poseidon needs it: the driver does not load on its own
+#   kernel_module_options = null        # e.g. "force_id=0x..." if the driver needs it
+#   exporter_url          = null        # null = http://<gpu_passthrough.vm IP>:9835/metrics
+#   ssh_host              = null        # null = the host in proxmox_endpoint
+#   curve = [
+#     { temp = 35, percent = 30 },
+#     { temp = 50, percent = 45 },
+#     { temp = 60, percent = 65 },
+#     { temp = 70, percent = 90 },
+#     { temp = 75, percent = 100 },
+#   ]
+#   interval_seconds    = 5
+#   stale_after_seconds = 30   # no reading for this long -> 100%
+#   step_down_percent   = 5    # slows down by at most this much per interval
+# }

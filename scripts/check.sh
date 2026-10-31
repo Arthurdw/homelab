@@ -65,6 +65,14 @@ else
   echo "== backup alert self-test == skipped (missing: curl, openssl, python3 or systemd-analyze) =="
 fi
 
+# --- GPU fan controller (fake sysfs + systemd-analyze; no network, no host changes) ---
+if have curl && have systemd-analyze; then
+  echo "== fan control self-test =="
+  ./scripts/fan-control/test/selftest.sh || { echo "FAILED: fan control self-test"; fail=1; }
+else
+  echo "== fan control self-test == skipped (missing: curl or systemd-analyze) =="
+fi
+
 # --- GitHub Actions workflows ---
 if have actionlint; then
   echo "== actionlint =="

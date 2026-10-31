@@ -13,6 +13,7 @@ the system was built.
 - `host-proxies.md` — Proxmox and TrueNAS UIs at `pve`/`nas.lab.ardw.be` through Traefik; refreshing the pinned certs.
 - `stremio.md` — pointing the Stremio apps at `stremio.lab.ardw.be`; why it is local-only.
 - `free-games-claimer.md` — first store logins via noVNC, the optional login Secret, the Epic captcha.
+- `gpu-fan-control.md` — the P4's fan header on `poseidon`, driven from the in-guest GPU temperature: setup, verify, rollback.
 - `flux.md` — Flux dashboards and alert in Grafana, Capacitor as a local UI, the CLI equivalents.
 - `break-glass.md` — access by IP and local credentials when DNS, SSO, Traefik or MetalLB are down.
 - `household-backups.md` — Time Machine for the Mac, Kopia for Windows and Linux, Seafile client.

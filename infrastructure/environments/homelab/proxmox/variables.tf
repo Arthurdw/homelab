@@ -376,3 +376,90 @@ variable "gpu_passthrough" {
     error_message = "gpu_passthrough.subsystem_id must be vendor:device such as 10de:11d8."
   }
 }
+
+variable "gpu_fan_control" {
+  description = <<-EOT
+    The GPU fan controller on the Proxmox host (fan-control.tf, docs/runbooks/gpu-fan-control.md): one
+    motherboard fan header driven from the P4's temperature, read from the in-cluster exporter.
+    `hwmon_name` is the Super I/O chip as in /sys/class/hwmon/hwmon*/name (e.g. nct6798) and
+    `pwm_channel` the header's pwm number on it (pwm2 -> 2). `kernel_module` (e.g. nct6775) is loaded at
+    boot when the chip's driver does not load on its own, with `kernel_module_options` if it needs any.
+    `exporter_url` defaults to port 9835 on the VM gpu_passthrough.vm names; `ssh_host` to the host in
+    proxmox_endpoint. `curve` is temperature (°C) to fan percent, ascending, linear in between.
+    Null (the default) installs nothing; setting it back to null uninstalls and hands the header back to
+    the BIOS.
+  EOT
+  type = object({
+    hwmon_name            = string
+    pwm_channel           = number
+    kernel_module         = optional(string)
+    kernel_module_options = optional(string)
+    exporter_url          = optional(string)
+    ssh_host              = optional(string)
+    curve = optional(list(object({
+      temp    = number
+      percent = number
+      })), [
+      { temp = 35, percent = 30 },
+      { temp = 50, percent = 45 },
+      { temp = 60, percent = 65 },
+      { temp = 70, percent = 90 },
+      { temp = 75, percent = 100 },
+    ])
+    interval_seconds    = optional(number, 5)
+    stale_after_seconds = optional(number, 30)
+    step_down_percent   = optional(number, 5)
+  })
+  default = null
+
+  # Everything below ends up in a shell env file or a remote command line, so the charsets are strict.
+  validation {
+    condition     = var.gpu_fan_control == null || can(regex("^[a-z0-9_-]+$", var.gpu_fan_control.hwmon_name))
+    error_message = "gpu_fan_control.hwmon_name must be a hwmon chip name such as nct6798."
+  }
+
+  validation {
+    condition     = var.gpu_fan_control == null || try(var.gpu_fan_control.pwm_channel >= 1 && floor(var.gpu_fan_control.pwm_channel) == var.gpu_fan_control.pwm_channel, false)
+    error_message = "gpu_fan_control.pwm_channel must be a whole number from 1 (pwm2 -> 2)."
+  }
+
+  validation {
+    condition     = var.gpu_fan_control == null || try(var.gpu_fan_control.kernel_module, null) == null || can(regex("^[a-z0-9_]+$", var.gpu_fan_control.kernel_module))
+    error_message = "gpu_fan_control.kernel_module must be a module name such as nct6775."
+  }
+
+  validation {
+    condition     = var.gpu_fan_control == null || try(var.gpu_fan_control.kernel_module_options, null) == null || can(regex("^[A-Za-z0-9_=,. -]+$", var.gpu_fan_control.kernel_module_options))
+    error_message = "gpu_fan_control.kernel_module_options may only hold letters, digits, spaces and _=,.- (e.g. force_id=0x8628)."
+  }
+
+  validation {
+    condition     = var.gpu_fan_control == null || try(var.gpu_fan_control.exporter_url, null) == null || can(regex("^https?://[^\"'`$\\\\ ]+$", var.gpu_fan_control.exporter_url))
+    error_message = "gpu_fan_control.exporter_url must be an http(s) URL without quotes, spaces, $ or backslashes."
+  }
+
+  validation {
+    condition     = var.gpu_fan_control == null || try(var.gpu_fan_control.ssh_host, null) == null || can(regex("^[A-Za-z0-9.:-]+$", var.gpu_fan_control.ssh_host))
+    error_message = "gpu_fan_control.ssh_host must be a host name or IP address."
+  }
+
+  validation {
+    condition = var.gpu_fan_control == null || try(
+      length(var.gpu_fan_control.curve) >= 1 &&
+      alltrue([for p in var.gpu_fan_control.curve : p.percent >= 0 && p.percent <= 100]) &&
+      alltrue([for i in range(1, length(var.gpu_fan_control.curve)) : var.gpu_fan_control.curve[i].temp > var.gpu_fan_control.curve[i - 1].temp]),
+      false,
+    )
+    error_message = "gpu_fan_control.curve needs at least one point, temperatures strictly ascending and percents from 0 to 100."
+  }
+
+  validation {
+    condition = var.gpu_fan_control == null || try(
+      var.gpu_fan_control.interval_seconds >= 1 && floor(var.gpu_fan_control.interval_seconds) == var.gpu_fan_control.interval_seconds &&
+      var.gpu_fan_control.stale_after_seconds >= var.gpu_fan_control.interval_seconds && floor(var.gpu_fan_control.stale_after_seconds) == var.gpu_fan_control.stale_after_seconds &&
+      var.gpu_fan_control.step_down_percent >= 1 && var.gpu_fan_control.step_down_percent <= 100 && floor(var.gpu_fan_control.step_down_percent) == var.gpu_fan_control.step_down_percent,
+      false,
+    )
+    error_message = "gpu_fan_control: interval_seconds and step_down_percent (1-100) must be whole numbers from 1, stale_after_seconds a whole number no smaller than interval_seconds."
+  }
+}

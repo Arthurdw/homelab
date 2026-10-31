@@ -1,0 +1,22 @@
+[Unit]
+Description=Drive the GPU fan header from the Tesla P4 temperature
+# Installed by OpenTofu (proxmox/fan-control.tf); see docs/runbooks/gpu-fan-control.md.
+# The reading comes over the network; the hwmon driver may come from /etc/modules-load.d.
+After=network-online.target systemd-modules-load.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/gpu-fan-control run
+# Runs after every stop, clean or not: the header is left at 100%, never at the last duty.
+ExecStopPost=/usr/local/sbin/gpu-fan-control failsafe
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+# No ProtectKernelTunables: it makes /sys read-only, and the pwm files live there.
+
+[Install]
+WantedBy=multi-user.target

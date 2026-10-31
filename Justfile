@@ -17,6 +17,10 @@ check:
 backup-selftest:
   ./scripts/backup/test/alert-selftest.sh
 
+# GPU fan controller: the script against a fake hwmon tree, plus systemd-analyze verify on its unit
+fan-control-selftest:
+  ./scripts/fan-control/test/selftest.sh
+
 # Install the pinned binary tools the CI checks need (helm, yq, actionlint, shellcheck,
 # kubeconform, kustomize) into ~/.local/bin.
 ci-tools:

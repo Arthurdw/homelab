@@ -282,6 +282,38 @@ little. The soft taint on `talos-wk-1` (§3.6) is a scheduler preference that `n
 evicted from `talos-wk-2` may land on it again; the 30-minute age floor and the per-node cap keep that from
 looping fast. Still one host, still no HA (§3.6).
 
+### 3.8 — The GPU stays in a Talos VM, time-sliced; the host drives its fan from the in-guest temperature — *decided 2026-10-30*
+
+**No LXC.** Moving the Talos nodes to LXC containers was considered, mainly to give the host the GPU's
+temperature for fan control. Rejected: Talos is an OS and cannot run as a container, Kubernetes in LXC needs a
+privileged container with relaxed AppArmor and cgroup settings, and the host would need the NVIDIA driver for
+the card, which ends the clean vfio passthrough (§3.5, §3.6). The VM boundary stays.
+
+**Time-slicing, 4 slots.** The device plugin advertises the P4 as 4 `nvidia.com/gpu`
+(`kubernetes/infrastructure/nvidia-device-plugin/release.yaml`, `failRequestsGreaterThanOne`), so Immich ML and
+a later model can share the card without either holding it while idle. A pod asks for 1, never more.
+
+- **No memory isolation.** Every pod sees the full 8 GB; two pods loading large models at once can run the card
+  out of memory. Immich ML keeps `strategy: Recreate` so an upgrade never has two copies loaded.
+- **No fair share.** Kernels from different pods are interleaved, not prioritised. Fine for batch work.
+
+**Fan control on the host, temperature from the guest.** The P4 is passive and its heatsink needs airflow from a
+case fan. The host cannot read the card's temperature (the card belongs to the VM), so:
+
+- An exporter DaemonSet on `talos-wk-1` (`nvidia_gpu_exporter`, hostNetwork, port 9835) serves `nvidia-smi`
+  readings. Prometheus scrapes it and alerts at 80 °C (`GpuTemperatureHigh`) and 88 °C
+  (`GpuTemperatureCritical`), and when it is down (`GpuExporterDown`).
+- A systemd service on `poseidon` (`scripts/fan-control/`, installed by OpenTofu `proxmox/fan-control.tf`) reads
+  the exporter every 5 s and sets one motherboard fan header's PWM from a curve. The other header stays on the
+  BIOS curve for the CPU.
+- **Fail-safe, not fail-quiet.** No reading for 30 s, a crash or a stop leaves the header at 100 %. Uninstalling
+  hands it back to the BIOS mode it had. The worst failure is a loud fan, never a hot card.
+
+**Honest limits:** the temperature crosses the network (management to VLAN 20), so a firewall change or the VM
+being off means the fan runs flat out; that is the intended failure. The controller is a shell script, not a
+packaged daemon: small, tested by `just fan-control-selftest`, and replaceable by fancontrol or a fan hub if it
+ever falls short. Runbook: `docs/runbooks/gpu-fan-control.md`.
+
 ## 4. Storage
 
 ### 4.1 — Tiered dataset hierarchy with per-dataset recursive snapshot policies — *decided*
