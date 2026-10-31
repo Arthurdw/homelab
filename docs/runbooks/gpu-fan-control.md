@@ -161,10 +161,10 @@ systemctl daemon-reload
   The controller re-asserts manual mode every interval; stop the other tool.
 - **`stalled:` in the journal, `GpuFanCurveFloorTooLow`:** the fan stopped at a low duty, so the curve's floor is
   under what this fan needs to start. Measure the lowest duty that keeps it spinning (it stops the controller
-  for a minute, the fan steps through 0–30 %):
+  for a minute, the fan steps through 0–40 %):
 
   ```sh
-  ssh root@10.10.1.1 'systemctl stop gpu-fan-control; hw=$(grep -l "^nct6793$" /sys/class/hwmon/hwmon*/name | xargs dirname); echo 1 > $hw/pwm3_enable; for p in 0 10 15 20 25 30; do echo $((p*255/100)) > $hw/pwm3; sleep 8; echo "$p% $(cat $hw/fan3_input) rpm"; done; systemctl start gpu-fan-control'
+  ssh root@10.10.1.1 'systemctl stop gpu-fan-control; hw=$(grep -l "^nct6793$" /sys/class/hwmon/hwmon*/name | xargs dirname); echo 1 > $hw/pwm3_enable; for p in 0 10 15 20 25 30 35 40; do echo $((p*255/100)) > $hw/pwm3; sleep 8; echo "$p% $(cat $hw/fan3_input) rpm"; done; systemctl start gpu-fan-control'
   ```
 
   Then set a `curve` in `gpu_fan_control` whose lowest duty is at least 5 % above that, and apply.
