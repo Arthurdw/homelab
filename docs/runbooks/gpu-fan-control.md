@@ -28,7 +28,11 @@ curve (`docs/decisions.md` §3.8). The other header stays on the BIOS curve for 
   (300) at less than 100 %: 100 % at once, and from then on the floor is that duty + 10 % until the service
   restarts.
 - **The curve** (`45:35 55:45 62:60 67:85 70:100`): a 35 % floor (this fan needs 30 % to start), 100 % from 70 °C because the duct to the
-  card is printed PETG (`docs/decisions.md` §3.8). The fan never stops.
+  card is printed PETG (`docs/decisions.md` §3.8).
+- **Off when cool:** at or below `stop_at` (38 °C) the fan stops, and starts again at `start_at` (50 °C) on the
+  curve. With the fan off the idle card levels off around 40–41 °C, so at idle it usually stays off. The state
+  stays `ok` while it is off; the stall check and `GpuFanStalled` only count a duty above 0. `stop_at = 0` keeps
+  it always on.
 
 ## Pre-checks
 
@@ -125,9 +129,10 @@ ssh root@10.10.1.1 'systemctl status gpu-fan-control --no-pager; gpu-fan-control
 ssh root@10.10.1.1 'journalctl -u gpu-fan-control -f'
 ```
 
-- `check` prints the pwm file, `exporter: http://10.20.0.12:9835/metrics -> 41°C -> 35%` and the fan's rpm.
-- The journal logs `started`, then `ok: gpu 41°C, fan 35%` and a line on every 10 % change. A `stale:` line
-  means the readings stopped and the fan is at 100 %.
+- `check` prints the pwm file, `exporter: http://10.20.0.12:9835/metrics -> 41°C -> 35%` and the fan's rpm. At
+  or below `stop_at` it adds that `run` keeps the fan stopped.
+- The journal logs `started`, then `ok: gpu 41°C, fan 35%` and a line on every 10 % change; `ok: gpu 38°C, fan
+  0%` is the fan stopping. A `stale:` line means the readings stopped and the fan is at 100 %.
 - `curl -fsS http://10.10.1.1:9100/metrics | grep ^gpu_fan_control_` shows the duty, temperature, rpm and
   `state="ok"`; in Grafana, the **GPU & cooling** dashboard fills in within a minute.
 - Under load (an Immich ML job), the temperature on the dashboard should level off well below 70 °C. After a
@@ -168,6 +173,8 @@ systemctl daemon-reload
   ```
 
   Then set a `curve` in `gpu_fan_control` whose lowest duty is at least 5 % above that, and apply.
+- **The fan starts and stops too often:** widen the gap between `stop_at` and `start_at`, or set `stop_at = 0`
+  to keep it always on.
 - **`GpuFanStalled`:** under 300 rpm with a duty above 0, for a minute: the fan is dead or unplugged, or its
   cable is caught. The card has no other cooling; look now, and drain `talos-wk-1` if it cannot be fixed soon.
 - **`ProxmoxHostMetricsDown`:** Prometheus cannot scrape `10.10.1.1:9100`. Check

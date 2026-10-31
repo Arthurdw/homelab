@@ -317,14 +317,24 @@ transition ~80 °C). The die is the hottest point, so its temperature bounds the
 - **Lowest sure floor.** 35 % up to 45 °C. Measured on `poseidon` (2026-10-31): the fan stays at 0 rpm up to
   25 % and starts at 30 % (~1060 rpm); it also stopped at 25 % on the way down. 35 % (~1220 rpm) is 5 points
   above the start. The first curve had a 20 % floor and the stall guard caught it the same day. The card idles
-  at 30 °C (P8, ~9 W) and sits around 50 °C with Immich ML loaded (P0, ~25–35 W), so it spends nearly all its
-  time on the floor or just above it.
+  at 30 °C (P8, ~9 W) and sits around 50 °C with Immich ML loaded (P0, ~25–35 W), so when the fan runs it is
+  nearly always on the floor or just above it.
 - **100 % from 70 °C,** where PETG starts to creep, instead of the 75 °C a bare card would allow.
   `GpuTemperatureHigh` (75 °C) means even full speed is not enough.
-- **Never off.** A zero-rpm mode was considered and left out: the card is never really idle (Immich ML keeps it in
-  P0), the fan is rated 600–4000 rpm and may not stop at 0 % anyway, on/off cycling is more noticeable than a
-  steady low hum, a stopped fan may not restart, and a stopped fan cannot be told from a dead one. It can be
-  added later, with hysteresis: the fan does stop at 0–25 % and starts again from 30 %.
+- **Off when cool, with hysteresis** (`stop_at` 38 °C, `start_at` 50 °C; added 2026-10-31). At first the fan
+  never stopped, but even at its 35 % floor it is clearly louder than off, and the card turned out to idle at
+  30–31 °C. Measured on `poseidon` with the fan off (2026-10-31): 37 °C after 5 minutes, 39 °C after 10, leveling
+  off around 40–41 °C, far from any limit. So the fan stops at or below 38 °C and starts again only at 50 °C,
+  a 12 °C gap, so it does not cycle at idle: once the card warms up to its fan-off level it stays there quietly,
+  and load (Immich ML, a transcode) brings the fan back. The earlier worries are answered by measurements and the
+  controller:
+  - The fan does start from standstill at 30 %, and the curve gives 40 % at 50 °C.
+  - The stop goes straight to 0 % instead of stepping down through the duties where the fan stalls.
+  - A stopped fan is told from a dead one by the duty: the stall check and `GpuFanStalled` only look at a duty
+    above 0, and the stall check skips the first interval after a start, while the fan spins up.
+  - Stale readings still mean 100 %.
+
+  `stop_at = 0` turns this off.
 - **Stall guard.** A low floor only works if the fan really spins at it. Below `stall_rpm` (300) at less than
   100 %, the controller goes to 100 % at once and raises the floor to that duty + 10 % until it restarts
   (`GpuFanCurveFloorTooLow` says so). A fan dead at 100 % is `GpuFanStalled`, critical.

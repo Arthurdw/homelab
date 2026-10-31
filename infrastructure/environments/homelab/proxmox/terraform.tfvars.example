@@ -120,6 +120,8 @@ proxmox_host_memory_reserve_mb = 8192
 #   stale_after_seconds = 30    # no reading for this long -> 100%
 #   step_down_percent   = 5     # slows down by at most this much per interval
 #   stall_rpm           = 300   # tach below this under 100% = stopped -> 100%; 0 = no check
+#   stop_at             = 38    # GPU at or below this °C: fan off (idles ~40°C with it off); 0 = never off
+#   start_at            = 50    # a stopped fan starts again at this °C
 # }
 
 # node-exporter on the host (host-metrics.tf): its temperatures and fan speeds, and the fan controller's metrics

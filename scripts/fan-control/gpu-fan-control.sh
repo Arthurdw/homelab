@@ -10,6 +10,10 @@
 #   - It starts at 100% and only steps down once it has a reading.
 #   - No reading for STALE_AFTER seconds (exporter down, VM off, network) means 100%.
 #   - It speeds up at once and slows down by at most STEP_DOWN percent per INTERVAL.
+#   - At or below STOP_AT °C the fan stops (duty 0) and stays off until START_AT °C, then follows the curve again.
+#     Only a reading turns it off: holding keeps the duty it has, stale readings mean 100% and forget the stop.
+#     The stop skips STEP_DOWN and the stall floor (walking down would pass the duties where the fan stalls), and the
+#     stall check waits one interval after a start, so the fan has time to spin up.
 #   - A fan that stops below 100% (tach under STALL_RPM) gets 100% at once, and from then on never less than 10
 #     points above the duty it stopped at, until a restart. So a curve floor set too low costs noise, not cooling.
 #   - On any stop or crash, the unit's ExecStopPost runs `failsafe`: 100%, still in manual mode.
@@ -26,6 +30,8 @@
 #   STALE_AFTER   seconds without a reading before going to 100% (default 30)
 #   STEP_DOWN     largest decrease in percent per interval (default 5)
 #   STALL_RPM     tach reading below which a fan under 100% counts as stopped (default 300; 0 = no check)
+#   STOP_AT       GPU °C at or below which the fan stops (default 38; 0 = never)
+#   START_AT      GPU °C at or above which a stopped fan starts again (default 50; above STOP_AT)
 #   TEXTFILE      optional; a .prom file for node-exporter's textfile collector, rewritten every interval with
 #                 the duty, the reading, the header's fan rpm and the state (empty = off)
 #
@@ -43,6 +49,8 @@ INTERVAL="${INTERVAL:-5}"
 STALE_AFTER="${STALE_AFTER:-30}"
 STEP_DOWN="${STEP_DOWN:-5}"
 STALL_RPM="${STALL_RPM:-300}"
+STOP_AT="${STOP_AT:-38}"
+START_AT="${START_AT:-50}"
 METRIC="${METRIC:-nvidia_smi_temperature_gpu}"
 SYSFS_ROOT="${SYSFS_ROOT:-/sys/class/hwmon}"
 STATE_DIR="${STATE_DIR:-/run/gpu-fan-control}"
@@ -105,6 +113,10 @@ read_temp() {
     }
     END { if (max == "") exit 1; print max }'
 }
+
+# Temperature comparisons; readings can have decimals.
+at_most() { awk -v a="$1" -v b="$2" 'BEGIN { exit !(a <= b) }'; }
+at_least() { awk -v a="$1" -v b="$2" 'BEGIN { exit !(a >= b) }'; }
 
 set_percent() {
   # Manual mode is re-asserted every time: firmware may take the header back (e.g. after a resume).
@@ -193,6 +205,7 @@ check() {
   local t
   if t="$(read_temp)"; then
     log "exporter: $EXPORTER_URL -> ${t}°C -> $(curve_percent "$t")%"
+    if at_most "$t" "$STOP_AT"; then log "          at or below ${STOP_AT}°C: run keeps the fan stopped until ${START_AT}°C"; fi
   else
     # Not an error: the exporter may not be up yet, and `run` copes with that by staying at 100%.
     log "exporter: no $METRIC from $EXPORTER_URL yet; the fan will run at 100% until there is"
@@ -208,38 +221,49 @@ run() {
   [ -s "$saved" ] || cat "$pwm_enable" > "$saved"
   trap 'failsafe; exit 0' INT TERM
 
-  local current=100 target t state last_state="" last_logged=-100 last_ok="$EPOCHSECONDS" last_reading=""
-  local rpm stalls=0 min_duty=0
+  # previous: the duty before current, for the stall check's spin-up grace. off: stopped until START_AT.
+  local current=100 previous=100 off=0 target t state last_state="" last_logged=-100 last_ok="$EPOCHSECONDS"
+  local last_reading="" rpm stalls=0 min_duty=0
   set_percent 100
-  log "started: $pwm, curve $CURVE, reading $EXPORTER_URL"
+  log "started: $pwm, curve $CURVE, off at ${STOP_AT}°C until ${START_AT}°C, reading $EXPORTER_URL"
   while :; do
     if t="$(read_temp)"; then
       last_ok="$EPOCHSECONDS"
       last_reading="$EPOCHSECONDS"
       target="$(curve_percent "$t")"
       state="ok"
+      if ((off)); then
+        if at_least "$t" "$START_AT"; then off=0; fi
+      elif at_most "$t" "$STOP_AT"; then
+        off=1
+      fi
+      if ((off)); then
+        target=0
+      fi
     elif ((EPOCHSECONDS - last_ok >= STALE_AFTER)); then
       t="?"
       target=100
       state="stale"
+      off=0
     else
       t="?"
       target="$current"
       state="holding"
     fi
     # The tach shows how the fan took last interval's duty. Full speed is never a stall: a dead fan there has
-    # nothing better to fall back to, and the GpuFanStalled alert reports it.
-    if ((STALL_RPM > 0 && current < 100)) && rpm="$(fan_rpm)" && ((rpm < STALL_RPM)); then
+    # nothing better to fall back to, and the GpuFanStalled alert reports it. Stopped is not one either, nor the
+    # first interval after a start (previous 0): the fan may still be spinning up.
+    if ((STALL_RPM > 0 && current > 0 && current < 100 && previous > 0)) && rpm="$(fan_rpm)" && ((rpm < STALL_RPM)); then
       stalls=$((stalls + 1))
       min_duty=$((current + 10 > 100 ? 100 : current + 10))
       log "stalled: fan ${rpm} rpm at ${current}%; 100% now, no lower than ${min_duty}% until a restart"
       target=100
       state="stalled"
     fi
-    if ((target < min_duty)); then
+    if ((target > 0 && target < min_duty)); then
       target="$min_duty"
     fi
-    if ((target < current - STEP_DOWN)); then
+    if ((target > 0 && target < current - STEP_DOWN)); then
       target=$((current - STEP_DOWN))
     fi
     set_percent "$target"
@@ -249,6 +273,7 @@ run() {
       last_state="$state"
       last_logged="$target"
     fi
+    previous="$current"
     current="$target"
     sleep "$INTERVAL" &
     wait $!

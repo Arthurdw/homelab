@@ -41,6 +41,8 @@ locals {
       STALE_AFTER="${var.gpu_fan_control.stale_after_seconds}"
       STEP_DOWN="${var.gpu_fan_control.step_down_percent}"
       STALL_RPM="${var.gpu_fan_control.stall_rpm}"
+      STOP_AT="${var.gpu_fan_control.stop_at}"
+      START_AT="${var.gpu_fan_control.start_at}"
       TEXTFILE="${var.host_metrics == null ? "" : "${local.host_metrics_textfile_dir}/gpu-fan-control.prom"}"
     EOT
     module  = coalesce(var.gpu_fan_control.kernel_module, "-")

@@ -2,8 +2,8 @@
 # Self-test for the GPU fan controller, with no network and no host changes.
 #
 #   1. gpu-fan-control.sh against a fake /sys/class/hwmon and a file:// metrics page: the curve, `check`,
-#      the run loop (curve duty, the node-exporter textfile, the stall guard, 100% on stale readings, 100% on
-#      SIGTERM) and `release`.
+#      the run loop (curve duty, the node-exporter textfile, the stall guard, the fan stop and restart, 100% on
+#      stale readings, 100% on SIGTERM) and `release`.
 #   2. systemd-analyze verify on a copy of the unit, with its paths pointed at a stub.
 #
 # Usage: scripts/fan-control/test/selftest.sh      (needs bash, curl, systemd-analyze)
@@ -38,6 +38,15 @@ wait_grep() {
   for _ in $(seq 100); do grep -q -- "$2" "$1" 2>/dev/null && return 0; sleep 0.1; done
   return 1
 }
+
+# next_write <file>: up to 10s for the file to be rewritten (the run loop rewrites the textfile once an interval).
+next_write() {
+  local m
+  m="$(stat -c %.9Y "$1")"
+  for _ in $(seq 100); do [ "$(stat -c %.9Y "$1" 2>/dev/null)" != "$m" ] && return 0; sleep 0.1; done
+  return 1
+}
+temp() { sed -i "s/^\(nvidia_smi_temperature_gpu{uuid=\"GPU-1\"}\) .*/\1 $1/" "$w/metrics"; }
 
 # --- 1. controller ---------------------------------------------------------------------------------
 # hwmon0 is a decoy; hwmon3 is the Super I/O chip, its header in the BIOS's automatic mode (5).
@@ -104,6 +113,24 @@ echo 1200 > "$fan_input"
 check "stall: floor raised to 45%" wait_for "$pwm" 115
 check "stall: logged" grep -q '^stalled: fan 0 rpm at 35%' "$w/run.log"
 check "textfile: stalls counted" wait_grep "$prom" '^gpu_fan_control_stalls_total 1$'
+# Stop at 38°C (the default STOP_AT), past the 45% stall floor and STEP_DOWN; a still tach is no stall then.
+temp 38
+check "off: duty 0 at STOP_AT" wait_for "$pwm" 0
+echo 0 > "$fan_input"
+next_write "$prom" && next_write "$prom"
+check "off: no stall while stopped" grep -q '^gpu_fan_control_stalls_total 1$' "$prom"
+check "off: state stays ok" grep -q '^gpu_fan_control_state{state="ok"} 1$' "$prom"
+temp 49
+next_write "$prom" && next_write "$prom"
+check "off: still 0 below START_AT" test "$(cat "$pwm")" = 0
+# Back on at 50°C (curve 45%). The tach stays at 0 for the interval after the start: the spin-up grace.
+temp 50
+check "off: back on the curve at START_AT" wait_for "$pwm" 115
+wait_grep "$prom" '^gpu_fan_control_duty_percent 45$' && next_write "$prom"
+echo 1200 > "$fan_input"
+next_write "$prom" && next_write "$prom"
+check "off: no stall while spinning up" grep -q '^gpu_fan_control_stalls_total 1$' "$prom"
+check "off: logged" grep -q '^ok: gpu 38°C, fan 0%' "$w/run.log"
 rm "$w/metrics"
 check "run: 100% once readings are stale" wait_for "$pwm" 255
 check "textfile: state stale" wait_grep "$prom" '^gpu_fan_control_state{state="stale"} 1$'

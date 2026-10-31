@@ -11,7 +11,7 @@
 | OS | Debian 13 (trixie), Proxmox VE 9 (pve-manager 9.2.2), kernel 7.0.2-6-pve | reinstalled by the owner on 2026-10-21; was PVE 8.4.11, kernel 6.8.12-13-pve at capture. Hostname is still `pve`; storage `local` (dir) + `local-lvm` (lvmthin), no guests |
 | CPU | Intel Core i5-7400 — 4 cores / 4 threads @ 3.0 GHz | no SMT; limited parallelism |
 | Board | ASUS PRIME B250M-PLUS | Super I/O NCT6793D (`nct6775` driver, hwmon `nct6793`; not loaded on boot without `/etc/modules-load.d`), no ACPI conflict |
-| Fan headers | `pwm2` CPU_FAN · `pwm3` GPU fan · `pwm1` case-fan hub | all PWM mode; the controller drives `pwm3` only, the others stay on the BIOS curve. GPU fan measured 2026-10-31: ~1050 rpm at 30 %, ~2900 rpm at 100 % (box says 600–4000). Fan-to-card duct is printed PETG: the curve is at 100 % from 70 °C (`docs/decisions.md` §3.8) |
+| Fan headers | `pwm2` CPU_FAN · `pwm3` GPU fan · `pwm1` case-fan hub | all PWM mode; the controller drives `pwm3` only, the others stay on the BIOS curve. GPU fan measured 2026-10-31: stopped at 0–25 % (also when already spinning), ~1060 rpm at 30 % (starts from standstill), ~1380 at 40 %, ~1980 at 60 %, ~2480 at 80 %, ~2930 at 100 % (box says 600–4000). The controller stops it at or below 38 °C (`docs/decisions.md` §3.8). Fan-to-card duct is printed PETG: the curve is at 100 % from 70 °C (`docs/decisions.md` §3.8) |
 | Board sensors | NCT6793D: CPUTIN (~37 °C), AUXTIN0 (~32 °C), PECI Agent 0 (CPU) | read 2026-10-31 through node-exporter. SYSTIN and AUXTIN1–3 have nothing attached (a flat 108–117 °C), the PCH and TSI slots are unused on this board (0 °C, 3892314 °C); the "GPU & cooling" dashboard leaves them out. Case-fan hub on `fan1` reports no tachometer (0 rpm) |
 | RAM | 46 GiB usable | currently ~42 GiB consumed by one VM |
 | Boot/root disk | 1× Crucial CT525MX300 SSD (~489 GiB) | **SPOF** — no mirror |
@@ -50,7 +50,9 @@
 | Tooling present | tofu, kubectl, talosctl, helm, ansible, nix, docker (124 images) | at audit time; `just lab-tools` now installs kind, flux, etc. |
 
 ## Open hardware questions
-- Why does the GPU fan top out at ~2900 rpm instead of the rated 4000? (an adapter in its cable, or the rating's small print)
+- Why does the GPU fan top out at ~2930 rpm instead of the rated 4000? The tach reading itself is right (PWM mode,
+  2 pulses per turn). Both ends sit at ~72 % of the rating, which looks like the fan gets less than 12 V: check its
+  cable for a low-noise adapter, a resistor or a splitter.
 - Is the Tesla P4 passthrough stable under load? Planned combo: `talos-wk-1`, Talos nonfree 580 LTS driver (`talos/schematic-gpu.yaml`).
 - Any spare disks/NVMe available to reduce the workstation disk pressure for the lab?
 - Is there a second machine available to host lab fixtures (so labs don't contend with prod)?

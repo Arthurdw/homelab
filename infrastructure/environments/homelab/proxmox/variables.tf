@@ -389,7 +389,9 @@ variable "gpu_fan_control" {
     default keeps the fan at its lowest sure speed at idle (35 %: it needs 30 % to start) and at full speed
     from 70 °C, for the PETG duct on the card
     (docs/decisions.md §3.8). `stall_rpm` is the tach reading under which the fan counts as stopped: the
-    controller then goes to 100% and raises its own floor (0 turns the check off). With host_metrics set,
+    controller then goes to 100% and raises its own floor (0 turns the check off). At or below `stop_at` °C
+    the fan stops, and starts again at `start_at` °C (the gap keeps it from cycling; `stop_at` 0 never
+    stops it). With host_metrics set,
     the controller also writes its duty, reading, fan rpm and state for node-exporter.
     Null (the default) installs nothing; setting it back to null uninstalls and hands the header back to
     the BIOS.
@@ -415,6 +417,8 @@ variable "gpu_fan_control" {
     stale_after_seconds = optional(number, 30)
     step_down_percent   = optional(number, 5)
     stall_rpm           = optional(number, 300)
+    stop_at             = optional(number, 38)
+    start_at            = optional(number, 50)
   })
   default = null
 
@@ -472,6 +476,11 @@ variable "gpu_fan_control" {
   validation {
     condition     = var.gpu_fan_control == null || try(var.gpu_fan_control.stall_rpm >= 0 && floor(var.gpu_fan_control.stall_rpm) == var.gpu_fan_control.stall_rpm, false)
     error_message = "gpu_fan_control.stall_rpm must be a whole number from 0 (0 = no stall check)."
+  }
+
+  validation {
+    condition     = var.gpu_fan_control == null || try(var.gpu_fan_control.stop_at >= 0 && var.gpu_fan_control.start_at > var.gpu_fan_control.stop_at, false)
+    error_message = "gpu_fan_control.stop_at must be from 0 (0 = never stop the fan) and start_at above it."
   }
 }
 
