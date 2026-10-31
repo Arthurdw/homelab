@@ -54,6 +54,16 @@ Sign-out in Open WebUI also ends the Authentik session; otherwise the headers wo
    card.
 4. Delete a model in the same **Manage** dialog; that frees the volume, not just the card.
 
+**Slow first token, fast answer.** Before the first word, Ollama may load the model (about 15 s after 15 min
+idle), wait for earlier requests (it answers one at a time), read the whole prompt (history and images), and
+think (Qwen3.5 thinks by default; Open WebUI folds that into "Thinking…"). Turn thinking off per chat or per model
+for quick questions.
+
+**"request (N tokens) exceeds the available context size".** A request is limited to `OLLAMA_CONTEXT_LENGTH`
+tokens (16384), counting history and images together; one image alone can be several thousand. Start a new chat,
+or raise the limit in `ollama.yaml` (more cache on the card) or for one model in its **Advanced Params →
+Context Length**.
+
 Equivalent CLI (the owner runs it): `kubectl -n ollama exec deploy/ollama -- ollama pull qwen3.5:4b`, `ollama
 list`, `ollama rm <model>`.
 

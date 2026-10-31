@@ -86,6 +86,11 @@ spec:
             # holds at that moment: room for Immich ML to load a model later without running the card out.
             - name: OLLAMA_GPU_OVERHEAD
               value: "2147483648"
+            # Tokens per request (prompt, history and images together). Ollama's default on a card under 24 GB is
+            # 4096, too little for a chat with an image; longer requests fail with "exceeds the available context
+            # size". The cache grows with it: for qwen3.5:4b about 512 MiB at 16k, still fully on the card.
+            - name: OLLAMA_CONTEXT_LENGTH
+              value: "16384"
             - name: NVIDIA_DRIVER_CAPABILITIES
               value: compute,utility
           # `GET /` answers "Ollama is running" without touching a model.
