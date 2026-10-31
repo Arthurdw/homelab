@@ -10,6 +10,8 @@
 #   - It starts at 100% and only steps down once it has a reading.
 #   - No reading for STALE_AFTER seconds (exporter down, VM off, network) means 100%.
 #   - It speeds up at once and slows down by at most STEP_DOWN percent per INTERVAL.
+#   - A fan that stops below 100% (tach under STALL_RPM) gets 100% at once, and from then on never less than 10
+#     points above the duty it stopped at, until a restart. So a curve floor set too low costs noise, not cooling.
 #   - On any stop or crash, the unit's ExecStopPost runs `failsafe`: 100%, still in manual mode.
 #   - `release` (run by OpenTofu on uninstall) hands the header back to the BIOS mode saved at start.
 #
@@ -23,6 +25,9 @@
 #   INTERVAL      seconds between readings (default 5)
 #   STALE_AFTER   seconds without a reading before going to 100% (default 30)
 #   STEP_DOWN     largest decrease in percent per interval (default 5)
+#   STALL_RPM     tach reading below which a fan under 100% counts as stopped (default 300; 0 = no check)
+#   TEXTFILE      optional; a .prom file for node-exporter's textfile collector, rewritten every interval with
+#                 the duty, the reading, the header's fan rpm and the state (empty = off)
 #
 # Usage: gpu-fan-control run|failsafe|release|check|curve <temp>
 set -euo pipefail
@@ -33,13 +38,15 @@ if [ -r "$conf" ]; then
   . "$conf"
 fi
 
-CURVE="${CURVE:-35:30 50:45 60:65 70:90 75:100}"
+CURVE="${CURVE:-45:20 55:35 62:60 67:85 70:100}"
 INTERVAL="${INTERVAL:-5}"
 STALE_AFTER="${STALE_AFTER:-30}"
 STEP_DOWN="${STEP_DOWN:-5}"
+STALL_RPM="${STALL_RPM:-300}"
 METRIC="${METRIC:-nvidia_smi_temperature_gpu}"
 SYSFS_ROOT="${SYSFS_ROOT:-/sys/class/hwmon}"
 STATE_DIR="${STATE_DIR:-/run/gpu-fan-control}"
+TEXTFILE="${TEXTFILE:-}"
 
 log() { printf '%s\n' "$*"; }
 die() { printf 'gpu-fan-control: %s\n' "$*" >&2; exit 1; }
@@ -63,12 +70,14 @@ find_hwmon() {
   return 1
 }
 
-# Sets pwm and pwm_enable to the header's files; fails if they are not there.
+# Sets pwm and pwm_enable to the header's files; fails if they are not there. fan_input is the header's tachometer
+# (same number on nct67xx and it87 chips); it may be missing, and only the metrics read it.
 locate_pwm() {
   local hw
   hw="$(find_hwmon)" || die "no hwmon chip named '$HWMON_NAME' under $SYSFS_ROOT (module loaded? see the runbook)"
   pwm="$hw/pwm$PWM_CHANNEL"
   pwm_enable="${pwm}_enable"
+  fan_input="$hw/fan${PWM_CHANNEL}_input"
   [ -w "$pwm" ] && [ -w "$pwm_enable" ] || die "$pwm or ${pwm}_enable missing or not writable"
 }
 
@@ -103,11 +112,55 @@ set_percent() {
   echo $((($1 * 255 + 50) / 100)) > "$pwm"
 }
 
+# The header's fan speed in rpm. Fails when the chip has no tachometer for it or reads garbage.
+fan_rpm() {
+  local r
+  [ -r "$fan_input" ] && r="$(cat "$fan_input" 2>/dev/null)" && [[ "$r" =~ ^[0-9]+$ ]] && printf '%s\n' "$r"
+}
+
+# Writes TEXTFILE for node-exporter: state ok|holding|stale|stalled|failsafe, duty, temperature ("?" = none). Renamed into
+# place, so a scrape never sees half a file (the collector skips names not ending in .prom). Never fails the caller.
+write_metrics() {
+  [ -n "$TEXTFILE" ] || return 0
+  local state="$1" duty="$2" temp="$3" tmp="$TEXTFILE.$$" s rpm
+  {
+    printf '# HELP gpu_fan_control_duty_percent Duty the controller set on the GPU fan header.\n'
+    printf '# TYPE gpu_fan_control_duty_percent gauge\ngpu_fan_control_duty_percent %s\n' "$duty"
+    if [ "$temp" != "?" ]; then
+      printf '# HELP gpu_fan_control_gpu_temperature_celsius GPU temperature of the last reading.\n'
+      printf '# TYPE gpu_fan_control_gpu_temperature_celsius gauge\ngpu_fan_control_gpu_temperature_celsius %s\n' "$temp"
+    fi
+    if rpm="$(fan_rpm)"; then
+      printf '# HELP gpu_fan_control_fan_rpm Speed of the fan on the controlled header.\n'
+      printf '# TYPE gpu_fan_control_fan_rpm gauge\ngpu_fan_control_fan_rpm %s\n' "$rpm"
+    fi
+    printf '# HELP gpu_fan_control_state 1 for the state the controller is in.\n# TYPE gpu_fan_control_state gauge\n'
+    for s in ok holding stale stalled failsafe; do
+      printf 'gpu_fan_control_state{state="%s"} %d\n' "$s" "$([ "$s" = "$state" ] && echo 1 || echo 0)"
+    done
+    if [ -n "${stalls:-}" ]; then
+      printf '# HELP gpu_fan_control_stalls_total Times the fan stopped below 100%% since the controller started.\n'
+      printf '# TYPE gpu_fan_control_stalls_total counter\ngpu_fan_control_stalls_total %s\n' "$stalls"
+      printf '# HELP gpu_fan_control_min_duty_percent Lowest duty the controller allows itself after stalls.\n'
+      printf '# TYPE gpu_fan_control_min_duty_percent gauge\ngpu_fan_control_min_duty_percent %s\n' "$min_duty"
+    fi
+    if [ -n "${last_reading:-}" ]; then
+      printf '# HELP gpu_fan_control_last_reading_timestamp_seconds When the exporter last answered.\n'
+      printf '# TYPE gpu_fan_control_last_reading_timestamp_seconds gauge\n'
+      printf 'gpu_fan_control_last_reading_timestamp_seconds %s\n' "$last_reading"
+    fi
+    printf '# HELP gpu_fan_control_updated_timestamp_seconds When the controller last wrote this file.\n'
+    printf '# TYPE gpu_fan_control_updated_timestamp_seconds gauge\ngpu_fan_control_updated_timestamp_seconds %s\n' "$EPOCHSECONDS"
+  } > "$tmp" 2>/dev/null || { rm -f -- "$tmp"; return 1; }
+  mv -f -- "$tmp" "$TEXTFILE" 2>/dev/null || { rm -f -- "$tmp"; return 1; }
+}
+
 failsafe() {
   need_config
   locate_pwm
   echo 1 > "$pwm_enable"
   echo 255 > "$pwm"
+  write_metrics failsafe 100 "?" || true
   log "failsafe: $pwm at 100%"
 }
 
@@ -123,12 +176,15 @@ release() {
     log "release: no firmware mode to restore; $pwm left at 100%"
   fi
   rm -f -- "$saved"
+  [ -z "$TEXTFILE" ] || rm -f -- "$TEXTFILE"
 }
 
 check() {
   need_config
   locate_pwm
   log "pwm:      $pwm = $(cat "$pwm") (enable $(cat "$pwm_enable"))"
+  local rpm
+  if rpm="$(fan_rpm)"; then log "fan:      $fan_input = $rpm rpm"; else log "fan:      no tachometer at $fan_input; no stall check"; fi
   local t
   if t="$(read_temp)"; then
     log "exporter: $EXPORTER_URL -> ${t}°C -> $(curve_percent "$t")%"
@@ -147,12 +203,14 @@ run() {
   [ -s "$saved" ] || cat "$pwm_enable" > "$saved"
   trap 'failsafe; exit 0' INT TERM
 
-  local current=100 target t state last_state="" last_logged=-100 last_ok="$EPOCHSECONDS"
+  local current=100 target t state last_state="" last_logged=-100 last_ok="$EPOCHSECONDS" last_reading=""
+  local rpm stalls=0 min_duty=0
   set_percent 100
   log "started: $pwm, curve $CURVE, reading $EXPORTER_URL"
   while :; do
     if t="$(read_temp)"; then
       last_ok="$EPOCHSECONDS"
+      last_reading="$EPOCHSECONDS"
       target="$(curve_percent "$t")"
       state="ok"
     elif ((EPOCHSECONDS - last_ok >= STALE_AFTER)); then
@@ -164,10 +222,23 @@ run() {
       target="$current"
       state="holding"
     fi
+    # The tach shows how the fan took last interval's duty. Full speed is never a stall: a dead fan there has
+    # nothing better to fall back to, and the GpuFanStalled alert reports it.
+    if ((STALL_RPM > 0 && current < 100)) && rpm="$(fan_rpm)" && ((rpm < STALL_RPM)); then
+      stalls=$((stalls + 1))
+      min_duty=$((current + 10 > 100 ? 100 : current + 10))
+      log "stalled: fan ${rpm} rpm at ${current}%; 100% now, no lower than ${min_duty}% until a restart"
+      target=100
+      state="stalled"
+    fi
+    if ((target < min_duty)); then
+      target="$min_duty"
+    fi
     if ((target < current - STEP_DOWN)); then
       target=$((current - STEP_DOWN))
     fi
     set_percent "$target"
+    write_metrics "$state" "$target" "$t" || true
     if [ "$state" != "$last_state" ] || ((target - last_logged >= 10 || last_logged - target >= 10)); then
       log "$state: gpu ${t}°C, fan ${target}%"
       last_state="$state"

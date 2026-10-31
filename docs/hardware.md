@@ -11,7 +11,7 @@
 | OS | Debian 13 (trixie), Proxmox VE 9 (pve-manager 9.2.2), kernel 7.0.2-6-pve | reinstalled by the owner on 2026-10-21; was PVE 8.4.11, kernel 6.8.12-13-pve at capture. Hostname is still `pve`; storage `local` (dir) + `local-lvm` (lvmthin), no guests |
 | CPU | Intel Core i5-7400 — 4 cores / 4 threads @ 3.0 GHz | no SMT; limited parallelism |
 | Board | ASUS PRIME B250M-PLUS | Super I/O NCT6793D (`nct6775` driver, hwmon `nct6793`; not loaded on boot without `/etc/modules-load.d`), no ACPI conflict |
-| Fan headers | `pwm2` CPU_FAN · `pwm3` GPU fan · `pwm1` case-fan hub | all PWM mode; the controller drives `pwm3` only, the others stay on the BIOS curve. GPU fan measured 2026-10-31: ~1050 rpm at 30 %, ~2900 rpm at 100 % (box says 600–4000) |
+| Fan headers | `pwm2` CPU_FAN · `pwm3` GPU fan · `pwm1` case-fan hub | all PWM mode; the controller drives `pwm3` only, the others stay on the BIOS curve. GPU fan measured 2026-10-31: ~1050 rpm at 30 %, ~2900 rpm at 100 % (box says 600–4000). Fan-to-card duct is printed PETG: the curve is at 100 % from 70 °C (`docs/decisions.md` §3.8) |
 | RAM | 46 GiB usable | currently ~42 GiB consumed by one VM |
 | Boot/root disk | 1× Crucial CT525MX300 SSD (~489 GiB) | **SPOF** — no mirror |
 | Root layout | LVM: `pve-root` 96 G ext4 (7 % used), `pve-data` 360 G lvmthin (0 % used), 8 G swap | no ZFS on the host |

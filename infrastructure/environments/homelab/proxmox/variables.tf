@@ -385,7 +385,11 @@ variable "gpu_fan_control" {
     `pwm_channel` the header's pwm number on it (pwm2 -> 2). `kernel_module` (e.g. nct6775) is loaded at
     boot when the chip's driver does not load on its own, with `kernel_module_options` if it needs any.
     `exporter_url` defaults to port 9835 on the VM gpu_passthrough.vm names; `ssh_host` to the host in
-    proxmox_endpoint. `curve` is temperature (°C) to fan percent, ascending, linear in between.
+    proxmox_endpoint. `curve` is temperature (°C) to fan percent, ascending, linear in between; the
+    default keeps the fan quiet at idle and at full speed from 70 °C, for the PETG duct on the card
+    (docs/decisions.md §3.8). `stall_rpm` is the tach reading under which the fan counts as stopped: the
+    controller then goes to 100% and raises its own floor (0 turns the check off). With host_metrics set,
+    the controller also writes its duty, reading, fan rpm and state for node-exporter.
     Null (the default) installs nothing; setting it back to null uninstalls and hands the header back to
     the BIOS.
   EOT
@@ -400,15 +404,16 @@ variable "gpu_fan_control" {
       temp    = number
       percent = number
       })), [
-      { temp = 35, percent = 30 },
-      { temp = 50, percent = 45 },
-      { temp = 60, percent = 65 },
-      { temp = 70, percent = 90 },
-      { temp = 75, percent = 100 },
+      { temp = 45, percent = 20 },
+      { temp = 55, percent = 35 },
+      { temp = 62, percent = 60 },
+      { temp = 67, percent = 85 },
+      { temp = 70, percent = 100 },
     ])
     interval_seconds    = optional(number, 5)
     stale_after_seconds = optional(number, 30)
     step_down_percent   = optional(number, 5)
+    stall_rpm           = optional(number, 300)
   })
   default = null
 
@@ -461,5 +466,35 @@ variable "gpu_fan_control" {
       false,
     )
     error_message = "gpu_fan_control: interval_seconds and step_down_percent (1-100) must be whole numbers from 1, stale_after_seconds a whole number no smaller than interval_seconds."
+  }
+
+  validation {
+    condition     = var.gpu_fan_control == null || try(var.gpu_fan_control.stall_rpm >= 0 && floor(var.gpu_fan_control.stall_rpm) == var.gpu_fan_control.stall_rpm, false)
+    error_message = "gpu_fan_control.stall_rpm must be a whole number from 0 (0 = no stall check)."
+  }
+}
+
+variable "host_metrics" {
+  description = <<-EOT
+    Prometheus node-exporter on the Proxmox host (host-metrics.tf): the host's temperatures and fan speeds,
+    and the GPU fan controller's own metrics through the textfile collector. Prometheus in the cluster
+    scrapes it (kubernetes/infrastructure/configs/proxmox-host-scrapeconfig.yaml). `listen_address`
+    defaults to port 9100 on the host in proxmox_endpoint, `ssh_host` to that host. Null (the default)
+    installs nothing; setting it back to null removes the package.
+  EOT
+  type = object({
+    listen_address = optional(string)
+    ssh_host       = optional(string)
+  })
+  default = null
+
+  validation {
+    condition     = var.host_metrics == null || try(var.host_metrics.listen_address, null) == null || can(regex("^[0-9A-Za-z.-]+:[0-9]+$", var.host_metrics.listen_address))
+    error_message = "host_metrics.listen_address must be host:port, e.g. 10.10.1.1:9100."
+  }
+
+  validation {
+    condition     = var.host_metrics == null || try(var.host_metrics.ssh_host, null) == null || can(regex("^[A-Za-z0-9.:-]+$", var.host_metrics.ssh_host))
+    error_message = "host_metrics.ssh_host must be a host name or IP address."
   }
 }

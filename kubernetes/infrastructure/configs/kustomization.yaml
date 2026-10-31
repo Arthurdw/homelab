@@ -7,3 +7,4 @@ resources:
   - wildcard-certificate.yaml
   - flux-podmonitor.yaml
   - nvidia-gpu-exporter-servicemonitor.yaml
+  - proxmox-host-scrapeconfig.yaml

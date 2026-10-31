@@ -20,9 +20,10 @@
 # does what the owner does by hand on poseidon: the NIC's own `mtu 9000` (the one thing the root cannot
 # express), after first putting the NIC back to a real card's default of 1500.
 #
-# Steps: init, validate, owner pre-step for the NIC, plan, apply, check the VMs, the image and the
-# bridge (address, MTU on bridge and port) on the fixture, second plan (must be clean: exit 0, no
-# drift), destroy (--keep skips it), check the VMs and the bridge are gone. The jumbo-frame ping to the
+# Steps: init, validate, owner pre-step for the NIC, plan, apply, check the VMs, the image, the
+# bridge (address, MTU on bridge and port) and node-exporter (host-metrics.tf) on the fixture, second
+# plan (must be clean: exit 0, no drift), destroy (--keep skips it), check the VMs, the bridge and the
+# node-exporter package are gone. The jumbo-frame ping to the
 # NAS end is scripts/lab/storage-link-ping.sh (run it between --keep and the final destroy).
 #
 # Usage:
@@ -120,6 +121,7 @@ talos_wk2_data_disk_gb         = null
 talos_vm_started               = false
 talos_vm_on_boot               = false
 gpu_passthrough                = null
+host_metrics                   = {}
 TFVARS
 
 AGENT_PID=""
@@ -200,6 +202,13 @@ for vmid in $(echo "$vms" | jq -r '.[] | select(.name=="talos-cp-1" or .name=="t
   note "vmid $vmid: net1 virtio on vmbr1, MTU 9000, untagged"
 done
 
+log "check node-exporter on the fixture (host-metrics.tf)"
+pve_ssh "systemctl is-active prometheus-node-exporter.service" | sed 's/^/   /' \
+  || die "prometheus-node-exporter is not active after apply"
+curl -fsS --max-time 10 "http://$host:9100/metrics" | grep -E '^node_(exporter_build_info|hwmon_chip_names)' | head -3 | sed 's/^/   /' \
+  || die "node-exporter does not answer on $host:9100"
+note "node-exporter: active, serving on $host:9100"
+
 log "second plan (must be clean)"
 if run_tofu plan -input=false -no-color -detailed-exitcode | tail -n 6; then
   note "clean: no drift, the config is idempotent"
@@ -216,3 +225,7 @@ left="$(pve_ssh "pvesh get /cluster/resources --type vm --output-format json" | 
 note "destroyed: no VMs left on the fixture"
 if pve_ssh "test -e /sys/class/net/vmbr1"; then die "vmbr1 is still on the fixture after destroy"; fi
 note "destroyed: vmbr1 is gone (nic2 keeps its own mtu 9000 stanza, as the owner step leaves it)"
+if pve_ssh "dpkg -s prometheus-node-exporter >/dev/null 2>&1"; then
+  die "prometheus-node-exporter is still installed on the fixture after destroy"
+fi
+note "destroyed: node-exporter purged"

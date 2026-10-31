@@ -28,3 +28,7 @@ data:
   # multi-site setup (shared UniFi network with family sites, NAS-to-NAS replication) can add other
   # sites' hosts without renaming; per-site subdomains can come later.
   HOST_RECORDS: "poseidon=10.10.1.1 hercules-nas=10.10.1.10 unifi=10.0.0.1"
+  # node-exporter on the Proxmox host, on its management address (infrastructure/environments/homelab/proxmox/
+  # host-metrics.tf), scraped by infrastructure/configs/proxmox-host-scrapeconfig.yaml. The gateway must allow
+  # the K8s VLAN to reach it (docs/runbooks/gpu-fan-control.md).
+  PROXMOX_HOST_METRICS: "10.10.1.1:9100"

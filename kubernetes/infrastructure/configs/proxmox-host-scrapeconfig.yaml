@@ -1,0 +1,24 @@
+---
+# Scrapes node-exporter on the Proxmox host (infrastructure/environments/homelab/proxmox/host-metrics.tf):
+# the host's own temperatures and fan speeds (hwmon), and the GPU fan controller's duty, GPU reading, fan rpm
+# and state from its textfile (scripts/fan-control/gpu-fan-control.sh). Behind the "GPU & cooling" dashboard
+# (infrastructure/monitoring/dashboards/gpu-cooling.json) and the homelab.gpu fan alerts.
+#
+# The host is outside the cluster, so a static target from cluster-settings (PROXMOX_HOST_METRICS). In the
+# lab that is the L1 PVE fixture (docs/lab.md), which only answers while it runs and has host_metrics applied.
+#
+# The `release` label is what Prometheus selects ScrapeConfigs by. Lives under infrastructure/configs: the
+# ScrapeConfig CRD comes from the kube-prometheus-stack HelmRelease, reconciled before this Kustomization.
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: proxmox-host
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  jobName: proxmox-host
+  scrapeInterval: 15s
+  staticConfigs:
+    - targets:
+        - ${PROXMOX_HOST_METRICS}

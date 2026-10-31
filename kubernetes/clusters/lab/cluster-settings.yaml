@@ -18,3 +18,6 @@ data:
   CLUSTER_ISSUER: internal-ca
   # Host A records (see the homelab ConfigMap): only the lab NAS stand-in (docs/lab.md).
   HOST_RECORDS: "lab-nas=10.99.100.10"
+  # node-exporter on the L1 PVE fixture homelab-lab (docs/lab.md), installed by scripts/lab/pve-fixture-plan.sh
+  # --keep; down (and the target with it) whenever the fixture is not running.
+  PROXMOX_HOST_METRICS: "10.99.100.20:9100"

@@ -21,3 +21,15 @@ configMapGenerator:
       labels:
         grafana_dashboard: "1"
         kustomize.toolkit.fluxcd.io/substitute: disabled
+  # Homelab's own dashboards. gpu-cooling.json ("GPU & cooling"): the Tesla P4's temperature and load next to
+  # the fan controller's duty and the real fan speeds, from the GPU exporter and poseidon's node-exporter
+  # (infrastructure/configs/proxmox-host-scrapeconfig.yaml; docs/runbooks/gpu-fan-control.md).
+  - name: homelab-grafana-dashboards
+    namespace: monitoring
+    files:
+      - dashboards/gpu-cooling.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+        kustomize.toolkit.fluxcd.io/substitute: disabled

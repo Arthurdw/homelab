@@ -636,21 +636,24 @@ spec:
                 annotations:
                   summary: "Flux {{ $labels.customresource_kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} is not ready."
                   description: "{{ $labels.customresource_kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} has been failing to reconcile for 15 minutes; see `flux get all -A --status-selector ready=false` and `flux events -A`."
-          # Tesla P4 temperature, from the GPU exporter (infrastructure/nvidia-device-plugin/gpu-exporter.yaml).
-          # The card is passive: the fan controller on the Proxmox host (docs/runbooks/gpu-fan-control.md)
-          # follows this same reading. The P4 starts throttling in the low 90s °C, so 80 means the cooling is
-          # falling behind and 88 means it has failed. The lab has no GPU, so these never fire there; there is
-          # no absent() rule on purpose.
+          # Tesla P4 temperature, from the GPU exporter (infrastructure/nvidia-device-plugin/gpu-exporter.yaml),
+          # and its fan, from the controller's textfile on the Proxmox host's node-exporter
+          # (infrastructure/configs/proxmox-host-scrapeconfig.yaml). The card is passive: the fan controller
+          # (docs/runbooks/gpu-fan-control.md) follows this same reading and is at 100% from 70°C, because the
+          # duct between fan and card is PETG, which softens from ~70°C (docs/decisions.md §3.8). So 75 means
+          # full speed is not keeping up and the duct is at risk; 88 means the cooling has failed (the P4
+          # throttles in the low 90s). The lab has no GPU and no controller, so these never fire there; there
+          # is no absent() rule on purpose.
           - name: homelab.gpu
             rules:
               - alert: GpuTemperatureHigh
-                expr: nvidia_smi_temperature_gpu > 80
+                expr: nvidia_smi_temperature_gpu > 75
                 for: 5m
                 labels:
                   severity: warning
                 annotations:
                   summary: "GPU {{ $labels.uuid }} is at {{ $value }}°C."
-                  description: "The Tesla P4 has been above 80°C for 5 minutes; check the fan controller with `journalctl -u gpu-fan-control` on poseidon."
+                  description: "The Tesla P4 has been above 75°C for 5 minutes although the fan is at 100% from 70°C: the cooling is not keeping up and the PETG duct is near its softening point. Check the fan and the duct, and `journalctl -u gpu-fan-control` on poseidon."
               - alert: GpuTemperatureCritical
                 expr: nvidia_smi_temperature_gpu > 88
                 for: 2m
@@ -668,3 +671,50 @@ spec:
                 annotations:
                   summary: "The GPU exporter on {{ $labels.instance }} is down."
                   description: "No GPU temperature for 5 minutes; the fan controller has fallen back to 100%. See `kubectl -n nvidia-device-plugin logs ds/nvidia-gpu-exporter`."
+              - alert: GpuFanStalled
+                # The controller sends a stopped fan to 100% at once, so a minute below 300 rpm is a dead
+                # fan, a loose cable or a jammed blade: the card has no cooling at all.
+                expr: gpu_fan_control_fan_rpm < 300 and gpu_fan_control_duty_percent > 0
+                for: 1m
+                labels:
+                  severity: critical
+                annotations:
+                  summary: "The GPU fan is at {{ $value }} rpm."
+                  description: "The Tesla P4's fan is not turning although the controller drives it. Check the fan and its cable on poseidon's GPU header (docs/runbooks/gpu-fan-control.md); shut the GPU workload down if it does not come back."
+              - alert: GpuFanCurveFloorTooLow
+                # The fan stopped once at a low duty; the controller now keeps it 10 points above that duty
+                # until a restart. Raise the curve's lowest duty so it does not happen again.
+                expr: gpu_fan_control_stalls_total > 0
+                labels:
+                  severity: warning
+                annotations:
+                  summary: "The GPU fan stalled {{ $value }} time(s) at a low duty."
+                  description: "The fan stopped below 100%, so the curve's floor is under the fan's minimum. Raise the lowest duty in gpu_fan_control.curve (docs/runbooks/gpu-fan-control.md, Troubleshooting) and apply."
+              - alert: GpuFanControlNotOk
+                # stale: no GPU reading (the fan is at 100%); failsafe: the service stopped (fan at 100%).
+                expr: gpu_fan_control_state{state=~"stale|failsafe"} == 1
+                for: 5m
+                labels:
+                  severity: warning
+                annotations:
+                  summary: "The GPU fan controller is {{ $labels.state }}."
+                  description: "The fan has been at 100% for 5 minutes because the controller has no GPU reading or is stopped. See `systemctl status gpu-fan-control` and `journalctl -u gpu-fan-control` on poseidon."
+              - alert: GpuFanControlStale
+                # The controller rewrites its textfile every interval; an old one means it hangs or was
+                # killed without its stop handler, so the fan may be left at any duty.
+                expr: time() - gpu_fan_control_updated_timestamp_seconds > 120
+                for: 2m
+                labels:
+                  severity: warning
+                annotations:
+                  summary: "The GPU fan controller has not reported for {{ $value | humanizeDuration }}."
+                  description: "The controller's textfile on poseidon is not being updated, so the fan is at whatever duty it was last set to. See `systemctl status gpu-fan-control` on poseidon."
+              - alert: ProxmoxHostMetricsDown
+                # Without these metrics the fan alerts above cannot fire.
+                expr: up{job="proxmox-host"} == 0
+                for: 10m
+                labels:
+                  severity: warning
+                annotations:
+                  summary: "node-exporter on the Proxmox host ({{ $labels.instance }}) is down."
+                  description: "No host temperatures, fan speeds or fan controller metrics for 10 minutes, so the GPU fan alerts are blind. Check `systemctl status prometheus-node-exporter` on the host and the gateway rule from the K8s VLAN to port 9100. In the lab this fires whenever the PVE fixture is not running."
