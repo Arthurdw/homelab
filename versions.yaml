@@ -67,7 +67,7 @@ helm_charts:
   # renovate: datasource=helm depName=cert-manager registryUrl=https://charts.jetstack.io
   cert_manager: "1.21.2"         # https://charts.jetstack.io
   # renovate: datasource=helm depName=kube-prometheus-stack registryUrl=https://prometheus-community.github.io/helm-charts
-  kube_prometheus_stack: "92.10.0"  # https://prometheus-community.github.io/helm-charts
+  kube_prometheus_stack: "92.10.1"  # https://prometheus-community.github.io/helm-charts
   # renovate: datasource=helm depName=technitium-dnsserver registryUrl=https://charts.obeone.cloud
   technitium_dnsserver: "1.13.5"  # https://charts.obeone.cloud
   # renovate: datasource=docker depName=ghcr.io/immich-app/immich-charts/immich
