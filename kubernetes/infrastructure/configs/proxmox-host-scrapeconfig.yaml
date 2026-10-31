@@ -22,3 +22,12 @@ spec:
   staticConfigs:
     - targets:
         - ${PROXMOX_HOST_METRICS}
+  # poseidon's NCT6793 reports temperature inputs with nothing attached (SYSTIN, AUXTIN1-3: a flat
+  # 108-117 °C), PCH and TSI slots the board does not use (0 °C, 3892314 °C) and a PECI calibration value
+  # (temp1, temp4-6, temp8-20; docs/hardware.md). Drop them so they never reach a query or an alert. Kept:
+  # temp2 CPUTIN, temp3 AUXTIN0, temp7 PECI Agent 0. The lab fixture has no such chip.
+  metricRelabelings:
+    - action: drop
+      sourceLabels: [__name__, chip, sensor]
+      separator: ";"
+      regex: node_hwmon_(temp_.+|sensor_label);platform_nct6775_\d+;temp([14-689]|1\d|20)
