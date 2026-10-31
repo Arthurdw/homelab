@@ -44,16 +44,17 @@ Sign-out in Open WebUI also ends the Authentik session; otherwise the headers wo
 
 ## Trying a model
 
-1. Pick a model on [ollama.com/library](https://ollama.com/library). On the 8 GB P4, shared with Immich, stay at
-   about 7-8 B parameters with the default 4-bit quantisation (a 4-5 GB download), e.g. `llama3.1:8b`,
-   `qwen2.5:7b`, `gemma2:9b`, or smaller ones like `llama3.2:3b` for speed.
+1. Pick a model on [ollama.com/library](https://ollama.com/library). The P4 has 8 GB, Ollama leaves 2 GiB for
+   Immich, so a download of up to about 5 GB stays fully on the card; bigger ones run partly on the CPU. As of
+   2026-10: `qwen3.5:4b` (3.3 GB, fully on the card) as the everyday model, `qwen3.5:9b` (6.6 GB, smarter but
+   a few layers on the CPU). Tag sizes on ollama.com include the vision part of multimodal models.
 2. **Admin Panel → Settings → Models → Manage** (the download icon), type the name with its tag
-   (`qwen2.5:7b`) and pull. Progress shows in the page.
+   (`qwen3.5:4b`) and pull. Progress shows in the page.
 3. Start a new chat and pick the model at the top. The first answer takes longer while the model loads onto the
    card.
 4. Delete a model in the same **Manage** dialog; that frees the volume, not just the card.
 
-Equivalent CLI (the owner runs it): `kubectl -n ollama exec deploy/ollama -- ollama pull qwen2.5:7b`, `ollama
+Equivalent CLI (the owner runs it): `kubectl -n ollama exec deploy/ollama -- ollama pull qwen3.5:4b`, `ollama
 list`, `ollama rm <model>`.
 
 ## VRAM sharing with Immich
