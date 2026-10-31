@@ -310,18 +310,21 @@ case fan. The host cannot read the card's temperature (the card belongs to the V
 - **Fail-safe, not fail-quiet.** No reading for 30 s, a crash or a stop leaves the header at 100 %. Uninstalling
   hands it back to the BIOS mode it had. The worst failure is a loud fan, never a hot card.
 
-**The curve: quiet until the PETG duct is at risk, then flat out** (`45:20 55:35 62:60 67:85 70:100`). The
+**The curve: low and steady until the PETG duct is at risk, then flat out** (`45:35 55:45 62:60 67:85 70:100`). The
 printed duct between the fan and the card is PETG, which softens around 70–80 °C (heat deflection ~70 °C, glass
 transition ~80 °C). The die is the hottest point, so its temperature bounds the duct's from above.
 
-- **Quiet floor.** 20 % up to 45 °C: the card idles at 30 °C (P8, ~9 W) and sits around 50 °C with Immich ML
-  loaded (P0, ~25–35 W), so it spends nearly all its time on the floor or just above it.
+- **Lowest sure floor.** 35 % up to 45 °C. Measured on `poseidon` (2026-10-31): the fan stays at 0 rpm up to
+  25 % and starts at 30 % (~1060 rpm); it also stopped at 25 % on the way down. 35 % (~1220 rpm) is 5 points
+  above the start. The first curve had a 20 % floor and the stall guard caught it the same day. The card idles
+  at 30 °C (P8, ~9 W) and sits around 50 °C with Immich ML loaded (P0, ~25–35 W), so it spends nearly all its
+  time on the floor or just above it.
 - **100 % from 70 °C,** where PETG starts to creep, instead of the 75 °C a bare card would allow.
   `GpuTemperatureHigh` (75 °C) means even full speed is not enough.
 - **Never off.** A zero-rpm mode was considered and left out: the card is never really idle (Immich ML keeps it in
   P0), the fan is rated 600–4000 rpm and may not stop at 0 % anyway, on/off cycling is more noticeable than a
   steady low hum, a stopped fan may not restart, and a stopped fan cannot be told from a dead one. It can be
-  added later, with hysteresis, once the fan's minimum duty has been measured.
+  added later, with hysteresis: the fan does stop at 0–25 % and starts again from 30 %.
 - **Stall guard.** A low floor only works if the fan really spins at it. Below `stall_rpm` (300) at less than
   100 %, the controller goes to 100 % at once and raises the floor to that duty + 10 % until it restarts
   (`GpuFanCurveFloorTooLow` says so). A fan dead at 100 % is `GpuFanStalled`, critical.

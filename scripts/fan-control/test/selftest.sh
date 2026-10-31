@@ -74,8 +74,8 @@ ctl() { bash "$fan/gpu-fan-control.sh" "$@"; }
 for tp in 20:30 35:30 42.5:38 60:65 75:100 90:100; do
   check "curve ${tp%%:*}°C -> ${tp##*:}%" test "$(ctl curve "${tp%%:*}")" = "${tp##*:}"
 done
-# The shipped default: quiet floor, 100% from 70°C (the PETG duct, docs/decisions.md §3.8).
-for tp in 30:20 45:20 55:35 70:100 80:100; do
+# The shipped default: a 35% floor (poseidon's fan needs 30% to start), 100% from 70°C (the PETG duct, docs/decisions.md §3.8).
+for tp in 30:35 45:35 50:40 55:45 70:100 80:100; do
   check "default curve ${tp%%:*}°C -> ${tp##*:}%" \
     test "$(GPU_FAN_CONTROL_CONF=/dev/null ctl curve "${tp%%:*}")" = "${tp##*:}"
 done

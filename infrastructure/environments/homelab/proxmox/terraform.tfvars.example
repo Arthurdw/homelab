@@ -108,10 +108,10 @@ proxmox_host_memory_reserve_mb = 8192
 #   kernel_module_options = null        # e.g. "force_id=0x..." if the driver needs it
 #   exporter_url          = null        # null = http://<gpu_passthrough.vm IP>:9835/metrics
 #   ssh_host              = null        # null = the host in proxmox_endpoint
-#   # Quiet floor, full speed from 70°C: the duct between fan and card is PETG (docs/decisions.md §3.8).
+#   # 35% floor (poseidon's fan needs 30% to start), full speed from 70°C: the duct between fan and card is PETG (docs/decisions.md §3.8).
 #   curve = [
-#     { temp = 45, percent = 20 },
-#     { temp = 55, percent = 35 },
+#     { temp = 45, percent = 35 },
+#     { temp = 55, percent = 45 },
 #     { temp = 62, percent = 60 },
 #     { temp = 67, percent = 85 },
 #     { temp = 70, percent = 100 },

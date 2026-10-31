@@ -386,7 +386,8 @@ variable "gpu_fan_control" {
     boot when the chip's driver does not load on its own, with `kernel_module_options` if it needs any.
     `exporter_url` defaults to port 9835 on the VM gpu_passthrough.vm names; `ssh_host` to the host in
     proxmox_endpoint. `curve` is temperature (°C) to fan percent, ascending, linear in between; the
-    default keeps the fan quiet at idle and at full speed from 70 °C, for the PETG duct on the card
+    default keeps the fan at its lowest sure speed at idle (35 %: it needs 30 % to start) and at full speed
+    from 70 °C, for the PETG duct on the card
     (docs/decisions.md §3.8). `stall_rpm` is the tach reading under which the fan counts as stopped: the
     controller then goes to 100% and raises its own floor (0 turns the check off). With host_metrics set,
     the controller also writes its duty, reading, fan rpm and state for node-exporter.
@@ -404,8 +405,8 @@ variable "gpu_fan_control" {
       temp    = number
       percent = number
       })), [
-      { temp = 45, percent = 20 },
-      { temp = 55, percent = 35 },
+      { temp = 45, percent = 35 },
+      { temp = 55, percent = 45 },
       { temp = 62, percent = 60 },
       { temp = 67, percent = 85 },
       { temp = 70, percent = 100 },

@@ -38,7 +38,7 @@ if [ -r "$conf" ]; then
   . "$conf"
 fi
 
-CURVE="${CURVE:-45:20 55:35 62:60 67:85 70:100}"
+CURVE="${CURVE:-45:35 55:45 62:60 67:85 70:100}"
 INTERVAL="${INTERVAL:-5}"
 STALE_AFTER="${STALE_AFTER:-30}"
 STEP_DOWN="${STEP_DOWN:-5}"

@@ -27,7 +27,7 @@ curve (`docs/decisions.md` §3.8). The other header stays on the BIOS curve for 
   or a stop: 100 %. Speeding up is immediate; slowing down is at most 5 % per 5 s. The fan below `stall_rpm`
   (300) at less than 100 %: 100 % at once, and from then on the floor is that duty + 10 % until the service
   restarts.
-- **The curve** (`45:20 55:35 62:60 67:85 70:100`): a quiet 20 % floor, 100 % from 70 °C because the duct to the
+- **The curve** (`45:35 55:45 62:60 67:85 70:100`): a 35 % floor (this fan needs 30 % to start), 100 % from 70 °C because the duct to the
   card is printed PETG (`docs/decisions.md` §3.8). The fan never stops.
 
 ## Pre-checks
@@ -125,8 +125,8 @@ ssh root@10.10.1.1 'systemctl status gpu-fan-control --no-pager; gpu-fan-control
 ssh root@10.10.1.1 'journalctl -u gpu-fan-control -f'
 ```
 
-- `check` prints the pwm file, `exporter: http://10.20.0.12:9835/metrics -> 41°C -> 20%` and the fan's rpm.
-- The journal logs `started`, then `ok: gpu 41°C, fan 20%` and a line on every 10 % change. A `stale:` line
+- `check` prints the pwm file, `exporter: http://10.20.0.12:9835/metrics -> 41°C -> 35%` and the fan's rpm.
+- The journal logs `started`, then `ok: gpu 41°C, fan 35%` and a line on every 10 % change. A `stale:` line
   means the readings stopped and the fan is at 100 %.
 - `curl -fsS http://10.10.1.1:9100/metrics | grep ^gpu_fan_control_` shows the duty, temperature, rpm and
   `state="ok"`; in Grafana, the **GPU & cooling** dashboard fills in within a minute.
