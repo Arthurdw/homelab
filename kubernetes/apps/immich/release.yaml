@@ -124,8 +124,9 @@ spec:
     machine-learning:
       controllers:
         main:
-          # One GPU: a rolling update starts the new pod while the old one holds it, so the new pod
-          # stays Pending forever. Stop the old pod first.
+          # The P4 is time-sliced (infrastructure/nvidia-device-plugin/release.yaml), so a rolling update
+          # would now find a free slot, but the card's 8 GB is shared and not isolated: an old and a new
+          # pod each loading the models could run it out of memory. Stop the old pod first.
           strategy: Recreate
           pod:
             runtimeClassName: nvidia

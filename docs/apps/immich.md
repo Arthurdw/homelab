@@ -89,11 +89,12 @@ Machine learning (face detection and recognition, smart search) runs on the Tesl
   `-cuda` image.
 - **Lab:** no GPU. `kubernetes/overlays/lab/apps` removes the RuntimeClass and the GPU limit; the CUDA
   image falls back to the CPU.
-- **Sharing:** the plugin hands out the whole card, so only one pod can hold it. To share it with another
-  pod (Stremio transcoding, a second ML user), enable time-slicing in the plugin's config
-  (`sharing.timeSlicing`, replicas N): every pod then sees the full 8 GB with no memory isolation.
+- **Sharing:** the plugin time-slices the card into 4 `nvidia.com/gpu` (decisions §3.8), so the ML pod's
+  one slot leaves three for other GPU pods. Every pod sees the full 8 GB with no memory isolation.
 - **Verify:** `kubectl get node talos-wk-1 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}'` returns
-  `1`, and the ML logs list `CUDAExecutionProvider` when a model loads.
+  `4`, and the ML logs list `CUDAExecutionProvider` when a model loads.
+- **Cooling:** the P4 is passive; a host fan header follows its temperature
+  (`docs/runbooks/gpu-fan-control.md`).
 - **If the GPU is missing** (passthrough off, driver not loaded), the ML pod stays Pending on
   `nvidia.com/gpu`. Fall back by deleting the RuntimeClass and GPU limit from `release.yaml`.
 

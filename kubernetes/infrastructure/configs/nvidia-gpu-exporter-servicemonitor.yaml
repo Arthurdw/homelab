@@ -1,0 +1,24 @@
+---
+# Scrapes the GPU exporter (infrastructure/nvidia-device-plugin/gpu-exporter.yaml): the Tesla P4's
+# temperature, utilisation and memory, behind the homelab.gpu alerts (infrastructure/monitoring/release.yaml).
+# The lab has no GPU node, so the Service there has no endpoints and nothing is scraped.
+#
+# The `release` label is what Prometheus selects ServiceMonitors by (the chart's default
+# serviceMonitorSelector). Lives under infrastructure/configs: the ServiceMonitor CRD comes from the
+# kube-prometheus-stack HelmRelease, reconciled before this Kustomization.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nvidia-gpu-exporter
+  namespace: nvidia-device-plugin
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - nvidia-device-plugin
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nvidia-gpu-exporter
+  endpoints:
+    - port: metrics

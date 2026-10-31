@@ -1,0 +1,95 @@
+---
+# GPU temperature exporter: serves the Tesla P4's nvidia-smi readings (temperature, utilisation, memory,
+# power) as Prometheus metrics on talos-wk-1:9835.
+#   Image:   utkuozdemir/nvidia_gpu_exporter (https://github.com/utkuozdemir/nvidia_gpu_exporter)
+#   Scraped: ../configs/nvidia-gpu-exporter-servicemonitor.yaml; alerts in ../monitoring/release.yaml
+#
+# It has two readers:
+# - Prometheus, for the dashboards and the homelab.gpu alerts.
+# - The fan controller on the Proxmox host (infrastructure/environments/homelab/proxmox/fan-control.tf,
+#   docs/runbooks/gpu-fan-control.md). The card is passed through to talos-wk-1, so the host cannot read
+#   its temperature itself; it asks this exporter instead. That is why the pod runs on the host network:
+#   the controller reaches it at the node's own address, 10.20.0.12:9835, with no Service or LoadBalancer
+#   in between. The namespace is already `privileged` for the device plugin, so Pod Security allows it.
+#
+# The pod takes one time-sliced `nvidia.com/gpu` (release.yaml) so the device plugin hands it the card and
+# the container toolkit injects nvidia-smi; `utility` is the only driver capability it needs.
+# Placement matches the device plugin: the `nvidia.com/gpu.present` label exists on talos-wk-1 only, so the
+# lab and the other nodes run no exporter pod.
+#
+# If this pod is down, the fan controller stops getting readings and, after its stale timeout, runs the
+# fan at 100%. Loud, never hot.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nvidia-gpu-exporter
+  namespace: nvidia-device-plugin
+  labels:
+    app.kubernetes.io/name: nvidia-gpu-exporter
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nvidia-gpu-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nvidia-gpu-exporter
+    spec:
+      runtimeClassName: nvidia
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+      containers:
+        - name: exporter
+          image: docker.io/utkuozdemir/nvidia_gpu_exporter:1.15.1@sha256:93b45e335c8286379e03ecd542354fa425e5ffb8e0e5761e60c1fb241212fda4
+          args:
+            - --web.listen-address=:9835
+          env:
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: utility
+          ports:
+            - name: metrics
+              containerPort: 9835
+          # TCP only: an HTTP probe on /metrics would run nvidia-smi every few seconds just to check
+          # liveness.
+          readinessProbe:
+            tcpSocket:
+              port: metrics
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: metrics
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+              nvidia.com/gpu: 1
+---
+# For Prometheus only (the ServiceMonitor selects it). The fan controller talks to the node address
+# directly, see above.
+apiVersion: v1
+kind: Service
+metadata:
+  name: nvidia-gpu-exporter
+  namespace: nvidia-device-plugin
+  labels:
+    app.kubernetes.io/name: nvidia-gpu-exporter
+spec:
+  selector:
+    app.kubernetes.io/name: nvidia-gpu-exporter
+  ports:
+    - name: metrics
+      port: 9835
+      targetPort: metrics

@@ -6,3 +6,4 @@ resources:
   - cert-manager-issuers.yaml
   - wildcard-certificate.yaml
   - flux-podmonitor.yaml
+  - nvidia-gpu-exporter-servicemonitor.yaml

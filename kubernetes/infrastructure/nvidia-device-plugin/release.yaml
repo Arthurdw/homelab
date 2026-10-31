@@ -12,6 +12,12 @@
 #
 # The plugin runs under the `nvidia` RuntimeClass (../runtime-classes/nvidia.yaml) so the container toolkit
 # gives it the driver libraries (NVML) it uses to find the card.
+#
+# Time-slicing (docs/decisions.md, "GPU sharing"): the one P4 is advertised as 4 `nvidia.com/gpu`, so Immich
+# machine-learning, the temperature exporter (gpu-exporter.yaml) and a future model each take one and share
+# the card; the fourth is spare. The CUDA driver switches between them in time. There is NO memory isolation:
+# every pod sees, and can fill, the same 8 GB. A pod asking for 2 is refused rather than given a false
+# promise of more card.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -37,3 +43,14 @@ spec:
       retries: 3
   values:
     runtimeClassName: nvidia
+    config:
+      default: default
+      map:
+        default: |-
+          version: v1
+          sharing:
+            timeSlicing:
+              failRequestsGreaterThanOne: true
+              resources:
+                - name: nvidia.com/gpu
+                  replicas: 4

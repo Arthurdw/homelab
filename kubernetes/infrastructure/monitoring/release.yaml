@@ -636,3 +636,35 @@ spec:
                 annotations:
                   summary: "Flux {{ $labels.customresource_kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} is not ready."
                   description: "{{ $labels.customresource_kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} has been failing to reconcile for 15 minutes; see `flux get all -A --status-selector ready=false` and `flux events -A`."
+          # Tesla P4 temperature, from the GPU exporter (infrastructure/nvidia-device-plugin/gpu-exporter.yaml).
+          # The card is passive: the fan controller on the Proxmox host (docs/runbooks/gpu-fan-control.md)
+          # follows this same reading. The P4 starts throttling in the low 90s °C, so 80 means the cooling is
+          # falling behind and 88 means it has failed. The lab has no GPU, so these never fire there; there is
+          # no absent() rule on purpose.
+          - name: homelab.gpu
+            rules:
+              - alert: GpuTemperatureHigh
+                expr: nvidia_smi_temperature_gpu > 80
+                for: 5m
+                labels:
+                  severity: warning
+                annotations:
+                  summary: "GPU {{ $labels.uuid }} is at {{ $value }}°C."
+                  description: "The Tesla P4 has been above 80°C for 5 minutes; check the fan controller with `journalctl -u gpu-fan-control` on poseidon."
+              - alert: GpuTemperatureCritical
+                expr: nvidia_smi_temperature_gpu > 88
+                for: 2m
+                labels:
+                  severity: critical
+                annotations:
+                  summary: "GPU {{ $labels.uuid }} is at {{ $value }}°C."
+                  description: "The Tesla P4 is close to throttling. The fan controller is not keeping up or not running; see docs/runbooks/gpu-fan-control.md."
+              - alert: GpuExporterDown
+                # Without the exporter the fan controller has no reading and holds the fan at 100%.
+                expr: up{job="nvidia-gpu-exporter"} == 0
+                for: 5m
+                labels:
+                  severity: warning
+                annotations:
+                  summary: "The GPU exporter on {{ $labels.instance }} is down."
+                  description: "No GPU temperature for 5 minutes; the fan controller has fallen back to 100%. See `kubectl -n nvidia-device-plugin logs ds/nvidia-gpu-exporter`."
