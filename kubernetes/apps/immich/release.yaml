@@ -48,9 +48,16 @@ spec:
     # --------------------------------------------------------------------------------------------
     # server — web UI + REST API + background jobs (one container). This is the surface we expose.
     # --------------------------------------------------------------------------------------------
+    # Video transcoding and video thumbnails run on the Tesla P4's NVENC/NVDEC (docs/apps/immich.md §GPU): the
+    # `nvidia` RuntimeClass, one time-sliced `nvidia.com/gpu`, and the `video` driver capability, without which
+    # the container toolkit mounts no libnvidia-encode or libnvcuvid. Immich only uses them once Administration
+    # → Video Transcoding → Hardware Acceleration is set to NVENC. The lab removes the RuntimeClass and the GPU
+    # limit (overlays/lab/apps); Immich then transcodes on the CPU.
     server:
       controllers:
         main:
+          pod:
+            runtimeClassName: nvidia
           containers:
             main:
               # The server container also runs the background workers (thumbnails, face detection, …). A
@@ -63,6 +70,7 @@ spec:
                 limits:
                   cpu: "1"
                   memory: 4Gi
+                  nvidia.com/gpu: 1
               # The chart's probes allow 1s per ping. With the CPU limit saturated by a job burst, a ping
               # can take longer, and three misses restarted a healthy server. Only the keys set here
               # override the chart; path, port and period stay as the chart defines them.
@@ -75,6 +83,7 @@ spec:
                   spec:
                     timeoutSeconds: 5
               env:
+                NVIDIA_DRIVER_CAPABILITIES: compute,video,utility
                 # --- database connection ---------------------------------------------------------
                 # The database is NOT part of this chart (the upstream postgres subchart was removed);
                 # it is deployed by postgres.yaml in this directory.

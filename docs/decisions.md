@@ -290,8 +290,9 @@ privileged container with relaxed AppArmor and cgroup settings, and the host wou
 the card, which ends the clean vfio passthrough (§3.5, §3.6). The VM boundary stays.
 
 **Time-slicing, 4 slots.** The device plugin advertises the P4 as 4 `nvidia.com/gpu`
-(`kubernetes/infrastructure/nvidia-device-plugin/release.yaml`, `failRequestsGreaterThanOne`), so Immich ML and
-a later model can share the card without either holding it while idle. A pod asks for 1, never more.
+(`kubernetes/infrastructure/nvidia-device-plugin/release.yaml`, `failRequestsGreaterThanOne`), so Immich ML,
+Immich's NVENC transcoding (the server pod) and a later model can share the card without any of them holding it
+while idle. A pod asks for 1, never more.
 
 - **No memory isolation.** Every pod sees the full 8 GB; two pods loading large models at once can run the card
   out of memory. Immich ML keeps `strategy: Recreate` so an upgrade never has two copies loaded.

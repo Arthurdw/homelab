@@ -52,8 +52,9 @@ patches:
             items:
               - key: ca.crt
                 path: ca.crt
-  # Lab only: no GPU on the lab workers (talos/inputs.lab.env skips the GPU patch), so Immich ML runs
-  # without the `nvidia` RuntimeClass and GPU limit; its CUDA image falls back to the CPU.
+  # Lab only: no GPU on the lab workers (talos/inputs.lab.env skips the GPU patch), so Immich ML and the
+  # server run without the `nvidia` RuntimeClass and GPU limit; the CUDA image and the transcoder fall back
+  # to the CPU.
   - target:
       kind: HelmRelease
       name: immich
@@ -63,3 +64,7 @@ patches:
         path: /spec/values/machine-learning/controllers/main/pod/runtimeClassName
       - op: remove
         path: /spec/values/machine-learning/controllers/main/containers/main/resources/limits/nvidia.com~1gpu
+      - op: remove
+        path: /spec/values/server/controllers/main/pod/runtimeClassName
+      - op: remove
+        path: /spec/values/server/controllers/main/containers/main/resources/limits/nvidia.com~1gpu

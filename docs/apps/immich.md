@@ -87,16 +87,24 @@ Machine learning (face detection and recognition, smart search) runs on the Tesl
   `talos/patches/gpu-worker.yaml`); the device plugin (`kubernetes/infrastructure/nvidia-device-plugin`)
   advertises `nvidia.com/gpu`; the ML pod asks for one and runs under the `nvidia` RuntimeClass with the
   `-cuda` image.
-- **Lab:** no GPU. `kubernetes/overlays/lab/apps` removes the RuntimeClass and the GPU limit; the CUDA
-  image falls back to the CPU.
-- **Sharing:** the plugin time-slices the card into 4 `nvidia.com/gpu` (decisions §3.8), so the ML pod's
-  one slot leaves three for other GPU pods. Every pod sees the full 8 GB with no memory isolation.
+- **Transcoding:** the server pod takes a slot too, under the same RuntimeClass, with
+  `NVIDIA_DRIVER_CAPABILITIES=compute,video,utility` so the toolkit mounts NVENC/NVDEC
+  (`libnvidia-encode`, `libnvcuvid`; the 580 driver extension ships both). Immich only uses them when
+  **Administration → Settings → Video Transcoding Settings → Hardware Acceleration** has Acceleration API
+  **NVENC** and **Hardware decoding** on; that setting lives in the database, not in this repo. The P4
+  (Pascal) encodes H.264 and HEVC, not AV1 or VP9, so keep the target codec on one of those.
+- **Lab:** no GPU. `kubernetes/overlays/lab/apps` removes the RuntimeClass and the GPU limit from both pods;
+  the CUDA image and the transcoder fall back to the CPU.
+- **Sharing:** the plugin time-slices the card into 4 `nvidia.com/gpu` (decisions §3.8): ML, the server and
+  the temperature exporter take one each, one is spare (the server's rolling update uses it briefly). Every
+  pod sees the full 8 GB with no memory isolation.
 - **Verify:** `kubectl get node talos-wk-1 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}'` returns
   `4`, and the ML logs list `CUDAExecutionProvider` when a model loads.
 - **Cooling:** the P4 is passive; a host fan header follows its temperature
   (`docs/runbooks/gpu-fan-control.md`).
-- **If the GPU is missing** (passthrough off, driver not loaded), the ML pod stays Pending on
-  `nvidia.com/gpu`. Fall back by deleting the RuntimeClass and GPU limit from `release.yaml`.
+- **If the GPU is missing** (passthrough off, driver not loaded), the ML **and server** pods stay Pending
+  on `nvidia.com/gpu`, so Immich is down, not just slower. Fall back by deleting the RuntimeClass and GPU
+  limit from both in `release.yaml` and setting Hardware Acceleration back to disabled.
 
 ## Backup & restore
 

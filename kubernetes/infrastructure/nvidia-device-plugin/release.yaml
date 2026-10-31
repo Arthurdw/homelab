@@ -1,6 +1,7 @@
 ---
 # NVIDIA device plugin: advertises the Tesla P4 on the production worker as the `nvidia.com/gpu` resource, so a
-# pod that asks for `nvidia.com/gpu: 1` (Immich machine-learning) is scheduled there and gets the card.
+# pod that asks for `nvidia.com/gpu: 1` (Immich machine-learning, the Immich server) is scheduled there and gets
+# the card.
 #   Chart:  nvidia-device-plugin 0.20.1 from https://nvidia.github.io/k8s-device-plugin (../sources.yaml)
 #   Setup:  the Talos extension's README, which asks for runtimeClassName=nvidia:
 #           https://github.com/siderolabs/extensions/blob/v1.14.4/nvidia-gpu/nvidia-container-toolkit/README.md
@@ -14,8 +15,8 @@
 # gives it the driver libraries (NVML) it uses to find the card.
 #
 # Time-slicing (docs/decisions.md, "GPU sharing"): the one P4 is advertised as 4 `nvidia.com/gpu`, so Immich
-# machine-learning, the temperature exporter (gpu-exporter.yaml) and a future model each take one and share
-# the card; the fourth is spare. The CUDA driver switches between them in time. There is NO memory isolation:
+# machine-learning, the Immich server (NVENC transcoding) and the temperature exporter (gpu-exporter.yaml) each
+# take one and share the card; the fourth is spare, and the server's rolling update borrows it. The CUDA driver switches between them in time. There is NO memory isolation:
 # every pod sees, and can fill, the same 8 GB. A pod asking for 2 is refused rather than given a false
 # promise of more card.
 apiVersion: helm.toolkit.fluxcd.io/v2
