@@ -155,9 +155,14 @@ write_metrics() {
   mv -f -- "$tmp" "$TEXTFILE" 2>/dev/null || { rm -f -- "$tmp"; return 1; }
 }
 
+# From run's stop trap the header is already located: systemd keeps sending SIGTERM to every new process in the
+# unit's cgroup while it stops it, so looking the chip up again could lose a `cat` and fail. ExecStopPost runs it
+# again from a fresh process either way.
 failsafe() {
-  need_config
-  locate_pwm
+  if [ -z "${pwm:-}" ]; then
+    need_config
+    locate_pwm
+  fi
   echo 1 > "$pwm_enable"
   echo 255 > "$pwm"
   write_metrics failsafe 100 "?" || true
