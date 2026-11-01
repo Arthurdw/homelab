@@ -29,7 +29,7 @@ iac:
   providers:
     bpg/proxmox:
       # renovate: datasource=terraform-provider depName=proxmox packageName=bpg/proxmox
-      version: "0.116.1"
+      version: "0.117.0"
       opentofu_compat: "verified 2026-10-16 (tofu 1.13.1 validate)"
       pve_compat: "PVE 9: the provider changelog has PVE 9 features since 0.99.0 (2026-03-21, harule, 'PVE 9+') and 0.105.0 (2026-05-02, host_managed gated on PVE 9.1+); no release up to 0.117.0 lists a PVE 9 break. Proven on the PVE 9.2 L1 fixture, see verification_tasks (checked 2026-10-21)."
     truenas/truenas:
