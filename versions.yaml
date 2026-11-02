@@ -144,7 +144,7 @@ app_images:
   # Public share proxy for Immich (kubernetes/apps/immich/public-proxy.yaml). 4.0.0 is from 2026-10-07;
   # 4.1.x was under two weeks old when pinned.
   # renovate: datasource=docker depName=docker.io/alangrainger/immich-public-proxy
-  immich_public_proxy: "docker.io/alangrainger/immich-public-proxy:4.1.0@sha256:8b68c7602af8630fd7cd1fa2735d134a5489d2a6478d3524a6b5189ced5eb667"
+  immich_public_proxy: "docker.io/alangrainger/immich-public-proxy:4.1.1@sha256:37636e07c8a5eae48ef622a4778ae59dff701a2496a6b630465eaaeebaac58a5"
   # Prometheus data-dir chown initContainer (kubernetes/infrastructure/monitoring/release.yaml)
   # renovate: datasource=docker depName=docker.io/library/busybox
   busybox: "docker.io/library/busybox:1.38@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e"
