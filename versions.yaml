@@ -75,7 +75,7 @@ helm_charts:
   # renovate: datasource=helm depName=audiobookshelf registryUrl=https://charts.christianhuth.de
   audiobookshelf: "2.5.1"        # https://charts.christianhuth.de (appVersion 2.37.1) — already latest
   # renovate: datasource=helm depName=authentik registryUrl=https://charts.goauthentik.io
-  authentik: "2026.8.4"          # https://charts.goauthentik.io (appVersion 2026.8.4; bundled PostgreSQL, no Redis)
+  authentik: "2026.8.5"          # https://charts.goauthentik.io (appVersion 2026.8.4; bundled PostgreSQL, no Redis)
   # NFS CSI driver — dynamic PVCs on the NAS (kubernetes/infrastructure/storage).
   # The chart repo is the raw source tree: upstream publishes no GitHub Pages index.
   # renovate: datasource=helm depName=csi-driver-nfs registryUrl=https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
