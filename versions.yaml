@@ -129,7 +129,7 @@ app_images:
   # Ollama (kubernetes/apps/ollama; decisions.md §5.18), runs local language models on the Tesla P4.
   # 0.40.6 is from 2026-10-16.
   # renovate: datasource=docker depName=docker.io/ollama/ollama
-  ollama: "docker.io/ollama/ollama:0.40.6@sha256:265409e1d931028a8f7d5a32bcbafddd7bffbc6cc629d77efe9560adf692a5e7"
+  ollama: "docker.io/ollama/ollama:0.40.7@sha256:2e6cc92ffa43b4b1a2e70e315407e00ac97ec125afc71277d73c7efe01c4f31b"
   # Open WebUI (kubernetes/apps/ollama), the chat page and model manager for Ollama. v0.12.3 is from 2026-10-16.
   # renovate: datasource=docker depName=ghcr.io/open-webui/open-webui
   open_webui: "ghcr.io/open-webui/open-webui:v0.13.0@sha256:2272b0fb7c8783a016bcc179abb467cfa34590c99c5e6560fe0e9155b4820a09"
