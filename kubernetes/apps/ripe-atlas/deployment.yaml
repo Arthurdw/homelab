@@ -1,0 +1,158 @@
+---
+# RIPE Atlas software probe (docs/decisions.md §5.19, docs/runbooks/ripe-atlas.md). It dials the RIPE Atlas
+# registration and controller servers over SSH and runs the measurements they hand it. No Service and no
+# Ingress: nothing connects to it.
+#
+# Image: the community build jamesits/ripe-atlas (RIPE publishes no official container), pinned by digest.
+# Needs the SOPS Secret `ripe-atlas-probe-key` (kubernetes/overlays/homelab/apps/ripe-atlas-probe-key.sops.yaml):
+# the SSH key pair whose public half was registered with RIPE. The key IS the probe's identity, so exactly one
+# pod may run with it: one replica and the Recreate strategy, never two at once.
+#
+# Isolation, in layers:
+#   - runtimeClassName kata: its own microVM, so a kernel exploit through a crafted measurement reply stays in
+#     the guest (docs/decisions.md §3.5).
+#   - networkpolicy.yaml: public IPv4 only; no pods, nodes, LAN or cluster DNS. No ingress, except ICMP errors
+#     from public routers for traceroute (ciliumnetworkpolicy.yaml).
+#   - Non-root (uid 101, the image's ripe-atlas user), read-only root, every default capability dropped except
+#     NET_RAW, no service-account token, no Service env vars.
+#   - seccompProfile RuntimeDefault is set for PSA, but Kata does not apply it inside the guest (the Talos kata
+#     extension ships disable_guest_seccomp=true); the VM boundary stands in for it.
+#
+# Lab test 2026-11-04 (lab-talos-cp, kata): admitted under PSA baseline; ping and ICMP traceroute work; pods,
+# Services, kube-dns, the node, the gateway, the LAN and 169.254.169.254 are unreachable, and a pod cannot
+# reach the probe. Findings from that test and an earlier docker run:
+#   - allowPrivilegeEscalation must stay unset (true). The measurement busybox is setuid to uid 102 with a file
+#     capability cap_net_raw=ep; with no_new_privs the setresuid in its telnetd fails and no measurement runs.
+#   - NET_RAW must stay in the bounding set (the containerd default keeps it), or those execs fail too.
+#   - Under Kata the file capability needs virtiofsd's --xattr (the pod annotation below).
+#   - "Ping failed" at startup is harmless: it only sets the status LEDs.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ripe-atlas
+  namespace: ripe-atlas
+  labels:
+    app.kubernetes.io/name: ripe-atlas
+    app.kubernetes.io/part-of: ripe-atlas
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  # Never two pods with the same probe key, not even during a rollout.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ripe-atlas
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ripe-atlas
+        app.kubernetes.io/part-of: ripe-atlas
+      annotations:
+        # Kata shares the image into the microVM over virtio-fs, and virtiofsd hides extended attributes unless
+        # it runs with --xattr. Without them the measurement busybox loses its security.capability xattr
+        # (cap_net_raw=ep), so every ping and traceroute fails with "socket failed: Operation not permitted".
+        # This pod alone turns it on; the first two args are the defaults from the Talos kata extension's
+        # configuration.toml, which this annotation replaces wholesale (it is on that file's enable_annotations).
+        io.katacontainers.config.hypervisor.virtio_fs_extra_args: '["--thread-pool-size=1","--announce-submounts","--xattr"]'
+    spec:
+      runtimeClassName: kata
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      # No cluster DNS (the NetworkPolicy blocks kube-dns anyway): public resolvers only. These also serve the
+      # probe's "local resolver" DNS measurements.
+      dnsPolicy: None
+      dnsConfig:
+        nameservers:
+          - 1.1.1.1
+          - 9.9.9.9
+        options:
+          - name: ndots
+            value: "1"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ripe-atlas
+          # versions.yaml app_images.ripe_atlas
+          image: docker.io/jamesits/ripe-atlas:5130-probe@sha256:841459abe5aac56833e94832b2460423b5b9532b6420df73bfec54dd3303643b
+          imagePullPolicy: IfNotPresent
+          # The probe rewrites files in /etc/ripe-atlas and wants its key there with mode 600, which a Secret
+          # volume cannot give a non-root owner. Copy it in, then hand over to the image's own entrypoint.
+          command:
+            - sh
+            - -c
+            - >-
+              install -m 600 /secret/probe_key /etc/ripe-atlas/probe_key &&
+              install -m 644 /secret/probe_key.pub /etc/ripe-atlas/probe_key.pub &&
+              exec tini -- entrypoint.sh ripe-atlas
+          workingDir: /var/spool/ripe-atlas
+          env:
+            # Already non-root; the entrypoint must not try to switch user.
+            - name: ENTRYPOINT_DO_NOT_SET_USER
+              value: "1"
+            # No interface traffic counters reported to RIPE.
+            - name: RXTXRPT
+              value: "no"
+            - name: HOME
+              value: /var/spool/ripe-atlas
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            readOnlyRootFilesystem: true
+            # allowPrivilegeEscalation deliberately unset (see the header): the setuid measurement binary needs it.
+            # Drop every containerd default except NET_RAW, which stays. Not drop ALL + add NET_RAW: NET_RAW is not
+            # on PSA baseline's allowed `add` list, while keeping a default capability is allowed.
+            capabilities:
+              drop:
+                - AUDIT_WRITE
+                - CHOWN
+                - DAC_OVERRIDE
+                - FOWNER
+                - FSETID
+                - KILL
+                - MKNOD
+                - NET_BIND_SERVICE
+                - SETFCAP
+                - SETGID
+                - SETPCAP
+                - SETUID
+                - SYS_CHROOT
+          volumeMounts:
+            - name: key
+              mountPath: /secret
+              readOnly: true
+            - name: etc
+              mountPath: /etc/ripe-atlas
+            - name: run
+              mountPath: /run/ripe-atlas
+            - name: spool
+              mountPath: /var/spool/ripe-atlas
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: key
+          secret:
+            secretName: ripe-atlas-probe-key
+            defaultMode: 0440
+        # State is disposable: the probe re-registers with its key after a restart.
+        - name: etc
+          emptyDir:
+            sizeLimit: 16Mi
+        - name: run
+          emptyDir:
+            sizeLimit: 16Mi
+        - name: spool
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi

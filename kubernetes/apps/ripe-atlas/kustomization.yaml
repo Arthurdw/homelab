@@ -1,0 +1,10 @@
+---
+# Opt-in: NOT listed in kubernetes/apps/kustomization.yaml, so the lab never runs it with the real probe key. Only
+# the homelab apps overlay references this directory (docs/decisions.md §5.19, docs/runbooks/ripe-atlas.md).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - networkpolicy.yaml
+  - ciliumnetworkpolicy.yaml
+  - deployment.yaml

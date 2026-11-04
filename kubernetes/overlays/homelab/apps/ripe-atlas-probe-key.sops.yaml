@@ -1,0 +1,26 @@
+# RIPE Atlas probe identity (kubernetes/apps/ripe-atlas, docs/runbooks/ripe-atlas.md). probe_key.pub is the key
+# registered at atlas.ripe.net/apply/swprobe; probe_key is its private half. Generated 2026-11-04.
+apiVersion: v1
+kind: Secret
+metadata:
+    name: ripe-atlas-probe-key
+    namespace: ripe-atlas
+type: Opaque
+stringData:
+    probe_key: ENC[AES256_GCM,data:DIUt7+gAsI4Xt2+4bqjhN8XvymzhLI0STfl4uFDyqcoa4K0gQy7zKZ8yNzOL9jt5Fy14RWEHofj8HFYUPZFl4vOCutmNiD0oJcqlA5AetQNkOx356UMCLEVpmoC5zasg1Tl167lF9gwYgSxZEL5G+ThAovMl+85XNBBpd3DRxnaknQEJ5lhYDEmEFWdoc7hrqPemPsKX69gOXV3MatAe3sCXYe8G3xJ957nD8LRPbjc4UFpIP9vTvAgpRr4nOVKImtQvKhBQJxfY3zByWq4SIE3guBw1CNi77EznLgfVm6ll07TwE5012JseA5bPbJTFqng5W0r8CyLaROpJZFqfw6XjZ3piNbdisCzVPKPhY/VeKWwixz0l2tK+PKb8aGUq0yJfuVZaG7hW3K29dg9XHutYo35QQbXb1QLAwPbxF3biRD1uXHe3iWF2PEgVqa9hBTfsUlaY/RbJHwk5l1lAzr1ThxHqTL5JcH5EIDx9AKAlJ5Tr4XhlZL6VlV5TOnIStNoB2xutBkpWMObJnNrR,iv:/Nu5RlZuJGUJ+ILiDUC3L99yJ83XMLmjuxFpQcGUxt0=,tag:uGio44T41imt0908H4MIqg==,type:str]
+    probe_key.pub: ENC[AES256_GCM,data:EnpJyIaf6zZbkwkyD+hsGAJTSJDAJki7EE+yIgeUJLMp4Er46SMhPRGuxpeWn71psWJDWhgJTrWvnNpjN6mNEnv3O1bwjxnzHaygzeMbE6UMLjYZ9Xr6DlAb7ioiAq8=,iv:/GAC2KRTIdAHDplf7nWl6D0dQOAn4Wy6Li1q4yBXgZ8=,tag:FvzIKqjEPl9qHxNL5Nc2bg==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBZdExTSlZRWldCZlM5OHov
+            SmFMZTdyYnF4d2xlVXNzTE5IU05oNUsrNEM0CldheVpRTEZHQUYyaXp5Z3JmamNt
+            SEtuQ3E3NDhwcVRqbGRENG5FSndLZUEKLS0tIHN6aVBadzI4MW9VM0gzMk1rTmdm
+            bHl2M1ZBdTFMWURmdnFVTjNrWFlzemMKK8OtOJDAp56hN/MqV8+uif4WfVtpTMts
+            kiZ1ACE287mOM6dwnUBLgK9YrU6/h4wUmYsmlCFa/3g4UKeVS8sL2A==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1p0pyppgapzv8xj3hk294hp2m7wnjt6956dz8dccn6scslcqqmursq0zsux
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-11-04T16:05:30Z"
+    mac: ENC[AES256_GCM,data:EHpzlfwevOwEkSjqpIEPGjZLFSFdkSj7M+/sPKjttsm37f28WMPMlujFBPgudWKXHO7kRriorvnQG9laNYaZwpgoNLvIGUnczORUCSqfC/gLuEFZ+IcQ5OaFNbZdduw++o4AxFyy7gOnBqD1xX1jZ81GRvP2vftKn6tpSWhMOxM=,iv:y+bQHi+eW/Fl+dJX+7UmOZ1ThiMJ4rncFu3qFDIqTLs=,tag:90DpNFsbULCc/jXKI5jG5A==,type:str]
+    version: 3.13.3

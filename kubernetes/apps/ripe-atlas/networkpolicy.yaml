@@ -1,0 +1,41 @@
+---
+# The RIPE Atlas probe runs measurements that strangers on the internet schedule (docs/decisions.md §5.19), so
+# it may reach the public IPv4 internet and nothing else, enforced by Cilium.
+#
+# Egress: every public address, any protocol and port (ping, traceroute, DNS, HTTP and TLS measurements all
+# need it), except the private, shared, link-local, loopback, multicast and reserved ranges. That blocks the
+# house LAN, MGMT, the K8S VLAN, the pod and Service CIDRs and Tailscale. Cilium's CIDR rules never match
+# cluster endpoints, the nodes or the host either, so pods and nodes stay out even by public address.
+# There is no kube-dns rule: the pod resolves through 1.1.1.1 and 9.9.9.9 (dnsPolicy None in deployment.yaml).
+# Ingress: none. Nothing in the cluster or the LAN can talk to the probe; it only dials out. The one exception,
+# ICMP errors from public routers for its traceroutes, is in ciliumnetworkpolicy.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ripe-atlas
+  namespace: ripe-atlas
+  labels:
+    app.kubernetes.io/name: ripe-atlas
+    app.kubernetes.io/part-of: ripe-atlas
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ripe-atlas
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 0.0.0.0/8       # "this network"
+              - 10.0.0.0/8      # house, MGMT, K8S, GUEST VLANs, pods, Services
+              - 100.64.0.0/10   # CGNAT / Tailscale
+              - 127.0.0.0/8     # loopback
+              - 169.254.0.0/16  # link-local (cloud metadata style endpoints)
+              - 172.16.0.0/12   # private
+              - 192.168.0.0/16  # private (ISP modem side)
+              - 224.0.0.0/4     # multicast
+              - 240.0.0.0/4     # reserved and broadcast

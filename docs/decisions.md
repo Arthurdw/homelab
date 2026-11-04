@@ -221,7 +221,8 @@ and the libvirt `org.qemu.guest_agent.0` channel (lab) must be on.
 
 **Nested virtualisation is required:** the Talos VMs use CPU type `host` (`talos_cpu_type`, which blocks live
 migration; this is a single host) **and** nested KVM must be enabled on the PVE host. The latter is
-owner-gated at cutover.
+owner-gated at cutover. *Confirmed 2026-11-04:* every node shows `/dev/kvm` and the `vmx` flag. The
+first Kata workload is the RIPE Atlas probe (§5.19).
 
 **Build storage** follows §3.4, §4.2 and §4.3. Workspaces and caches are ephemeral: an `emptyDir` or a
 `local-path` PVC on the worker's data disk, thrown away with the job. NFS (`nas-nfs`) is only for what must
@@ -762,6 +763,65 @@ namespace warns and audits at `restricted`.
 SQLite database holds chats and settings only. Losing it means a fresh first login.
 
 **Lab:** no GPU; the lab overlay removes the RuntimeClass and GPU limit and Ollama runs on the CPU.
+
+### 5.19 — A RIPE Atlas software probe, IPv4 only, isolated in a Kata microVM — *decided 2026-11-04*
+
+**One RIPE Atlas software probe runs in the homelab cluster** (`kubernetes/apps/ripe-atlas/`, homelab overlay
+only). It gives back to the measurement network the homelab uses, and the probe's credits pay for our own
+measurements. Runbook: `docs/runbooks/ripe-atlas.md`.
+
+**Registration by the web form, not the API.** RIPE ties a software probe to an SSH key pair: the public half
+went in at `atlas.ripe.net/apply/swprobe` (description `Homelab software probe - East Flanders, BE`, location
+Munkzwalm). The private half is the probe's identity and lives only in
+`kubernetes/overlays/homelab/apps/ripe-atlas-probe-key.sops.yaml`; there is no API token to manage. Atlas reads
+the ASN from the public address, so a change of ISP (Telenet today) needs nothing from us. The lab never gets the
+real key: the directory is opt-in, like cloudflared (§5.13).
+
+**Image:** `docker.io/jamesits/ripe-atlas`, a community build (RIPE ships packages, not a container), pinned
+by digest in `versions.yaml` and never automerged (`renovate.json5`).
+
+**Isolation.** Strangers on the internet choose what the probe measures, and it parses their replies with
+`CAP_NET_RAW`. So it gets the public internet and nothing else:
+
+- `runtimeClassName: kata` (§3.5): a kernel bug reached through a crafted reply lands in a microVM, not on the
+  node. Nested virtualisation was confirmed on all three nodes on 2026-11-04 (`/dev/kvm` and the `vmx` flag).
+  Kata shares the image into the VM over virtio-fs, and virtiofsd drops extended attributes, including the
+  measurement binary's file capability, unless it runs with `--xattr`. Without that flag every ping fails with
+  "Operation not permitted". The pod turns it on for itself with the
+  `io.katacontainers.config.hypervisor.virtio_fs_extra_args` annotation, which the Talos kata extension's
+  configuration allows. The node config stays untouched. Kata does not apply the pod's seccomp profile inside the
+  guest (`disable_guest_seccomp=true`); the VM boundary takes its place.
+- NetworkPolicy: egress to `0.0.0.0/0` minus every private, shared (CGNAT/Tailscale), link-local, loopback,
+  multicast and reserved range; any protocol, because ping and traceroute need ICMP. No cluster DNS:
+  `dnsPolicy: None` with 1.1.1.1 and 9.9.9.9. Cilium's CIDR rules never select pods, nodes or the host, so the
+  cluster is out of reach even by public address.
+- No ingress, with one exception, the repo's first CiliumNetworkPolicy. Cilium's connection tracking lets
+  replies through, but not the ICMP time-exceeded and unreachable errors routers send back, so every traceroute
+  was a column of `*`. The CiliumNetworkPolicy lets in only those two ICMP types, and only from public
+  addresses. Hops on private addresses stay silent, which also keeps the house's internal addresses out of
+  RIPE's public results.
+- Non-root (uid 101), read-only root, no service-account token, no Service env vars. Of the container runtime's
+  default capabilities only `NET_RAW` stays.
+
+Lab test on 2026-11-04 under Kata: ping and ICMP traceroute work. Pods, Services, kube-dns, the node, the
+gateway, the LAN and `169.254.169.254` are unreachable, and no pod can reach the probe. UDP and TCP traceroutes
+go silent past the ISP modem even with no policy at all. That is the modem's or the ISP's doing; it is outside
+the cluster.
+
+**Why the pod is only `baseline`, not `restricted`.** Verified with docker and in the lab: the measurement
+binary is setuid (uid 102) with a `cap_net_raw` file capability. So `allowPrivilegeEscalation` must stay true,
+and `NET_RAW` must stay in the bounding set. `baseline` forbids adding `NET_RAW`, but allows keeping it from the
+default set, so the pod drops the other defaults instead of `drop: [ALL]`.
+
+**One pod, ever.** Two probes with the same key confuse the controller, so one replica with `Recreate`. Its
+state (`/etc`, `/run`, spool) is an `emptyDir`; a restarted pod re-registers with the same key.
+
+**IPv4 only.** IPv6 stays off in the cluster (§2.5). A dual-stack probe would sit outside Kubernetes, in its own
+VM on the GUEST VLAN (`docs/future-work.md`). No own VLAN for this pod: the NetworkPolicy already isolates it
+more tightly than a VLAN would.
+
+**Accepted:** the probe can reach the household's own public IP (hairpin through the UDM). No port is
+forwarded (§5.2), so that reaches nothing. Interface traffic counters are not reported (`RXTXRPT=no`).
 
 ## 6. Findings that changed the plan
 

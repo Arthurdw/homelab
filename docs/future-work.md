@@ -36,3 +36,13 @@ added Alertmanager receiver.
 CPU headroom (the host runs at about 92%). Forgejo is a read-only mirror of GitHub (§5.4, §5.6). Its runner
 executes untrusted build jobs in Kata microVMs (§3.5); the Talos image already carries the `kata-containers`
 extension and the `kata` RuntimeClass exists.
+
+## IPv6 for the RIPE Atlas probe
+
+**Blocked on:** a decision to run a small VM outside Kubernetes (`docs/decisions.md` §5.19). The cluster is
+IPv4 only (§2.5) and stays that way, so the in-cluster probe measures over IPv4 alone.
+
+The dual-stack probe would be its own VM on the GUEST VLAN (60), which is already internet only. That needs
+IPv6 enabled on GUEST alone, an exception to §2.5 to record there; the server and cluster VLANs stay IPv4. It
+would get its own key and its own probe ID; the in-cluster probe is then removed (`docs/runbooks/ripe-atlas.md`,
+rollback) so the household runs one probe.

@@ -265,6 +265,14 @@
       automerge: false,
     },
     {
+      description: 'RIPE Atlas probe (docs/decisions.md §5.19): a one-person community image that runs internet-scheduled measurements with NET_RAW, so a human reads the diff first',
+      matchDepNames: ['docker.io/jamesits/ripe-atlas'],
+      automerge: false,
+      prBodyNotes: [
+        '> [!IMPORTANT]\n> Community image. Check the upstream commits (github.com/Jamesits/docker-ripe-atlas) and the RIPE probe release notes, then the verification in docs/runbooks/ripe-atlas.md after the rollout.',
+      ],
+    },
+    {
       description: 'Internet-facing (docs/decisions.md §5.13): cloudflared and the Immich public proxy decide what the public can reach, so a human reads the changelog first',
       matchDepNames: ['docker.io/cloudflare/cloudflared', 'docker.io/alangrainger/immich-public-proxy'],
       automerge: false,

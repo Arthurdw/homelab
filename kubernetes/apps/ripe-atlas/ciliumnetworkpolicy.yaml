@@ -1,0 +1,44 @@
+---
+# Lets ICMP errors from public routers back in to the RIPE Atlas probe, so its traceroutes show the hops.
+#
+# networkpolicy.yaml denies all ingress. Cilium's connection tracking lets the replies to the probe's own
+# connections and pings through, but not the ICMP "time exceeded" and "destination unreachable" errors that
+# routers along the path send back. Without them every traceroute is a column of `*` (lab test 2026-11-04: with
+# the policy, every hop between the node and the target was silent; without it, the Telenet hops answered).
+# A plain NetworkPolicy cannot name ICMP types, so this one is Cilium's. Allow rules from the two policies add up.
+#
+# Only those two ICMP types, and only from public addresses (the same ranges the egress rule allows). The pod
+# sits behind the node's masquerade, so in practice these are only errors about packets the probe sent.
+# Hops on private addresses (the K8S gateway, the ISP modem) stay silent; that also keeps the house's internal
+# addresses out of RIPE's public results.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ripe-atlas-icmp-errors
+  namespace: ripe-atlas
+  labels:
+    app.kubernetes.io/name: ripe-atlas
+    app.kubernetes.io/part-of: ripe-atlas
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: ripe-atlas
+  ingress:
+    - fromCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 0.0.0.0/8
+            - 10.0.0.0/8
+            - 100.64.0.0/10
+            - 127.0.0.0/8
+            - 169.254.0.0/16
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+            - 224.0.0.0/4
+            - 240.0.0.0/4
+      icmps:
+        - fields:
+            - family: IPv4
+              type: DestinationUnreachable
+            - family: IPv4
+              type: TimeExceeded

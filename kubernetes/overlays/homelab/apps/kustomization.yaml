@@ -9,6 +9,8 @@ resources:
   # Public share links, homelab only (docs/decisions.md §5.13). Its Secret, cloudflared-tunnel.sops.yaml,
   # is added here by the owner once the tunnel exists (docs/runbooks/public-shares.md).
   - ../../../apps/cloudflared
+  # RIPE Atlas software probe, homelab only: the lab must never run the registered probe key (docs/decisions.md §5.19).
+  - ../../../apps/ripe-atlas
   - immich-db.sops.yaml
   - authentik-credentials.sops.yaml
   - authentik-smtp.sops.yaml
@@ -28,3 +30,4 @@ resources:
   - authentik-technitium-oidc.sops.yaml
   - cloudflared-tunnel.sops.yaml
   - authentik-users.sops.yaml
+  - ripe-atlas-probe-key.sops.yaml

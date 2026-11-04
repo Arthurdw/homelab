@@ -141,6 +141,10 @@ app_images:
   # 2026.9.3 is from 2026-09-24; 2026.10.x was under two weeks old when pinned.
   # renovate: datasource=docker depName=docker.io/cloudflare/cloudflared
   cloudflared: "docker.io/cloudflare/cloudflared:2026.10.2@sha256:0e56c13c7058fcef9c4f0e7d83372f82330548dbf8f8b366f3d8b506526d93b2"
+  # RIPE Atlas software probe (kubernetes/apps/ripe-atlas, homelab overlay only; docs/decisions.md §5.19).
+  # Community image (RIPE ships none); the 5130-probe tag was pushed 2026-08-20.
+  # renovate: datasource=docker depName=docker.io/jamesits/ripe-atlas
+  ripe_atlas: "docker.io/jamesits/ripe-atlas:5130-probe@sha256:841459abe5aac56833e94832b2460423b5b9532b6420df73bfec54dd3303643b"
   # Public share proxy for Immich (kubernetes/apps/immich/public-proxy.yaml). 4.0.0 is from 2026-10-07;
   # 4.1.x was under two weeks old when pinned.
   # renovate: datasource=docker depName=docker.io/alangrainger/immich-public-proxy

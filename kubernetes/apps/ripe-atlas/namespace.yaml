@@ -1,0 +1,13 @@
+---
+# Pod Security: the probe needs CAP_NET_RAW (ping/traceroute) and a setuid measurement binary, so it cannot meet
+# `restricted` (which wants drop ALL and allowPrivilegeEscalation false). `baseline` allows both: NET_RAW is in
+# the container runtime's default set, so the pod only drops the other defaults and adds nothing.
+# `restricted` is warned/audited like the other app namespaces, so expect warnings on apply.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ripe-atlas
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
