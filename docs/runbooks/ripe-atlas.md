@@ -59,6 +59,12 @@ kubectl --context homelab -n ripe-atlas logs deploy/ripe-atlas --tail=50
 The logs should show the probe reaching the registration server and then a controller. A "Ping failed" line at
 startup is harmless: it only sets the status LEDs (`/usr/sbin/ripe-atlas` in the image).
 
+The probe picks a registration address at random from RIPE's IPv4 and IPv6 lists. An IPv6 pick ends in
+`255  REGINIT exit with error`, because the pod has no IPv6, and it retries about three minutes later. Within a
+few rounds it picks IPv4 and logs `Got good controller info`, then `initiating KEEP connection to -R 2023 ...
+ctr-<site>.atlas.prod.ripe.net`. After that the log goes quiet, and that is the connected state. The
+`condmv: not moving` lines are harmless as well: results waiting for the controller to collect them.
+
 **RIPE's side.** At atlas.ripe.net the probe shows *Connected*, with ASN 6848 (Telenet) and IPv4 only.
 Built-in measurements start reporting results within the hour.
 
