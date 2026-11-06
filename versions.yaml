@@ -125,7 +125,7 @@ app_images:
   # where upstream builds now; main/latest is still the May 2025 Firefox build. This digest is the dev build of
   # 2026-09-02 (commit f282d3c). Renovate tracks the digest of the moving tag.
   # renovate: datasource=docker depName=ghcr.io/vogler/free-games-claimer
-  free_games_claimer: "ghcr.io/vogler/free-games-claimer:dev@sha256:54ae1b0d8deafc41b54720bde29481c78bbaa608dc436358ca8640c38721c4e4"
+  free_games_claimer: "ghcr.io/vogler/free-games-claimer:dev@sha256:c0eae8360805b251b361cac1ebff9ebfd52304f2fd0c32e93df96216792adb82"
   # Ollama (kubernetes/apps/ollama; decisions.md §5.18), runs local language models on the Tesla P4.
   # 0.40.6 is from 2026-10-16.
   # renovate: datasource=docker depName=docker.io/ollama/ollama
