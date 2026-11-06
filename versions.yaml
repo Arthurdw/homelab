@@ -59,7 +59,7 @@ iac:
 helm_charts:
   # Latest on Artifact Hub as of 2026-10-16. Pinned in kubernetes/**/release.yaml.
   # renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io
-  cilium: "1.20.3"               # https://helm.cilium.io
+  cilium: "1.20.4"               # https://helm.cilium.io
   # renovate: datasource=helm depName=metallb registryUrl=https://metallb.github.io/metallb
   metallb: "0.16.1"              # https://metallb.github.io/metallb
   # renovate: datasource=helm depName=traefik registryUrl=https://traefik.github.io/charts
