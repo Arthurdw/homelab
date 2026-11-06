@@ -94,7 +94,7 @@ ssh root@10.10.1.1 'fan-curves show; systemctl status fan-curves --no-pager'
 
 `show` prints the points, the mode and the current duty and rpm:
 
-```
+```text
 pwm1: 40°C:30% 55°C:45% 65°C:70% 72°C:100% (critical 100°C) mode 5, now 30% 560 rpm
 pwm2: 20°C:30% 50°C:40% 65°C:75% 75°C:100% (critical 100°C) mode 5, now 37% 1150 rpm
 ```
