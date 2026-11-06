@@ -39,7 +39,7 @@ spec:
     image:
       # Pin the app image explicitly (defaults to the chart's appVersion, but be explicit).
       # renovate: datasource=docker depName=docker.io/advplyr/audiobookshelf
-      tag: "2.37.1"
+      tag: "2.37.2"
       # Reproducible, no surprise re-pulls.
       pullPolicy: IfNotPresent
 
