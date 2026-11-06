@@ -3,7 +3,7 @@
 The Tesla P4 is passive: its heatsink only stays cool with air pushed through it, here by a case fan on its own
 motherboard header. The card is passed through to `talos-wk-1`, so `poseidon` cannot read its temperature
 itself. A small service on the host reads it from the in-cluster exporter and sets that header's PWM duty from a
-curve (`docs/decisions.md` §3.8). The other header stays on the BIOS curve for the CPU.
+curve (`docs/decisions.md` §3.8). The CPU fan header stays on the chip's own curve, rewritten at boot (`docs/runbooks/fan-curves.md`).
 
 ## What lives where
 

@@ -17,7 +17,7 @@ check:
 backup-selftest:
   ./scripts/backup/test/alert-selftest.sh
 
-# GPU fan controller: the script against a fake hwmon tree, plus systemd-analyze verify on its unit
+# GPU fan controller and BIOS fan curves: the scripts against a fake hwmon tree, plus systemd-analyze verify on the units
 fan-control-selftest:
   ./scripts/fan-control/test/selftest.sh
 

@@ -124,6 +124,31 @@ proxmox_host_memory_reserve_mb = 8192
 #   start_at            = 50    # a stopped fan starts again at this °C
 # }
 
+# The BIOS fan curves on the host (fan-curves.tf): rewritten at every boot, the chip then drives those headers
+# from the CPU temperature itself (docs/runbooks/fan-curves.md). null = not installed; setting it back to null puts
+# back the curve the BIOS wrote at boot. Not the header gpu_fan_control drives.
+# fan_curves = {
+#   hwmon_name    = "nct6793"
+#   kernel_module = "nct6775"   # poseidon needs it: the driver does not load on its own
+#   ssh_host      = null        # null = the host in proxmox_endpoint
+#   headers = {
+#     # CHA_FAN1, the case fans through the hub. The chip only sees the CPU; the floor covers the GPU's heat.
+#     "1" = [
+#       { temp = 40, percent = 30 },
+#       { temp = 55, percent = 45 },
+#       { temp = 65, percent = 70 },
+#       { temp = 72, percent = 100 },
+#     ]
+#     # CPU_FAN: the BIOS has it on "Full Speed". Up to 4 points on this chip (the 5th is the critical one).
+#     "2" = [
+#       { temp = 20, percent = 30 },
+#       { temp = 50, percent = 40 },
+#       { temp = 65, percent = 75 },
+#       { temp = 75, percent = 100 },
+#     ]
+#   }
+# }
+
 # node-exporter on the host (host-metrics.tf): its temperatures and fan speeds, and the fan controller's metrics
 # (textfile), for the "GPU & cooling" Grafana dashboard and the homelab.gpu fan alerts. Prometheus scrapes it at
 # PROXMOX_HOST_METRICS (kubernetes/clusters/*/cluster-settings.yaml). null = not installed; setting it back to

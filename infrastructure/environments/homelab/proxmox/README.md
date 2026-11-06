@@ -23,16 +23,18 @@ to the NAS fixture); the real link is unmeasured.
 
 ## Host services
 
-Two things run on the host itself, installed over SSH by `terraform_data` resources (root SSH, the agent):
+These run on the host itself, installed over SSH by `terraform_data` resources (root SSH, the agent):
 
 - `fan-control.tf` (`gpu_fan_control`): the GPU fan controller, which sets the Tesla P4's fan header from the
   card's temperature (`docs/runbooks/gpu-fan-control.md`, `docs/decisions.md` §3.8).
+- `fan-curves.tf` (`fan_curves`): rewrites the BIOS fan curves of the CPU and case fan headers at every boot; the
+  chip keeps driving them from the CPU temperature (`docs/runbooks/fan-curves.md`).
 - `host-metrics.tf` (`host_metrics`): Debian's `prometheus-node-exporter` on the management address, with the
   controller's metrics in its textfile directory; scraped by
   `kubernetes/infrastructure/configs/proxmox-host-scrapeconfig.yaml`. `just lab-pve-plan` installs it on the lab
   fixture, checks it answers, re-plans clean and purges it.
 
-Both are `null` by default and are removed from the host when set back to `null`.
+All are `null` by default and are removed from the host when set back to `null`.
 
 ## Decided topology (docs/decisions.md §3.1)
 

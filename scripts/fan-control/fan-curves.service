@@ -1,0 +1,20 @@
+[Unit]
+Description=Rewrite the BIOS fan curves on the Super I/O chip
+# Installed by OpenTofu (proxmox/fan-curves.tf); see docs/runbooks/fan-curves.md.
+# Runs once per boot: the BIOS writes its own curve at every power-on, the chip follows the new one from then on.
+# The hwmon driver may come from /etc/modules-load.d.
+After=systemd-modules-load.service
+Wants=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/fan-curves apply
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+# No ProtectKernelTunables: it makes /sys read-only, and the pwm files live there.
+
+[Install]
+WantedBy=multi-user.target

@@ -484,6 +484,62 @@ variable "gpu_fan_control" {
   }
 }
 
+variable "fan_curves" {
+  description = <<-EOT
+    BIOS fan curves on the Proxmox host (fan-curves.tf, docs/runbooks/fan-curves.md): at every boot, the
+    Super I/O chip's own automatic curve (Smart Fan IV) is rewritten for the headers in `headers`, so the
+    BIOS settings need no screen. The chip keeps driving those fans from its temperature input (the CPU
+    on poseidon), on its own, also when the host hangs. `headers` maps a header's pwm number (pwm2 -> "2")
+    to its curve: temperature (°C) to fan percent, ascending, linear in between, at most one point fewer
+    than the chip has (4 on the nct6793: the last is its critical point, 100 %, left alone). Below the
+    first point the fan stays at the first point's percent. `hwmon_name`, `kernel_module` and `ssh_host`
+    work as in gpu_fan_control; a header that controller drives cannot be listed here.
+    Null (the default) installs nothing; setting it back to null uninstalls and puts back the curve the
+    BIOS wrote at the last boot.
+  EOT
+  type = object({
+    hwmon_name    = string
+    kernel_module = optional(string)
+    ssh_host      = optional(string)
+    headers = map(list(object({
+      temp    = number
+      percent = number
+    })))
+  })
+  default = null
+
+  # Everything below ends up in a shell env file or a remote command line, so the charsets are strict.
+  validation {
+    condition     = var.fan_curves == null || can(regex("^[a-z0-9_-]+$", var.fan_curves.hwmon_name))
+    error_message = "fan_curves.hwmon_name must be a hwmon chip name such as nct6793."
+  }
+
+  validation {
+    condition     = var.fan_curves == null || try(var.fan_curves.kernel_module, null) == null || can(regex("^[a-z0-9_]+$", var.fan_curves.kernel_module))
+    error_message = "fan_curves.kernel_module must be a module name such as nct6775."
+  }
+
+  validation {
+    condition     = var.fan_curves == null || try(var.fan_curves.ssh_host, null) == null || can(regex("^[A-Za-z0-9.:-]+$", var.fan_curves.ssh_host))
+    error_message = "fan_curves.ssh_host must be a host name or IP address."
+  }
+
+  validation {
+    condition     = var.fan_curves == null || try(length(var.fan_curves.headers) >= 1 && alltrue([for k in keys(var.fan_curves.headers) : can(regex("^[1-9][0-9]?$", k))]), false)
+    error_message = "fan_curves.headers needs at least one header, keyed by its pwm number (pwm2 -> \"2\")."
+  }
+
+  validation {
+    condition = var.fan_curves == null || try(alltrue([
+      for curve in values(var.fan_curves.headers) :
+      length(curve) >= 1 &&
+      alltrue([for p in curve : p.temp >= 0 && p.temp <= 100 && floor(p.temp) == p.temp && p.percent >= 0 && p.percent <= 100 && floor(p.percent) == p.percent]) &&
+      alltrue([for i in range(1, length(curve)) : curve[i].temp > curve[i - 1].temp])
+    ]), false)
+    error_message = "fan_curves.headers: every curve needs at least one point, whole temperatures (0-100 °C) strictly ascending and whole percents from 0 to 100."
+  }
+}
+
 variable "host_metrics" {
   description = <<-EOT
     Prometheus node-exporter on the Proxmox host (host-metrics.tf): the host's temperatures and fan speeds,

@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Self-test for the GPU fan controller, with no network and no host changes.
+# Self-test for the GPU fan controller and the BIOS fan curves, with no network and no host changes.
 #
 #   1. gpu-fan-control.sh against a fake /sys/class/hwmon and a file:// metrics page: the curve, `check`,
 #      the run loop (curve duty, the node-exporter textfile, the stall guard, the fan stop and restart, 100% on
 #      stale readings, 100% on SIGTERM) and `release`.
-#   2. systemd-analyze verify on a copy of the unit, with its paths pointed at a stub.
+#   2. systemd-analyze verify on copies of both units, with their paths pointed at stubs.
+#   3. fan-curves.sh against a fake nct6793 with the BIOS's "Full Speed" curve: the plan checks, `apply` (the
+#      points, the floor, the mode, the critical point left alone, the saved boot values), a second apply, `show`
+#      and `release`.
 #
 # Usage: scripts/fan-control/test/selftest.sh      (needs bash, curl, systemd-analyze)
 set -euo pipefail
@@ -151,15 +154,80 @@ check "release without a saved mode: 100% in manual" test "$(cat "$pwm")-$(cat "
 
 # --- 2. systemd unit --------------------------------------------------------------------------------
 mkdir -p "$w/units" "$w/bin"
-sed "s#/usr/local/sbin/#$w/bin/#g" "$fan/gpu-fan-control.service" > "$w/units/gpu-fan-control.service"
-printf '#!/bin/sh\n' > "$w/bin/gpu-fan-control"
-chmod +x "$w/bin/gpu-fan-control"
-if (cd "$w/units" && SYSTEMD_UNIT_PATH="$w/units:" systemd-analyze verify --man=no \
-      ./gpu-fan-control.service) >"$w/out" 2>&1; then
-  ok "systemd-analyze verify"
-else
-  fail "systemd-analyze verify: $(cat "$w/out")"
-fi
+for u in gpu-fan-control fan-curves; do
+  sed "s#/usr/local/sbin/#$w/bin/#g" "$fan/$u.service" > "$w/units/$u.service"
+  printf '#!/bin/sh\n' > "$w/bin/$u"
+  chmod +x "$w/bin/$u"
+  if (cd "$w/units" && SYSTEMD_UNIT_PATH="$w/units:" systemd-analyze verify --man=no \
+        "./$u.service") >"$w/out" 2>&1; then
+    ok "systemd-analyze verify $u"
+  else
+    fail "systemd-analyze verify $u: $(cat "$w/out")"
+  fi
+done
+
+# --- 3. BIOS fan curves -----------------------------------------------------------------------------
+# hwmon5 is an nct6793 with 5 auto points per header, the BIOS's "Full Speed" on pwm2 and a sane curve on pwm1.
+cw="$w/curves"
+c="$cw/sys/hwmon5"
+mkdir -p "$c" "$cw/state"
+echo nct6793 > "$c/name"
+bios() {  # bios <channel> <temp:pwm x5>: what the BIOS writes at power-on
+  local ch="$1" i=1 p; shift
+  for p in "$@"; do
+    echo "$((${p%%:*} * 1000))" > "$c/pwm${ch}_auto_point${i}_temp"; echo "${p##*:}" > "$c/pwm${ch}_auto_point${i}_pwm"
+    i=$((i + 1))
+  done
+  echo 5 > "$c/pwm${ch}_enable"; echo 1 > "$c/pwm${ch}_floor"; echo 255 > "$c/pwm$ch"; echo 2440 > "$c/fan${ch}_input"
+}
+bios 2 20:255 50:255 65:255 75:255 100:255
+bios 1 20:51 65:178 70:255 70:255 100:255
+curves() {  # curves <CURVE_2> <command>: the script with a config holding only pwm2
+  printf 'HWMON_NAME=nct6793\nCHANNELS="2"\nCURVE_2="%s"\nWAIT=0\n' "$1" > "$cw/conf"
+  FAN_CURVES_CONF="$cw/conf" SYSFS_ROOT="$cw/sys" STATE_DIR="$cw/state" "$fan/fan-curves.sh" "$2"
+}
+pts2() { for i in 1 2 3 4 5; do printf '%s:%s ' "$(cat "$c/pwm2_auto_point${i}_temp")" "$(cat "$c/pwm2_auto_point${i}_pwm")"; done; }
+full="$(pts2)"
+
+refuses() {  # refuses <name> <CURVE_2>: ok when apply fails with the error it should
+  local name="$1" want="$3"
+  if curves "$2" apply > /dev/null 2> "$cw/err"; then fail "$name: apply succeeded"
+  elif ! grep -q -- "$want" "$cw/err"; then fail "$name: $(cat "$cw/err")"
+  else ok "$name"; fi
+}
+refuses "curves: refuses 5 points (the 5th is critical)" "10:10 20:20 30:30 40:40 50:50" "1 to 4 points"
+refuses "curves: refuses descending temperatures" "50:30 40:40" "must ascend"
+refuses "curves: refuses a percent above 100" "50:130" "out of range"
+refuses "curves: refuses a point that is not temp:percent" "50-30" "not temp:percent"
+echo 70000 > "$c/pwm2_auto_point5_temp"
+refuses "curves: refuses a point above the critical temperature" "20:30 75:100" "critical point"
+echo 100000 > "$c/pwm2_auto_point5_temp"
+mkdir -p "$cw/sys/hwmon2" && echo nct6793 > "$cw/sys/hwmon2/name" && touch "$cw/sys/hwmon2/pwm2_enable"
+refuses "curves: refuses a chip without the header's auto points" "50:30" "no automatic curve"
+rm -rf "$cw/sys/hwmon2"
+check "curves: a refused plan writes nothing" test "$(pts2)" = "$full"
+check "curves: nothing saved before a write" test ! -e "$cw/state/nct6793-pwm2"
+
+if curves "20:30 50:40 65:75 75:100" apply > "$cw/apply.log" 2>&1; then ok "curves: apply"; else fail "curves: apply: $(cat "$cw/apply.log")"; fi
+check "curves: points written" test "$(pts2)" = "20000:77 50000:102 65000:191 75000:255 100000:255 "
+check "curves: floor at the first point" test "$(cat "$c/pwm2_floor")" = 77
+check "curves: still automatic" test "$(cat "$c/pwm2_enable")" = 5
+check "curves: pwm1 not touched" test "$(cat "$c/pwm1_auto_point1_pwm")-$(cat "$c/pwm1_floor")" = 51-1
+check "curves: boot values saved" grep -q '^pwm2_auto_point1_pwm 255$' "$cw/state/nct6793-pwm2"
+check "curves: logged the curve" grep -q '^pwm2: 20°C:30% 50°C:40% 65°C:75% 75°C:100% (critical 100°C) mode 5' "$cw/apply.log"
+
+echo 1 > "$c/pwm2_enable"
+if curves "30:25 60:60" apply > /dev/null; then ok "curves: a short curve applies"; else fail "curves: a short curve applies"; fi
+check "curves: short curve written" test "$(pts2)" = "30000:64 60000:153 60000:153 60000:153 100000:255 "
+check "curves: back to automatic from manual" test "$(cat "$c/pwm2_enable")" = 5
+check "curves: second apply keeps the boot values" grep -q '^pwm2_auto_point1_pwm 255$' "$cw/state/nct6793-pwm2"
+check "curves: show" grep -q "^pwm2: 30°C:25% 60°C:60% 60°C:60% 60°C:60% (critical 100°C) mode 5, now 100% 2440 rpm$" <(curves "30:25 60:60" show)
+
+if curves "30:25 60:60" release > /dev/null; then ok "curves: release"; else fail "curves: release"; fi
+check "curves: release restored the BIOS curve" test "$(pts2)" = "$full"
+check "curves: release restored floor and mode" test "$(cat "$c/pwm2_floor")-$(cat "$c/pwm2_enable")" = 1-5
+check "curves: release removed the saved values" test ! -e "$cw/state/nct6793-pwm2"
+check "curves: release without saved values" grep -q "nothing saved" <(curves "30:25" release)
 
 echo
 if [ "$fails" -eq 0 ]; then echo "all checks passed"; else echo "$fails check(s) failed"; exit 1; fi

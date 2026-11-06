@@ -15,6 +15,7 @@ the system was built.
 - `free-games-claimer.md` — first store logins via noVNC, the optional login Secret, the Epic captcha.
 - `ollama.md` — Open WebUI at `chat.lab.ardw.be`: first login, pulling and trying models, sharing the GPU with Immich.
 - `gpu-fan-control.md` — the P4's fan header on `poseidon`, driven from the in-guest GPU temperature: setup, verify, rollback.
+- `fan-curves.md` — rewriting the BIOS's CPU and case fan curves on `poseidon` at every boot, without a screen: setup, verify, rollback.
 - `flux.md` — Flux dashboards and alert in Grafana, Capacitor as a local UI, the CLI equivalents.
 - `break-glass.md` — access by IP and local credentials when DNS, SSO, Traefik or MetalLB are down.
 - `household-backups.md` — Time Machine for the Mac, Kopia for Windows and Linux, Seafile client.
