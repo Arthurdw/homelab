@@ -79,7 +79,7 @@ helm_charts:
   # NFS CSI driver — dynamic PVCs on the NAS (kubernetes/infrastructure/storage).
   # The chart repo is the raw source tree: upstream publishes no GitHub Pages index.
   # renovate: datasource=helm depName=csi-driver-nfs registryUrl=https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
-  csi_driver_nfs: "4.13.5"       # https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
+  csi_driver_nfs: "4.13.6"       # https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
   # Node-local provisioner — the `local-path` StorageClass for latency-sensitive databases
   # (docs/decisions.md §4.3, kubernetes/infrastructure/local-path). Official upstream OCI chart.
   # Chart digest sha256:81033683ce790e593524b2105945ee0d81bf6608f0c85eb5e0c1082cc74ff03d.
