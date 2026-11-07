@@ -40,7 +40,7 @@ spec:
       containers:
         - name: seadoc
           # versions.yaml app_images.seafile_seadoc
-          image: docker.io/seafileltd/sdoc-server:3.0.6@sha256:324113195143e713a170f41ef894c01346170765a54b1aae3366ef2fe5b3de14
+          image: docker.io/seafileltd/sdoc-server:3.0.7@sha256:d07c8dac8298f7c4a6b77bb7814f247ec71f32b662bd3c31ecb06c625ddda8ca
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
