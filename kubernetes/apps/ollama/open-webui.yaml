@@ -61,7 +61,7 @@ spec:
       containers:
         - name: open-webui
           # versions.yaml app_images.open_webui
-          image: ghcr.io/open-webui/open-webui:v0.13.0@sha256:2272b0fb7c8783a016bcc179abb467cfa34590c99c5e6560fe0e9155b4820a09
+          image: ghcr.io/open-webui/open-webui:v0.13.1@sha256:98df00217ef8f888e056b447cef416185939c5a9b63bba1707683e3739a2008d
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
