@@ -56,7 +56,7 @@ spec:
       containers:
         - name: cloudflared
           # versions.yaml app_images.cloudflared
-          image: docker.io/cloudflare/cloudflared:2026.10.3@sha256:faa8e0a1475f137c910be6025f43c8e4092fdd35461b31e19fd1390657a1ff39
+          image: docker.io/cloudflare/cloudflared:2026.10.4@sha256:c6c7ae1d5dfdcb094ad344ed68ccffc26635c9c6be80965664c33baf064b0515
           imagePullPolicy: IfNotPresent
           # $(TUNNEL_ID) is expanded by the kubelet from the env below (not a Flux substitution).
           args:
