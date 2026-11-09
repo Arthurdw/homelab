@@ -16,7 +16,7 @@ storage:
 
 kubernetes:
   # renovate: datasource=github-releases depName=siderolabs/talos
-  talos: "v1.14.4"              # supports K8s 1.33-1.37 (Talos v1.14 support matrix, checked 2026-10-20)
+  talos: "v1.14.5"              # supports K8s 1.33-1.37 (Talos v1.14 support matrix, checked 2026-10-20)
   # renovate: datasource=github-releases depName=kubernetes/kubernetes
   kubernetes: "v1.37.1"         # newest stable (v1.38 still alpha)
   # renovate: datasource=github-releases depName=fluxcd/flux2
