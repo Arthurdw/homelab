@@ -34,7 +34,7 @@ iac:
       pve_compat: "PVE 9: the provider changelog has PVE 9 features since 0.99.0 (2026-03-21, harule, 'PVE 9+') and 0.105.0 (2026-05-02, host_managed gated on PVE 9.1+); no release up to 0.117.0 lists a PVE 9 break. Proven on the PVE 9.2 L1 fixture, see verification_tasks (checked 2026-10-21)."
     truenas/truenas:
       # renovate: datasource=terraform-provider depName=truenas packageName=truenas/truenas
-      version: "1.5.18"
+      version: "1.5.19"
       opentofu_compat: "verified 2026-10-16 (tofu 1.13.1 validate)"
       api_note: "No longer blocked on the version (checked 2026-10-21): 1.5.14 talks to /api/current (JSON-RPC) and needs SCALE >= 25.04; hercules-nas was reinstalled on 25.10.7, which matches the L1 fixture where the root was proven (scripts/lab/truenas-fixture-plan.sh). The live apply is still owner-gated."
     ubiquiti-community/unifi:
