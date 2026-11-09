@@ -56,7 +56,7 @@ jobs:
           persist-credentials: false
       - uses: opentofu/setup-opentofu@v2
         with:
-          tofu_version: "1.13.1"
+          tofu_version: "v1.13.2"
           tofu_wrapper: false
       - name: tofu init (no backend; state backend undecided)
         run: tofu init -backend=false -input=false -lockfile=readonly
