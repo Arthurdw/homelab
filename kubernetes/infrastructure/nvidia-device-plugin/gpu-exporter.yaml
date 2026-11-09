@@ -45,7 +45,7 @@ spec:
           operator: Exists
       containers:
         - name: exporter
-          image: docker.io/utkuozdemir/nvidia_gpu_exporter:1.15.1@sha256:93b45e335c8286379e03ecd542354fa425e5ffb8e0e5761e60c1fb241212fda4
+          image: docker.io/utkuozdemir/nvidia_gpu_exporter:1.16.0@sha256:6bb3bb8f448bad9e2db8a4a2055d70c30bbf759b5ba22ba4bc6777beb39e41e1
           args:
             - --web.listen-address=:9835
           env:
