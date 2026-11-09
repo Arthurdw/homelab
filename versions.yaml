@@ -25,7 +25,7 @@ kubernetes:
 
 iac:
   # renovate: datasource=github-releases depName=opentofu packageName=opentofu/opentofu extractVersion=^v(?<version>.+)$
-  opentofu: "1.13.1"
+  opentofu: "1.13.2"
   providers:
     bpg/proxmox:
       # renovate: datasource=terraform-provider depName=proxmox packageName=bpg/proxmox
@@ -158,11 +158,11 @@ app_images:
 
 ci_tools:
   # renovate: datasource=github-releases depName=terraform-linters/tflint extractVersion=^v(?<version>.+)$
-  tflint: "0.64.0"
+  tflint: "0.65.0"
   # renovate: datasource=github-releases depName=aquasecurity/trivy extractVersion=^v(?<version>.+)$
-  trivy: "0.76.0"
+  trivy: "0.76.1"
   # renovate: datasource=pypi depName=checkov
-  checkov: "3.3.29"
+  checkov: "3.3.30"
   # renovate: datasource=github-releases depName=gitleaks/gitleaks extractVersion=^v(?<version>.+)$
   gitleaks: "8.30.1"
   # renovate: datasource=github-releases depName=yannh/kubeconform extractVersion=^v(?<version>.+)$

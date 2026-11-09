@@ -19,11 +19,11 @@ concurrency:
 # from their package registries. Bump these deliberately, in one place.
 env:
   # renovate: datasource=npm depName=markdownlint-cli2
-  MARKDOWNLINT_CLI2_VERSION: "0.23.3"
+  MARKDOWNLINT_CLI2_VERSION: "0.24.0"
   # renovate: datasource=pypi depName=yamllint
   YAMLLINT_VERSION: "1.38.0"
   # renovate: datasource=npm depName=renovate
-  RENOVATE_VERSION: "44.176.2"
+  RENOVATE_VERSION: "44.181.9"
 
 jobs:
   # GitHub-only: gitleaks-action can't be cloned anonymously, so `act` skips it.
@@ -61,7 +61,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: opentofu/setup-opentofu@v2
         with:
-          tofu_version: "1.13.1"
+          tofu_version: "v1.13.2"
       - name: tofu fmt
         run: tofu fmt -check -recursive
       - name: tofu validate per root
