@@ -120,7 +120,7 @@ app_images:
   kopia: "docker.io/kopia/kopia:0.23.1@sha256:89fd95ee2942880ca00eae964266958a394421ddbdf69bca62e38afc55f5900e"
   # Stremio streaming server (kubernetes/apps/stremio); local-only, SPEC §12.6. v4.22.4 is from 2026-10-20.
   # renovate: datasource=docker depName=docker.io/stremio/server
-  stremio: "docker.io/stremio/server:v4.22.4@sha256:bfce9268487bcf4b7baebc79e3504e14c2fac5a19aab2dbd722b151276f9db22"
+  stremio: "docker.io/stremio/server:v4.22.5@sha256:d74f18a71f934c23ff137beefbeaea760e51a204a38cae078d0d1366a8a8b63a"
   # free-games-claimer (kubernetes/apps/free-games-claimer; decisions.md §5.16). The `dev` tag on purpose: that is
   # where upstream builds now; main/latest is still the May 2025 Firefox build. This digest is the dev build of
   # 2026-09-02 (commit f282d3c). Renovate tracks the digest of the moving tag.
