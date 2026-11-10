@@ -45,7 +45,10 @@ resource "unifi_network" "k8s" {
   }
 
   # IPv6 is disabled on new segments (decisions.md §2.5).
-  ipv6_interface_type = "none"
+  # Provider 0.60.0 moved the flat ipv6_* arguments into this nested object.
+  ipv6 = {
+    interface_type = "none"
+  }
 
   # firewall_zone_id is left unset. The controller places the network in its default zone. Any
   # inter-zone policy is a separate, additive follow-up (unifi_firewall_zone/policy), not done here.
