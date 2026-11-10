@@ -24,7 +24,7 @@ BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 # renovate: datasource=github-releases depName=kubernetes-sigs/kind
 KIND_VERSION="${KIND_VERSION:-v0.33.0}"
 # renovate: datasource=github-releases depName=fluxcd/flux2 extractVersion=^v(?<version>.+)$
-FLUX_VERSION="${FLUX_VERSION:-2.9.6}"
+FLUX_VERSION="${FLUX_VERSION:-2.10.0}"
 # renovate: datasource=github-releases depName=FiloSottile/age
 AGE_VERSION="${AGE_VERSION:-v1.3.2}"
 # renovate: datasource=github-releases depName=getsops/sops
