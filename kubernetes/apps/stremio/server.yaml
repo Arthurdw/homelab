@@ -56,7 +56,7 @@ spec:
       containers:
         - name: stremio
           # versions.yaml app_images.stremio
-          image: docker.io/stremio/server:v4.22.4@sha256:bfce9268487bcf4b7baebc79e3504e14c2fac5a19aab2dbd722b151276f9db22
+          image: docker.io/stremio/server:v4.22.5@sha256:d74f18a71f934c23ff137beefbeaea760e51a204a38cae078d0d1366a8a8b63a
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
