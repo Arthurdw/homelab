@@ -140,7 +140,7 @@ app_images:
   # Cloudflare Tunnel connector (kubernetes/apps/cloudflared, homelab overlay only; docs/decisions.md §5.13).
   # 2026.9.3 is from 2026-09-24; 2026.10.x was under two weeks old when pinned.
   # renovate: datasource=docker depName=docker.io/cloudflare/cloudflared
-  cloudflared: "docker.io/cloudflare/cloudflared:2026.10.4@sha256:c6c7ae1d5dfdcb094ad344ed68ccffc26635c9c6be80965664c33baf064b0515"
+  cloudflared: "docker.io/cloudflare/cloudflared:2026.10.5@sha256:1b1d34d0a9c0bfca9de72db8460d328db3f19edd2b96169114e3e893a97bbe53"
   # RIPE Atlas software probe (kubernetes/apps/ripe-atlas, homelab overlay only; docs/decisions.md §5.19).
   # Community image (RIPE ships none); the 5130-probe tag was pushed 2026-08-20.
   # renovate: datasource=docker depName=docker.io/jamesits/ripe-atlas
