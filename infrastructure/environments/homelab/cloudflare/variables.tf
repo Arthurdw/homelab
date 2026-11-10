@@ -33,7 +33,7 @@ variable "tunnel_name" {
 variable "public_hostnames" {
   description = "Public hostnames routed to the tunnel (proxied CNAMEs). Must match the ingress rules in kubernetes/apps/cloudflared/tunnel-config.yaml (docs/decisions.md §5.13)."
   type        = set(string)
-  default     = ["files.ardw.be", "photos.ardw.be"]
+  default     = ["files.ardw.be", "files-ext.ardw.be", "photos.ardw.be"]
 
   validation {
     condition     = alltrue([for h in var.public_hostnames : endswith(h, ".ardw.be") && !endswith(h, ".lab.ardw.be")])

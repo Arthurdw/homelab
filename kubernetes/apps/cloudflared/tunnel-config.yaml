@@ -92,6 +92,54 @@ ingress:
   - hostname: files.ardw.be
     path: '^/media/(?:[^/.][^/]*|\.[^/.][^/]*|\.\.[^/]+)(?:/(?:[^/.][^/]*|\.[^/.][^/]*|\.\.[^/]+))*$'
     service: http://seafile.seafile.svc.cluster.local:80
+  # --- Seafile outside view (files-ext.ardw.be) --------------------------------------------
+  # The same rules for a second name that has no LAN override, so a browser at home sees what the
+  # internet sees. Owner request 2026-11-10; docs/runbooks/public-shares.md "Outside view from the LAN".
+  # Seahub keeps files.ardw.be as its URL, so share links never use this name, and the download and
+  # upload URLs it writes (/seafhttp/...) still go to files.ardw.be. Keep this block identical to the
+  # one above except for the hostname: scripts/ci/check-tunnel-mirror.sh fails CI otherwise.
+  - hostname: files-ext.ardw.be
+    path: '^/f/[a-f0-9]+/$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  - hostname: files-ext.ardw.be
+    path: '^/d/[a-f0-9]+/(?:files/)?$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  - hostname: files-ext.ardw.be
+    path: '^/u/d/[a-f0-9]+/$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  - hostname: files-ext.ardw.be
+    path: '^/view-image-via-share-link/$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  - hostname: files-ext.ardw.be
+    path: '^/thumbnail/[a-f0-9]+/create/$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  - hostname: files-ext.ardw.be
+    path: '^/thumbnail/[a-f0-9]+/[0-9]+/(?:[^/.][^/]*|\.[^/.][^/]*|\.\.[^/]+)(?:/(?:[^/.][^/]*|\.[^/.][^/]*|\.\.[^/]+))*$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  - hostname: files-ext.ardw.be
+    path: '^/api/v2.1/share-links/[a-f0-9]+/(?:dirents|upload|upload/done|repo-tags|tagged-files/[0-9]+)/$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  - hostname: files-ext.ardw.be
+    path: '^/api/v2.1/upload-links/[a-f0-9]+/upload/$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  - hostname: files-ext.ardw.be
+    path: '^/api/v2.1/(?:share-link-zip-task|query-zip-progress|cancel-zip-task)/$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  - hostname: files-ext.ardw.be
+    path: '^/api/v2.1/repos/[-0-9a-f]{36}/file-uploaded-bytes/$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  - hostname: files-ext.ardw.be
+    path: '^/seafhttp/files/[A-Za-z0-9-]+/[^/]+$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  - hostname: files-ext.ardw.be
+    path: '^/seafhttp/zip/[A-Za-z0-9-]+$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  - hostname: files-ext.ardw.be
+    path: '^/seafhttp/upload-api/[A-Za-z0-9-]+$'
+    service: http://seafile.seafile.svc.cluster.local:80
+  - hostname: files-ext.ardw.be
+    path: '^/media/(?:[^/.][^/]*|\.[^/.][^/]*|\.\.[^/]+)(?:/(?:[^/.][^/]*|\.[^/.][^/]*|\.\.[^/]+))*$'
+    service: http://seafile.seafile.svc.cluster.local:80
   # --- Immich share links (photos.ardw.be) -------------------------------------------------
   - hostname: photos.ardw.be
     service: http://immich-public-proxy.immich.svc.cluster.local:3000

@@ -11,7 +11,7 @@ Manages the Cloudflare Tunnel for public share links and the public DNS records 
 |---|---|
 | `random_bytes.tunnel_secret` | The 32-byte tunnel secret |
 | `cloudflare_zero_trust_tunnel_cloudflared.homelab` | The tunnel, `config_src = "local"`: its ingress rules are in git (`kubernetes/apps/cloudflared/tunnel-config.yaml`), not in Cloudflare |
-| `cloudflare_dns_record.tunnel["files.ardw.be"]`, `["photos.ardw.be"]` | Proxied CNAMEs to `<tunnel-id>.cfargotunnel.com` |
+| `cloudflare_dns_record.tunnel["files.ardw.be"]`, `["files-ext.ardw.be"]`, `["photos.ardw.be"]` | Proxied CNAMEs to `<tunnel-id>.cfargotunnel.com`. `files-ext.ardw.be` is the outside view of Seafile for testing from the LAN (`docs/runbooks/public-shares.md`) |
 
 Out of scope: the zone itself, every other record in `ardw.be`, the cert-manager token, and any Access or WAF config.
 The root creates only these objects and never imports existing ones. If a record with the same name already exists,
@@ -53,7 +53,7 @@ without printing it, as described in `docs/runbooks/public-shares.md` (Owner ste
 
 State is local and gitignored (`*.tfstate`) until the backend is chosen (`docs/secrets-and-state.md` §5).
 **It contains the tunnel secret in clear text** (`random_bytes.tunnel_secret` and the tunnel's `tunnel_secret`).
-Anyone holding the state can run a connector for this tunnel and serve `files.ardw.be` and `photos.ardw.be`.
+Anyone holding the state can run a connector for this tunnel and serve `files.ardw.be`, `files-ext.ardw.be` and `photos.ardw.be`.
 Treat the state file like the credentials file: mode 600, never in git or CI, and back it up encrypted.
 
 To rotate, run `tofu apply -replace=random_bytes.tunnel_secret` through the wrapper. Read the plan first: if the tunnel

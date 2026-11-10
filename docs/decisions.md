@@ -644,6 +644,10 @@ until the sharer deletes it; Seafile does not rate-limit share-link password gue
 rule is the mitigation); Cloudflare terminates TLS and sees shared content; uploads through the tunnel are capped at
 100 MB per request. Owner steps: `docs/runbooks/public-shares.md`.
 
+*Added 2026-11-10:* **`files-ext.ardw.be`**, a second public name with exactly the `files.ardw.be` rules (a CI
+check keeps them equal) and no LAN override, so the owner can see the outside view from home. It adds no new paths,
+only a second name for the same allowlist. Seahub's URL stays `files.ardw.be`, so share links never use it.
+
 ### 5.15 — Stremio streaming server: local-only, protected by DNS and routing rather than by a login — *decided 2026-10-22*
 
 **`stremio.lab.ardw.be` runs the official `stremio/server` image** (`kubernetes/apps/stremio/`), pinned by digest.

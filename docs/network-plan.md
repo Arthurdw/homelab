@@ -101,7 +101,8 @@ cluster.
 same CronJob (`APEX_ZONES`) with an A record to the Traefik VIP; the UDM forwards it to Technitium
 (`infrastructure/environments/homelab/unifi/dns.tf`), so the LAN gets the full Seafile UI. Public DNS points
 it at the Cloudflare Tunnel, which passes only share links. `photos.ardw.be` exists only in public DNS: its sole
-origin is the share proxy, so the LAN uses the tunnel too.
+origin is the share proxy, so the LAN uses the tunnel too. `files-ext.ardw.be` (the same Seafile allowlist) has no
+LAN override either, on purpose: it is how the LAN sees the outside view of Seafile.
 
 **Cluster nodes' DNS:** the Talos nodes resolve via the UDM gateway `10.20.0.1` only (a `ResolverConfig` in
 `talos/patches/network-*.yaml`; cloud-init sets no nameserver, so Talos would default to `1.1.1.1`). The UDM's

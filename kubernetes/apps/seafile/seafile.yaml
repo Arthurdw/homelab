@@ -33,6 +33,8 @@
 # internal Technitium zone plus a UDM Forward Domain) and serves everything, sign-in included. From the internet
 # the same name goes through the Cloudflare Tunnel (kubernetes/apps/cloudflared), which passes ONLY the
 # share-link and upload-link paths. seafile.lab.ardw.be permanently redirects to files.ardw.be.
+# files-ext.ardw.be passes the same paths through the tunnel but has no LAN override, so from home it shows what
+# the internet sees (docs/runbooks/public-shares.md). Seahub never uses it in the links it generates.
 #
 # Behind the tunnel the client IP Seahub logs (first X-Forwarded-For entry) is client-controlled: treat it as
 # untrusted in logs and audit entries. Share-link password checks are not rate limited by Seahub, hence the
@@ -165,7 +167,8 @@ spec:
             - name: SEADOC_SERVER_URL
               value: https://files.ardw.be/sdoc-server
             - name: CSRF_TRUSTED_ORIGINS
-              value: '["https://files.ardw.be","https://seafile.lab.ardw.be"]'
+              # files-ext.ardw.be: the outside view (tunnel only); the share-link password form POSTs from it.
+              value: '["https://files.ardw.be","https://files-ext.ardw.be","https://seafile.lab.ardw.be"]'
             - name: SEAFILE_MYSQL_DB_HOST
               value: seafile-mariadb
             - name: SEAFILE_MYSQL_DB_PORT

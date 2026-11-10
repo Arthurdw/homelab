@@ -85,6 +85,8 @@ fi
 if have yq && yq --version 2>&1 | grep -q mikefarah; then
   echo "== cluster settings =="
   ./scripts/ci/check-cluster-settings.sh || { echo "FAILED: cluster settings"; fail=1; }
+  echo "== tunnel mirror =="
+  ./scripts/ci/check-tunnel-mirror.sh || { echo "FAILED: tunnel mirror"; fail=1; }
 else
   echo "== cluster settings == skipped (missing: mikefarah yq)"
 fi

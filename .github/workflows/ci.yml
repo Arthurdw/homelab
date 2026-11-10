@@ -86,6 +86,8 @@ jobs:
       - name: cluster settings (post-build substitution guard)
         # Flux substitutes an undefined ${VAR} with an empty string, so check statically.
         run: scripts/ci/check-cluster-settings.sh
+      - name: tunnel mirror (files-ext.ardw.be has the same rules as files.ardw.be)
+        run: scripts/ci/check-tunnel-mirror.sh
       - name: validate
         shell: bash
         run: |

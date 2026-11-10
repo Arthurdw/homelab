@@ -5,6 +5,7 @@ What this sets up (`docs/decisions.md` §5.13):
 | Public name | Goes to | What outsiders can reach |
 |---|---|---|
 | `files.ardw.be` | cloudflared -> Seafile (`seafile.seafile.svc:80`) | Share links and upload links only, through an anchored path allowlist (`kubernetes/apps/cloudflared/tunnel-config.yaml`). Everything else gets a 404 |
+| `files-ext.ardw.be` | cloudflared -> Seafile, the same rules | The same as `files.ardw.be`. It has no LAN override, so it is how you check the outside view from home ([below](#outside-view-from-the-lan)). Share links never use it |
 | `photos.ardw.be` | cloudflared -> immich-public-proxy (`immich.svc:3000`) | Shared albums and assets (`/share/<key>`). Immich itself is never reached |
 
 Never exposed: Seafile login, OAuth, `/api2/`, most of `/api/v2.1/`, `/sys/` admin, WebDAV; Immich's UI, API
@@ -124,6 +125,39 @@ Then, as a user:
 - On the LAN: `https://files.ardw.be` shows the normal Seafile login (Traefik, internal CA), and
   `https://seafile.lab.ardw.be` redirects to it.
 - The tunnel shows *Healthy* with two connectors (dashboard > Zero Trust > Networks > Tunnels).
+
+## Outside view from the LAN
+
+At home `files.ardw.be` goes to Traefik and shows everything, so it cannot tell you what a visitor gets.
+`files-ext.ardw.be` always goes through Cloudflare and the tunnel, with the same path allowlist (CI checks the two
+rule sets match: `scripts/ci/check-tunnel-mirror.sh`). To see a share link the way a recipient does, swap the host:
+
+```text
+https://files.ardw.be/f/<token>/   ->   https://files-ext.ardw.be/f/<token>/
+```
+
+Seahub still generates every link with `files.ardw.be`, so nothing you hand out ever points at `files-ext`.
+
+What it does not cover: the download, *Download all* (zip) and upload requests. Seahub writes those as absolute
+`https://files.ardw.be/seafhttp/...` URLs, which go to Traefik at home. The pages, the folder listing, thumbnails,
+the password form and the 404s for everything else do go through the tunnel. To test the transfers too, use a
+device off the LAN (phone on mobile data, Tailscale off).
+
+Quick checks from the LAN, same answers as from outside:
+
+```sh
+curl -sI https://files-ext.ardw.be/                 # 404
+curl -sI https://files-ext.ardw.be/accounts/login/  # 404
+curl -sI https://files-ext.ardw.be/f/<token>/       # 200 (or the password page)
+```
+
+Setup (once): `just plan-cloudflare` should show only the new `cloudflare_dns_record.tunnel["files-ext.ardw.be"]`,
+then `just apply-cloudflare`. The tunnel rules and the Seafile CSRF origin come with the Flux push. Seafile's
+pod restarts once for the new env (`Recreate`, a minute or two of downtime). The edge certificate is Cloudflare's
+Universal SSL, which covers `*.ardw.be`.
+
+To drop it: remove the name from `public_hostnames` (`infrastructure/environments/homelab/cloudflare/variables.tf`),
+apply, then delete the `files-ext.ardw.be` block from `tunnel-config.yaml`, the check, and the CSRF entry.
 
 ## What Tailscale clients see
 

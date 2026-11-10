@@ -9,4 +9,4 @@ account_id = "00000000000000000000000000000000"
 zone_id    = "00000000000000000000000000000000"
 
 # tunnel_name      = "homelab"
-# public_hostnames = ["files.ardw.be", "photos.ardw.be"]
+# public_hostnames = ["files.ardw.be", "files-ext.ardw.be", "photos.ardw.be"]
