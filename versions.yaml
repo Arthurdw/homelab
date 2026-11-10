@@ -112,7 +112,7 @@ app_images:
   # renovate: datasource=docker depName=docker.io/seafileltd/sdoc-server
   seafile_seadoc: "docker.io/seafileltd/sdoc-server:3.0.7@sha256:d07c8dac8298f7c4a6b77bb7814f247ec71f32b662bd3c31ecb06c625ddda8ca"
   # renovate: datasource=docker depName=docker.io/library/mariadb
-  seafile_mariadb: "docker.io/library/mariadb:12.3.2@sha256:a02fe89cb597d4375812b2eac90cf9d0775d4686daa7f7cc750ebbcad7525bbc"
+  seafile_mariadb: "docker.io/library/mariadb:12.3.3@sha256:d46e102fa8b9b72bfcdeb56f9dd538742092119dc8b11f31fe662605cd234cd9"
   # renovate: datasource=docker depName=docker.io/library/memcached
   seafile_memcached: "docker.io/library/memcached:1.6.45-alpine@sha256:9e4de012dc607573052061c0bcb38abc775e1dd59b24e7ac38d1892842094aaf"
   # Kopia repository server (kubernetes/apps/kopia); household PCs back up to it over HTTPS.
