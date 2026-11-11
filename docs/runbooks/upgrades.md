@@ -76,7 +76,10 @@ applies the new version and tuppr rolls it out.
   GPU schematic.
 - **Kubernetes:** tuppr runs `talosctl upgrade-k8s`, which upgrades the control plane components, then every
   kubelet. No node reboots.
-- Only one upgrade runs at a time. The node running the tuppr controller is never the node being upgraded.
+- Only one upgrade runs at a time. The node running the tuppr controller is upgraded first (its pod
+  restarts once with the reboot), then the others by name. The upgrade Job runs on another node.
+- A `PrePullFailed` that recovers on its own is usually Image Factory building a new schematic and version
+  on first request (`no pull progress after 1m30s`); tuppr retries it.
 - **The single control plane** (`talos-cp-1`, no VIP) means the Kubernetes API is down while it reboots
   (a few minutes). Running pods keep serving, but Flux, kubectl and tuppr pause until it is back.
 
