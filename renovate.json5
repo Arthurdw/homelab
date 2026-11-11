@@ -6,7 +6,7 @@
 //   things whose merge applies nothing (CI tools, GitHub Actions, OpenTofu providers: the owner runs
 //   tofu) and to patch releases of stateless infrastructure charts.
 // - Every major, every stateful app, the CNI, DNS, SSO, Flux itself and Talos/Kubernetes wait for
-//   the owner.
+//   the owner. Talos/Kubernetes PRs upgrade the nodes when merged (tuppr, kubernetes/upgrades).
 // - A release must be 14 days old before Renovate proposes it (versions.yaml: homepage v2.5.0 was
 //   skipped for being "under two weeks old"), which also keeps yanked releases out. Except ghcr.io
 //   images and OCI charts: the registry gives no release date, so they are proposed at once and never
@@ -308,12 +308,18 @@
       ],
     },
     {
-      description: 'Talos and Kubernetes: merging only moves the pin; the cluster needs talosctl',
+      // tuppr (kubernetes/upgrades) applies these: the merge upgrades and reboots the nodes. Each PR moves
+      // versions.yaml and the matching TalosUpgrade/KubernetesUpgrade together (same depName). Talos and
+      // Kubernetes support only one minor step at a time and tuppr does not enforce it, so every minor gets
+      // its own PR and the patch of the current minor stays separate from the next minor.
+      description: 'Talos and Kubernetes: merging upgrades the cluster through tuppr; the owner merges',
       matchDepNames: ['siderolabs/talos', 'kubernetes/kubernetes'],
       automerge: false,
-      labels: ['dependencies', 'manual-upgrade'],
+      separateMultipleMinor: true,
+      separateMinorPatch: true,
+      labels: ['dependencies', 'cluster-upgrade'],
       prBodyNotes: [
-        '> [!WARNING]\n> **Manual upgrade.** Merging changes only `versions.yaml`; it does not upgrade the cluster. Follow docs/runbooks/upgrades.md §5 (`talosctl upgrade` / `talosctl upgrade-k8s`, one minor at a time, check the Talos support matrix) and merge once the cluster runs the new version.',
+        '> [!WARNING]\n> **Merging upgrades the cluster.** tuppr rolls the new version out node by node (Talos: drain and reboot each node; Kubernetes: `talosctl upgrade-k8s`, no reboots). Before merging: one minor step at a time (if several PRs are open, merge the oldest first and wait for it to finish), check the Talos support matrix, and for a new Kubernetes minor check that Flux supports it. Watch with `kubectl get talosupgrade,kubernetesupgrade -w`; pause with the suspend annotation (docs/runbooks/upgrades.md §5).',
       ],
     },
   ],

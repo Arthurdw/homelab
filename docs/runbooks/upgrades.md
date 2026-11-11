@@ -20,7 +20,7 @@ Upgrade **bottom-up**, verifying each layer before the next:
 1. **Firmware/BIOS** (rarely; only when needed for a fix) and **NIC/boot device** firmware.
 2. **TrueNAS** (storage) — see §3.
 3. **Proxmox VE** (hypervisor) — see §4.
-4. **Talos** (Kubernetes OS) — see §5.
+4. **Talos** (Kubernetes OS), then the **Kubernetes version**: both through tuppr, see §5.
 5. **Kubernetes components** via Flux (controllers, then apps) — see §6.
 6. **Container images / app versions** — via Renovate PRs that Flux applies on merge (see §8).
 
@@ -58,20 +58,93 @@ apt full-upgrade -y        # or the documented `pve` upgrade sequence between ma
   still reports allocatable `nvidia.com/gpu`.
 - Rollback: restore the VM/host from backup; there is no supported downgrade for a major PVE version.
 
-## 5. Talos
+## 5. Talos and Kubernetes (tuppr)
 
-- `talosctl upgrade` supports **one minor version at a time**; check the Talos upgrade docs and `kubeconfig`
-  compatibility.
-- Upgrade control planes one node at a time, then workers; watch health between nodes.
-- Use `talosctl health`/`kubectl get nodes` and keep etcd healthy.
-- Rollback: `talosctl upgrade` cannot downgrade in place — plan for redeploy.
-- Talos **machine config** (including `machine.secrets`) is a Tier-2 secret: back it up off-box.
+Talos and the Kubernetes version are upgraded by **tuppr** (`kubernetes/upgrades`, decision
+`docs/decisions.md` §5.20), not by hand. The targets are two objects in Git:
+
+- `kubernetes/upgrades/plans/talos.yaml`: TalosUpgrade `cluster`, the Talos version of every node.
+- `kubernetes/upgrades/plans/kubernetes.yaml`: KubernetesUpgrade `kubernetes`, the Kubernetes version.
+
+Renovate bumps each together with its pin in `versions.yaml` (§8). **Merging that PR is the upgrade:** Flux
+applies the new version and tuppr rolls it out.
+
+- **Talos:** before touching any node, tuppr pulls the new installer on every node. Then it upgrades one node
+  at a time: it drains the node, waits for NFS volumes to detach, reboots the node, and checks it comes back
+  `Ready` on the new version. It checks that every node is `Ready` before each node. Each node keeps its own
+  schematic: tuppr swaps only the version tag of the node's installer image, so `talos-wk-1` stays on the
+  GPU schematic.
+- **Kubernetes:** tuppr runs `talosctl upgrade-k8s`, which upgrades the control plane components, then every
+  kubelet. No node reboots.
+- Only one upgrade runs at a time. The node running the tuppr controller is never the node being upgraded.
+- **The single control plane** (`talos-cp-1`, no VIP) means the Kubernetes API is down while it reboots
+  (a few minutes). Running pods keep serving, but Flux, kubectl and tuppr pause until it is back.
+
+### Before merging
+
+- **One minor at a time.** Talos and Kubernetes support only one minor step per upgrade, and tuppr does not
+  check this. Renovate opens a separate PR per minor. If several are open, merge the oldest, wait for it to
+  finish, then merge the next one.
+- Check the Talos support matrix for the Kubernetes version (`versions.yaml` notes), and Talos before
+  Kubernetes when both move.
+- For a new Kubernetes minor, check that Flux supports it (`versions.yaml`: the `flux` notes).
+- Read the release notes. Talos cannot be downgraded in place: the way back is a reinstall from the
+  machine configs.
+
+### Watch, pause, retry
+
+```sh
+kubectl get talosupgrade,kubernetesupgrade -w     # phase and current node
+kubectl -n system-upgrade get jobs,pods           # the per-node upgrade Jobs
+kubectl describe talosupgrade cluster             # health check and pre-pull events
+
+# Pause (also before upgrading by hand), then resume
+kubectl annotate talosupgrade cluster tuppr.home-operations.com/suspend="true"
+kubectl annotate talosupgrade cluster tuppr.home-operations.com/suspend-
+
+# `Failed` is final until you act: fix the cause, then restart the run
+kubectl annotate talosupgrade cluster tuppr.home-operations.com/reset="$(date)"
+```
+
+The same annotations work on `kubernetesupgrade kubernetes`. A failed or stuck upgrade raises the tuppr
+alerts (mail, like every other alert).
+
+### Machine config
+
+tuppr writes the new installer image into each node's live machine config. `scripts/talos/gen-configs.sh`
+reads the same version from `versions.yaml`, so a later `--regen` produces the same image. The machine
+config (including `machine.secrets`) is a Tier-2 secret: back it up off-box.
+
+### One-time setup
+
+tuppr needs Talos API access, which is the `KubeTalosAPIAccessConfig` document in
+`talos/patches/controlplane.yaml` (role `os:admin`, namespace `system-upgrade` only). Until the control plane
+runs it, the talos.dev CRD does not exist, the tuppr HelmRelease fails to install, and nothing is upgraded.
+The owner applies it once:
+
+```sh
+just talos-regen                                    # same PKI, then talosctl validate
+just talos-upgrade-config 10.20.0.11                # dry run: review the diff
+just talos-upgrade-config 10.20.0.11 --mode=auto    # apply to the control plane
+kubectl api-resources --api-group=talos.dev         # lists serviceaccounts
+flux reconcile kustomization upgrades --with-source
+```
+
+The dry run should show the new `KubeTalosAPIAccessConfig` document and, if the node runs an older Talos than
+`versions.yaml`, the installer tag (used only by the next upgrade). Anything else means the live config has
+drifted from the repo: stop and look first.
+
+### By hand (fallback)
+
+With the plan suspended, the manual procedure still works: `talosctl upgrade --image <installer>:<version>`
+on one node at a time, then `talosctl health`, and `talosctl upgrade-k8s --to <version>` for Kubernetes. Set
+the plan to the version the cluster now runs before removing the suspend annotation.
 
 ## 6. Kubernetes via Flux
 
 - Controller upgrades: bump the chart `version` in `kubernetes/infrastructure/**/release.yaml` in a PR; Flux
   reconciles. Watch rollout.
-- Kubernetes **API** upgrades are driven by Talos, not Flux.
+- The Kubernetes version is upgraded by tuppr (§5), not by a chart bump.
 - App upgrades: bump chart/image versions; rely on Flux health checks and `dependsOn` ordering.
 - Rollback: revert the commit; Flux reconciles back. If a CRD was changed, rollback may need care — check
   the release notes.
@@ -92,7 +165,7 @@ tool versions in `.github/workflows/ci.yml`, `scripts/ci/install-ci-tools.sh`, `
 `versions.yaml` pin uses the same dependency name as its manifest, so both change in the same PR.
 
 A release has to be **14 days old** before Renovate proposes it. The exception is ghcr.io (Immich and its chart
-and Postgres, Homepage, the local-path chart): Renovate gets release dates only from Docker Hub, so those
+and Postgres, Homepage, the local-path and tuppr charts): Renovate gets release dates only from Docker Hub, so those
 updates open at once and never automerge. Check how old the release is before merging. Merging to `main` is a deploy (Flux applies
 it within minutes, §6), so automerge is limited to changes that apply nothing live, plus patch releases of
 stateless charts. Automerge only happens through a PR whose CI passed.
@@ -103,12 +176,12 @@ stateless charts. Automerge only happens through a PR whose CI passed.
 | CI and workstation tools (OpenTofu CLI, helm, kind, sops, linters…): minor, patch | Cilium, MetalLB, Technitium, Authentik |
 | OpenTofu providers and lock files: minor, patch (the owner runs `tofu plan/apply`) | Immich (chart, server, Postgres), Seafile, SeaDoc, MariaDB, memcached, Postgres images |
 | cert-manager, Traefik, csi-driver-nfs, kube-prometheus-stack: patch | Audiobookshelf, Kopia, Stremio, Homepage, Flux (`fluxcd/flux2`, opened as one grouped PR) |
-| | Anything on ghcr.io, including local-path-provisioner (no release date, so no 14-day wait) |
-| | Talos and Kubernetes: labelled `manual-upgrade` |
+| | Anything on ghcr.io, including local-path-provisioner and tuppr (no release date, so no 14-day wait) |
+| | Talos and Kubernetes: labelled `cluster-upgrade`, one PR per minor |
 
 - Minor releases of the stateless charts open a PR and wait for review.
-- **Talos and Kubernetes:** merging the PR only changes `versions.yaml`. Upgrade the cluster first
-  (§5), then merge.
+- **Talos and Kubernetes:** merging the PR upgrades the cluster (tuppr, §5). Merge one minor at a time,
+  oldest first, and check the support matrix and Flux's supported versions before merging.
 - **Seafile:** the `local_settings.py` mount path in `kubernetes/apps/seafile/seafile.yaml` contains the
   version. Bump it in the same PR.
 - **SeaDoc** (`docker.io/seafileltd/sdoc-server`, wikis and `.sdoc` files): take a new major only once the

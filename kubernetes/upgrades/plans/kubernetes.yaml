@@ -1,0 +1,21 @@
+---
+# Target Kubernetes version for the cluster (exactly one KubernetesUpgrade may exist). Changing `version`
+# runs `talosctl upgrade-k8s`: control plane components first, then each kubelet; no node reboots.
+# It never runs at the same time as a TalosUpgrade.
+#
+# Renovate bumps this together with `kubernetes.kubernetes` in versions.yaml (same depName, one PR), one minor
+# per PR. Before merging a new minor, check the Talos support matrix and Flux's supported versions
+# (versions.yaml notes).
+apiVersion: tuppr.home-operations.com/v1alpha1
+kind: KubernetesUpgrade
+metadata:
+  name: kubernetes
+spec:
+  kubernetes:
+    # renovate: datasource=github-releases depName=kubernetes/kubernetes
+    version: v1.37.1
+  healthChecks:
+    - apiVersion: v1
+      kind: Node
+      expr: status.conditions.filter(c, c.type == "Ready").all(c, c.status == "True")
+      timeout: 10m
