@@ -1,0 +1,121 @@
+# Applied to workers only via `--config-patch-worker` (KATA_XATTR_PATCH in scripts/talos/gen-configs.sh).
+#
+# A second Kata runtime, `kata-xattr`, for the RIPE Atlas probe (kubernetes/apps/ripe-atlas): Cloud
+# Hypervisor exactly like the extension's `kata`, except that virtiofsd runs with `--xattr`. Kata shares the
+# image into the microVM over virtio-fs, and without `--xattr` virtiofsd drops extended attributes, so the
+# probe's measurement busybox loses its `security.capability` (cap_net_raw=ep) and every ping fails with
+# "Operation not permitted" (docs/decisions.md, RIPE Atlas). The RuntimeClass is in
+# kubernetes/infrastructure/runtime-classes/kata.yaml.
+#
+# Why not the pod annotation: until kata-containers 3.32.0 (Talos v1.14.5) the extension allowed
+# `io.katacontainers.config.hypervisor.virtio_fs_extra_args`, and the pod set the flag itself. 3.32.0 dropped
+# it from `enable_annotations`, and Kata then refuses to start the sandbox at all ("annotation ... is not
+# enabled"). A runtime of our own does not depend on the extension's annotation allow-list.
+#
+# Two Talos 1.14 documents (`.machine.files` is deprecated):
+#
+# 1. EtcFileConfig: /etc/kata-containers/configuration-xattr.toml. It is the extension's
+#    /usr/local/share/kata-containers/configuration.toml (kata-containers 3.32.0, identical on both workers,
+#    read 2026-11-11) with comments stripped and one change: `--xattr` appended to `virtio_fs_extra_args`.
+#    Keep every other line identical, so the drift check stays a plain diff whose only hunk is `--xattr`:
+#
+#      talosctl -n <worker> read /usr/local/share/kata-containers/configuration.toml | grep -vE '^\s*#|^\s*$' \
+#        | diff - <(talosctl -n <worker> read /etc/kata-containers/configuration-xattr.toml)
+#
+#    Run it after every Talos or kata extension upgrade and copy any other change in here
+#    (docs/runbooks/ripe-atlas.md, Risks). The file name is not Kata's default (`configuration.toml`), so
+#    nothing but this runtime reads it.
+# 2. CRICustomizationConfig: registers the runtime in containerd, next to the extension's own parts in
+#    /etc/cri/conf.d/ (10-kata-containers.part, 11-kata-qemu.part). Unlike those, it passes no
+#    `io.katacontainers.*` pod annotations: nothing needs them, and Kata cannot be steered from a pod spec.
+#
+# containerd reads its config only at start, so applying this to a running worker may reboot it;
+# `just talos-upgrade-config <ip>` dry-runs first.
+apiVersion: v1alpha1
+kind: EtcFileConfig
+name: kata-containers/configuration-xattr.toml
+mode: 0o644
+contents: |
+  [hypervisor.clh]
+  path = "/usr/local/bin/cloud-hypervisor"
+  kernel = "/usr/local/share/kata-containers/vmlinux.container"
+  image = "/usr/local/share/kata-containers/kata-containers.img"
+  rootfs_type = "ext4"
+  rootless = false
+  disable_selinux = false
+  disable_guest_selinux = true
+  enable_annotations = ["enable_iommu", "kernel_params", "kernel_verity_params"]
+  valid_hypervisor_paths = ["/usr/local/bin/cloud-hypervisor"]
+  kernel_params = "cgroup_no_v1=all systemd.unified_cgroup_hierarchy=1"
+  default_vcpus = 1
+  default_maxvcpus = 0
+  default_memory = 2048
+  memory_slots = 10
+  default_maxmemory = 0
+  disable_block_device_use = true
+  shared_fs = "virtio-fs"
+  virtio_fs_daemon = "/usr/local/libexec/virtiofsd"
+  valid_virtio_fs_daemon_paths = ["/usr/local/libexec/virtiofsd"]
+  virtio_fs_cache_size = 0
+  virtio_fs_queue_size = 1024
+  virtio_fs_extra_args = ["--thread-pool-size=1", "--announce-submounts", "--xattr"]
+  virtio_fs_cache = "auto"
+  block_device_driver = "virtio-blk"
+  block_device_cache_set = false
+  block_device_cache_direct = false
+  reclaim_guest_freed_memory = false
+  enable_hugepages = false
+  disable_seccomp = false
+  enable_iommu = false
+  enable_debug = false
+  hypervisor_loglevel = 1
+  disable_image_nvdimm = true
+  hot_plug_vfio = "no-port"
+  cold_plug_vfio = "no-port"
+  guest_hook_path = ""
+  net_rate_limiter_bw_max_rate = 0
+  net_rate_limiter_bw_one_time_burst = 0
+  net_rate_limiter_ops_max_rate = 0
+  net_rate_limiter_ops_one_time_burst = 0
+  disk_rate_limiter_bw_max_rate = 0
+  disk_rate_limiter_bw_one_time_burst = 0
+  disk_rate_limiter_ops_max_rate = 0
+  disk_rate_limiter_ops_one_time_burst = 0
+  [agent.kata]
+  enable_debug = false
+  enable_tracing = false
+  debug_console_enabled = false
+  dial_timeout = 45
+  cdh_api_timeout = 50
+  [runtime]
+  enable_debug = false
+  internetworking_model = "tcfilter"
+  disable_guest_seccomp = true
+  guest_selinux_label = ""
+  enable_tracing = false
+  jaeger_endpoint = ""
+  jaeger_user = ""
+  jaeger_password = ""
+  disable_new_netns = false
+  sandbox_cgroup_only = false
+  static_sandbox_resource_mgmt = false
+  sandbox_bind_mounts = []
+  vfio_mode = "guest-kernel"
+  disable_guest_empty_dir = false
+  emptydir_mode = "shared-fs"
+  experimental = []
+  enable_pprof = false
+  create_container_timeout = 60
+  dan_conf = "/run/kata-containers/dans"
+  kubelet_root_dir = "/var/lib/kubelet"
+  pod_resource_api_sock = ""
+---
+apiVersion: v1alpha1
+kind: CRICustomizationConfig
+name: kata-xattr
+content: |
+  [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.kata-xattr]
+    runtime_type = "io.containerd.kata.v2"
+    privileged_without_host_devices = true
+  [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.kata-xattr.options]
+    ConfigPath = "/etc/kata-containers/configuration-xattr.toml"

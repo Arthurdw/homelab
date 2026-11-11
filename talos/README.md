@@ -32,6 +32,7 @@ Upgrade the client to the pin before touching a live node.
 | `patches/node-talos-wk-1.yaml` | yes | `talos-wk-1` only: storage-link address `10.99.0.4/29`, MTU 9000. |
 | `patches/node-talos-wk-2.yaml` | yes | `talos-wk-2` only: storage-link address `10.99.0.5/29`, MTU 9000. |
 | `patches/gpu-worker.yaml` | yes | `talos-wk-1` only: NVIDIA driver modules and `net.core.bpf_jit_harden=1` for the passed-through Tesla P4, the `nvidia.com/gpu.present` label and the `nvidia.com/gpu=present:PreferNoSchedule` taint. |
+| `patches/kata-xattr.yaml` | yes | Every worker: the `kata-xattr` Kata runtime (the extension's Cloud Hypervisor config with virtiofsd `--xattr`) for the RIPE Atlas probe. A copied config: diff it after each kata extension upgrade (`docs/runbooks/ripe-atlas.md`, Risks). |
 | `out/` | **no** (gitignored) | Generated `controlplane.yaml`, `worker.yaml` (production: the shared base, never applied), `worker-<node>.yaml` (production: one per worker), `talosconfig`, the `secrets.yaml` bundle, `--regen` backups. Contains secrets. |
 
 Patches are Talos 1.14 **multi-document** patches (matched by `apiVersion`/`kind`), not legacy

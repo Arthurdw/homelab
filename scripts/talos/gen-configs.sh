@@ -93,6 +93,9 @@ WORKER_NETWORK_PATCH="${WORKER_NETWORK_PATCH-$REPO_ROOT/talos/patches/network-wo
 # NVIDIA driver modules + sysctl for the passed-through Tesla P4 (talos/patches/gpu-worker.yaml).
 # Production only: the lab has no GPU, so its inputs set this to an empty string as well.
 GPU_WORKER_PATCH="${GPU_WORKER_PATCH-$REPO_ROOT/talos/patches/gpu-worker.yaml}"
+# The `kata-xattr` Kata runtime (virtiofsd with --xattr) for the RIPE Atlas probe (talos/patches/kata-xattr.yaml).
+# Every worker, lab included; an inputs file may set it to an empty string to skip it.
+KATA_XATTR_PATCH="${KATA_XATTR_PATCH-$REPO_ROOT/talos/patches/kata-xattr.yaml}"
 # Per-node worker configs (header above). Production: talos-wk-1 holds the Tesla P4, talos-wk-2 has
 # no GPU (docs/architecture.md). The lab inputs set WORKER_NODES empty: one worker, no node files.
 WORKER_NODES="${WORKER_NODES-talos-wk-1 talos-wk-2}"
@@ -198,6 +201,7 @@ patch_args --config-patch-control-plane "$REPO_ROOT/talos/patches/controlplane.y
 patch_args --config-patch-worker        "$WORKER_PATCH"
 patch_args --config-patch-control-plane "$CONTROLPLANE_NETWORK_PATCH"
 patch_args --config-patch-worker        "$WORKER_NETWORK_PATCH"
+patch_args --config-patch-worker        "$KATA_XATTR_PATCH"
 # With per-node configs the GPU patch goes to GPU_WORKER_NODE only (derive_workers below).
 [ -z "$WORKER_NODES" ] && patch_args --config-patch-worker "$GPU_WORKER_PATCH"
 

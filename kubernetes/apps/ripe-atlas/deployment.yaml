@@ -9,8 +9,8 @@
 # pod may run with it: one replica and the Recreate strategy, never two at once.
 #
 # Isolation, in layers:
-#   - runtimeClassName kata: its own microVM, so a kernel exploit through a crafted measurement reply stays in
-#     the guest (docs/decisions.md §3.5).
+#   - runtimeClassName kata-xattr: its own microVM, so a kernel exploit through a crafted measurement reply stays
+#     in the guest (docs/decisions.md §3.5).
 #   - networkpolicy.yaml: public IPv4 only; no pods, nodes, LAN or cluster DNS. No ingress, except ICMP errors
 #     from public routers for traceroute (ciliumnetworkpolicy.yaml).
 #   - Non-root (uid 101, the image's ripe-atlas user), read-only root, every default capability dropped except
@@ -24,7 +24,7 @@
 #   - allowPrivilegeEscalation must stay unset (true). The measurement busybox is setuid to uid 102 with a file
 #     capability cap_net_raw=ep; with no_new_privs the setresuid in its telnetd fails and no measurement runs.
 #   - NET_RAW must stay in the bounding set (the containerd default keeps it), or those execs fail too.
-#   - Under Kata the file capability needs virtiofsd's --xattr (the pod annotation below).
+#   - Under Kata the file capability needs virtiofsd's --xattr (the kata-xattr runtime, below).
 #   - "Ping failed" at startup is harmless: it only sets the status LEDs.
 apiVersion: apps/v1
 kind: Deployment
@@ -48,15 +48,13 @@ spec:
       labels:
         app.kubernetes.io/name: ripe-atlas
         app.kubernetes.io/part-of: ripe-atlas
-      annotations:
-        # Kata shares the image into the microVM over virtio-fs, and virtiofsd hides extended attributes unless
-        # it runs with --xattr. Without them the measurement busybox loses its security.capability xattr
-        # (cap_net_raw=ep), so every ping and traceroute fails with "socket failed: Operation not permitted".
-        # This pod alone turns it on; the first two args are the defaults from the Talos kata extension's
-        # configuration.toml, which this annotation replaces wholesale (it is on that file's enable_annotations).
-        io.katacontainers.config.hypervisor.virtio_fs_extra_args: '["--thread-pool-size=1","--announce-submounts","--xattr"]'
     spec:
-      runtimeClassName: kata
+      # kata-xattr is kata with virtiofsd's --xattr (talos/patches/kata-xattr.yaml). Kata shares the image into
+      # the microVM over virtio-fs, and without --xattr the measurement busybox loses its security.capability
+      # xattr (cap_net_raw=ep), so every ping and traceroute fails with "socket failed: Operation not permitted".
+      # Until kata-containers 3.32.0 the pod set the flag with the virtio_fs_extra_args annotation; 3.32.0 no
+      # longer allows that annotation and refuses to start the sandbox when it is present.
+      runtimeClassName: kata-xattr
       automountServiceAccountToken: false
       enableServiceLinks: false
       # No cluster DNS (the NetworkPolicy blocks kube-dns anyway): public resolvers only. These also serve the
