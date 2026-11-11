@@ -13,7 +13,7 @@ metadata:
 spec:
   kubernetes:
     # renovate: datasource=github-releases depName=kubernetes/kubernetes
-    version: v1.37.1
+    version: v1.37.2
   healthChecks:
     - apiVersion: v1
       kind: Node
