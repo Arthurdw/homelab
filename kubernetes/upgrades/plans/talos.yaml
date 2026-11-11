@@ -1,7 +1,7 @@
 ---
 # Target Talos version for every node. Changing `version` upgrades the cluster: tuppr pulls the new
-# installer on each node first, then upgrades and reboots them one at a time (in tuppr's order), and checks
-# the health below before each node. The node running the controller is never the one being upgraded.
+# installer on each node first, then upgrades and reboots them one at a time, and checks the health below
+# before each node. The node running the tuppr controller goes first, the others follow by name.
 #
 # The installer keeps each node's own schematic: tuppr swaps only the tag of the node's current
 # `machine.install.image`, so talos-wk-1 stays on the GPU schematic (talos/schematic-gpu.yaml) and the others
