@@ -1,0 +1,29 @@
+---
+# Target Talos version for every node. Changing `version` upgrades the cluster: tuppr pulls the new
+# installer on each node first, then upgrades and reboots them one at a time (in tuppr's order), and checks
+# the health below before each node. The node running the controller is never the one being upgraded.
+#
+# The installer keeps each node's own schematic: tuppr swaps only the tag of the node's current
+# `machine.install.image`, so talos-wk-1 stays on the GPU schematic (talos/schematic-gpu.yaml) and the others
+# on talos/schematic.yaml.
+#
+# Renovate bumps this together with `kubernetes.talos` in versions.yaml (same depName, one PR). Talos only
+# supports one minor at a time, and tuppr does not check that: Renovate opens one PR per minor
+# (renovate.json5), so merge them oldest first. Check the Talos support matrix for the Kubernetes version.
+apiVersion: tuppr.home-operations.com/v1alpha1
+kind: TalosUpgrade
+metadata:
+  name: cluster
+spec:
+  talos:
+    # renovate: datasource=github-releases depName=siderolabs/talos
+    version: v1.14.5
+  healthChecks:
+    - apiVersion: v1
+      kind: Node
+      expr: status.conditions.filter(c, c.type == "Ready").all(c, c.status == "True")
+      timeout: 10m
+  policy:
+    # local-path volumes are node-bound, but the NFS-backed ones (nas-nfs) move with their pods. Waiting for
+    # them to detach before the reboot avoids a Multi-Attach error when the pod comes back elsewhere.
+    waitForVolumeDetach: true

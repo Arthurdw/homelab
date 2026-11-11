@@ -1,0 +1,10 @@
+---
+# tuppr and its upgrade Jobs. The name is fixed: Talos only lets pods in the namespaces listed in
+# KubeTalosAPIAccessConfig (talos/patches/common.yaml) reach its API, so the two must match.
+# Both the controller and the Jobs run non-root with every capability dropped, so `restricted` holds.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: system-upgrade
+  labels:
+    pod-security.kubernetes.io/enforce: restricted

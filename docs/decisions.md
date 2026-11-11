@@ -579,7 +579,8 @@ Consequences:
 pre-upgrade snapshots, and the databases are node-local with nightly dumps only. So automerge covers
 changes whose merge touches nothing live: GitHub Actions, CI and workstation tools, and OpenTofu providers,
 because the owner runs `tofu` by hand. It also covers patch releases of the stateless infrastructure
-charts. Majors, stateful apps, the CNI, DNS, SSO, Flux and Talos/Kubernetes always wait for the owner.
+charts. Majors, stateful apps, the CNI, DNS, SSO, Flux and Talos/Kubernetes always wait for the owner
+(Talos/Kubernetes PRs upgrade the cluster when merged, §5.20).
 The list and the reasons are in `docs/runbooks/upgrades.md` §8.
 
 **14-day minimum release age.** No update is proposed until the release is two weeks old. That gives
@@ -826,6 +827,38 @@ more tightly than a VLAN would.
 
 **Accepted:** the probe can reach the household's own public IP (hairpin through the UDM). No port is
 forwarded (§5.2), so that reaches nothing. Interface traffic counters are not reported (`RXTXRPT=no`).
+
+### 5.20 — Talos and Kubernetes upgrades through tuppr: a merged Renovate PR upgrades the cluster — *decided 2026-11-11*
+
+**tuppr upgrades the nodes** (`kubernetes/upgrades/`, homelab only). Until now a Talos or Kubernetes PR moved only the
+pin in `versions.yaml`, and the owner ran `talosctl upgrade` and `talosctl upgrade-k8s` by hand before merging. Now
+the target versions are a TalosUpgrade and a KubernetesUpgrade in Git, which Renovate bumps together with
+`versions.yaml`. Merging the PR is the upgrade. tuppr drives each node from another node, one at a time, checks that
+every node is `Ready` between them, and keeps each node's schematic (the GPU worker keeps its own). Runbook:
+`docs/runbooks/upgrades.md` §5.
+
+**Inside the cluster, not in GitHub Actions.** CI would need an `os:admin` talosconfig in GitHub secrets and a
+runner on the LAN. A runner inside the cluster dies when its own node reboots. tuppr pulls from Git like the rest of
+the cluster, runs on a node it is not upgrading, and its Talos credential never leaves the cluster.
+
+**Talos API access is scoped.** `KubeTalosAPIAccessConfig` on the control plane (`talos/patches/controlplane.yaml`)
+lets only pods in `system-upgrade` request a Talos credential. The role is `os:admin`, because upgrades need it. The
+namespace enforces Pod Security `restricted`. Until the owner applies that patch, the tuppr release cannot install,
+so nothing upgrades without the owner's step.
+
+**Still the owner's call.** These PRs never automerge. Talos and Kubernetes support one minor step at a time and
+tuppr does not check it, so Renovate opens one PR per minor, and the owner merges them oldest first after checking
+the support matrix and Flux's supported versions.
+
+**Accepted:** the single control plane (§3.1) takes the Kubernetes API down while it reboots, a few minutes per Talos
+upgrade. Workloads keep running. No pre-upgrade snapshot is taken; Talos cannot be downgraded in place, so the way
+back is a reinstall from the machine configs.
+
+**Separate Flux Kustomizations** (`upgrades`, `upgrade-plans`), so a failed tuppr install stalls only the plans,
+not `infrastructure` and everything after it. The lab is kind, which has no Talos API, so it does not run tuppr.
+
+**Not covered:** OpenTofu still runs by hand (`infrastructure/README.md`), and PostgreSQL majors still need the
+manual dump and restore.
 
 ## 6. Findings that changed the plan
 

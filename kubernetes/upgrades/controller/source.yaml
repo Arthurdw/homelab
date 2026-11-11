@@ -1,0 +1,14 @@
+---
+# Upstream OCI Helm chart for tuppr, pinned by tag. Kept next to its HelmRelease (in flux-system,
+# where the release's chartRef expects it). ghcr.io gives Renovate no release date, so updates open at
+# once and never automerge (renovate.json5).
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: tuppr
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: oci://ghcr.io/home-operations/charts/tuppr
+  ref:
+    tag: 0.5.10

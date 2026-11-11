@@ -17,3 +17,16 @@ enabled: false
 #   taints:
 #     node-role.kubernetes.io/control-plane:
 #       $patch: delete
+---
+# Lets pods in `system-upgrade` (tuppr, kubernetes/upgrades) call the Talos API, so a merged version bump
+# upgrades the nodes without anyone running talosctl (docs/decisions.md §5.20). Talos then serves the
+# talos.dev/v1alpha1 ServiceAccount CRD; tuppr's chart creates one and gets a talosconfig Secret back.
+# os:admin is required: upgrade and upgrade-k8s are admin-only calls. The namespace list is the scope,
+# so nothing outside system-upgrade can request a Talos credential. Control plane only: `talosctl
+# validate` rejects this kind on workers.
+apiVersion: v1alpha1
+kind: KubeTalosAPIAccessConfig
+allowedRoles:
+  - os:admin
+allowedKubernetesNamespaces:
+  - system-upgrade

@@ -13,13 +13,16 @@ kubernetes/
       infrastructure.yaml        # -> ./kubernetes/infrastructure            (controllers)
       infrastructure-configs.yaml# -> ./kubernetes/infrastructure/configs    (CRs; needs CRDs)
       apps.yaml                  # -> ./kubernetes/apps                      (workloads)
+      upgrades.yaml              # -> ./kubernetes/upgrades/controller       (tuppr; homelab only)
+      upgrade-plans.yaml         # -> ./kubernetes/upgrades/plans            (Talos/K8s target versions)
       flux-system/               # created by `flux bootstrap` (not committed) + SOPS age key
-    lab/                       # the throwaway lab cluster (docs/lab.md) — same three Kustomizations,
+    lab/                       # the throwaway lab cluster (docs/lab.md) — the first three Kustomizations,
       cluster-settings.yaml     # ConfigMap with the lab values
       infrastructure.yaml | infrastructure-configs.yaml | apps.yaml
   infrastructure/            # cluster-wide controllers/sources (CNI, MetalLB, ingress, DNS, certs, storage)
     configs/                   # custom resources that need CRDs from the controllers above
   apps/                      # user-facing workloads
+  upgrades/                  # tuppr and the TalosUpgrade/KubernetesUpgrade targets (homelab only)
 ```
 
 There is **one cluster directory per environment** and each has its own `cluster-settings.yaml`.
@@ -62,6 +65,7 @@ Every chart version below was verified against its upstream index or registry on
 | Audiobookshelf | `audiobookshelf` | 2.5.1 | `https://charts.christianhuth.de` |
 | Authentik | `authentik` | 2026.8.4 | `https://charts.goauthentik.io` |
 | Descheduler | `descheduler` | 0.37.0 | `https://kubernetes-sigs.github.io/descheduler` |
+| Upgrade controller | `tuppr` (OCI) | 0.5.10 | `oci://ghcr.io/home-operations/charts/tuppr` |
 
 Renovate keeps these current (`renovate.json5`; what it automerges and why: `docs/runbooks/upgrades.md` §8).
 

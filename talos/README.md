@@ -25,7 +25,7 @@ Upgrade the client to the pin before touching a live node.
 | `inputs.env` | yes | Production inputs. Values only known at cutover are marked `TODO(GATE 4)`. |
 | `inputs.lab.env` | yes | Libvirt lab inputs (`scripts/lab/virt/`): lab endpoint, `/dev/vda`, node-IP SANs, no worker or network patch. |
 | `patches/common.yaml` | yes | Every node: removes the bundled Flannel so Cilium is the CNI (decisions §3.3). |
-| `patches/controlplane.yaml` | yes | Control plane: disables kube-proxy (Cilium replaces it; Talos rejects this document on workers). |
+| `patches/controlplane.yaml` | yes | Control plane: disables kube-proxy (Cilium replaces it; Talos rejects this document on workers), and gives pods in `system-upgrade` (tuppr) `os:admin` Talos API access (docs/runbooks/upgrades.md §5). |
 | `patches/worker.yaml` | yes | Workers: the `local-path-provisioner` user volume on the data disk (decisions §3.4). |
 | `patches/network-controlplane.yaml` | yes | Production control plane: storage-link NIC `10.99.0.3/29`, MTU 9000; kubelet node IP and etcd pinned to `10.20.0.0/24` (decisions §2.2). |
 | `patches/network-worker.yaml` | yes | Production workers: the `storage0` NIC alias; kubelet node IP pinned to `10.20.0.0/24`. |

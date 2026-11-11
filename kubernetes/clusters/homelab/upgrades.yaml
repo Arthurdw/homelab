@@ -1,0 +1,35 @@
+---
+# tuppr, the Talos/Kubernetes upgrade controller (docs/decisions.md §5.20). Homelab only: the lab is kind,
+# which has no Talos API.
+#
+# Its own Kustomization, not part of `infrastructure`: until the nodes carry KubeTalosAPIAccessConfig, the
+# release cannot install (no talos.dev CRD). Inside `infrastructure` (wait: true) that would stall configs
+# and apps; here it stalls only the upgrade plans.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: upgrades
+  namespace: flux-system
+spec:
+  interval: 30m
+  retryInterval: 1m
+  timeout: 10m
+  path: ./kubernetes/upgrades/controller
+  prune: true
+  # Wait for the HelmRelease, so the plans only apply once the tuppr CRDs and webhook exist.
+  wait: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  # The ServiceMonitor and PrometheusRule need the Prometheus Operator CRDs from `infrastructure`.
+  dependsOn:
+    - name: infrastructure
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  # ${VAR} values come from cluster-settings.yaml.
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings

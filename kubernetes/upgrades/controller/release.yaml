@@ -1,0 +1,52 @@
+---
+# tuppr: upgrades Talos and Kubernetes from the TalosUpgrade / KubernetesUpgrade objects in ../plans
+# (docs/decisions.md §5.20, docs/runbooks/upgrades.md §5). It drives each node from another, healthy node,
+# one node at a time, and checks the cluster between nodes.
+#   Chart: tuppr 0.5.10 from oci://ghcr.io/home-operations/charts/tuppr (source.yaml)
+#   Docs:  https://tuppr.home-operations.com/
+#
+# Talos API access: the chart creates a talos.dev/v1alpha1 ServiceAccount with the os:admin role, and Talos
+# answers it with the `tuppr-talosconfig` Secret the controller mounts. That kind exists only once every node
+# carries KubeTalosAPIAccessConfig (talos/patches/common.yaml). Before that, this release fails to install and
+# nothing is upgraded.
+#
+# Homelab only (kubernetes/clusters/homelab/upgrades.yaml): the kind lab has no Talos API, so it has no
+# talos.dev CRD either.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tuppr
+  namespace: system-upgrade
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: tuppr
+    namespace: flux-system
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  values:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+    monitoring:
+      # The `release` label is what kube-prometheus-stack selects ServiceMonitors and rules by.
+      serviceMonitor:
+        enabled: true
+        labels:
+          release: kube-prometheus-stack
+      # Upstream alerts: an upgrade that failed, one stuck in a phase, the controller absent. They go out
+      # by mail like every other alert (docs/decisions.md §5.1).
+      prometheusRule:
+        enabled: true
+        labels:
+          release: kube-prometheus-stack

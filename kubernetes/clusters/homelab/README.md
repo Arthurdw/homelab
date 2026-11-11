@@ -39,3 +39,5 @@ auto-generates the root one from the plain manifests here. See `kubernetes/READM
 - `infrastructure.yaml` → `./kubernetes/infrastructure` (controllers, DNS, ingress, certs)
 - `infrastructure-configs.yaml` → `./kubernetes/infrastructure/configs` (`dependsOn: infrastructure`)
 - `apps.yaml` → `./kubernetes/apps` (`dependsOn: infrastructure-configs`)
+- `upgrades.yaml` → `./kubernetes/upgrades/controller` (tuppr; `dependsOn: infrastructure`). Homelab only.
+- `upgrade-plans.yaml` → `./kubernetes/upgrades/plans` (the Talos and Kubernetes targets; `dependsOn: upgrades`)
