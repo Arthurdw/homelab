@@ -792,9 +792,12 @@ by digest in `versions.yaml` and never automerged (`renovate.json5`).
   node. Nested virtualisation was confirmed on all three nodes on 2026-11-04 (`/dev/kvm` and the `vmx` flag).
   Kata shares the image into the VM over virtio-fs, and virtiofsd drops extended attributes, including the
   measurement binary's file capability, unless it runs with `--xattr`. Without that flag every ping fails with
-  "Operation not permitted". The pod turns it on for itself with the
-  `io.katacontainers.config.hypervisor.virtio_fs_extra_args` annotation, which the Talos kata extension's
-  configuration allows. The node config stays untouched. Kata does not apply the pod's seccomp profile inside the
+  "Operation not permitted". The pod runs on `kata-xattr`, a Kata runtime the workers' machine config adds
+  (`talos/patches/kata-xattr.yaml`): the extension's Cloud Hypervisor config, copied, with `--xattr` added.
+  At first the pod turned the flag on for itself with the `io.katacontainers.config.hypervisor.virtio_fs_extra_args`
+  annotation and the node config stayed untouched. kata-containers 3.32.0 (Talos v1.14.5) no longer allows that
+  annotation and refuses the sandbox, so on 2026-11-11 the flag moved to the node. The cost is a copied config
+  to diff after each kata upgrade (runbook, Risks). Kata does not apply the pod's seccomp profile inside the
   guest (`disable_guest_seccomp=true`); the VM boundary takes its place.
 - NetworkPolicy: egress to `0.0.0.0/0` minus every private, shared (CGNAT/Tailscale), link-local, loopback,
   multicast and reserved range; any protocol, because ping and traceroute need ICMP. No cluster DNS:

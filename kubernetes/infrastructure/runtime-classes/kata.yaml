@@ -1,6 +1,7 @@
 ---
-# Kata Containers RuntimeClasses. The handlers are registered in containerd by the Talos
-# `siderolabs/kata-containers` system extension (talos/schematic.yaml); no machine-config patch is needed.
+# Kata Containers RuntimeClasses. `kata` and `kata-qemu` are registered in containerd by the Talos
+# `siderolabs/kata-containers` system extension (talos/schematic.yaml); `kata-xattr` needs the worker patch
+# talos/patches/kata-xattr.yaml.
 # RuntimeClass is a core API (node.k8s.io/v1), so this needs no CRD and belongs with the controllers.
 #
 # Use for untrusted workloads (CI build jobs, docs/decisions.md §3.5): `spec.runtimeClassName: kata`. Each pod
@@ -11,6 +12,20 @@ kind: RuntimeClass
 metadata:
   name: kata
 handler: kata  # Cloud Hypervisor: fast boot, low overhead
+overhead:
+  podFixed:
+    memory: 130Mi
+    cpu: 250m
+---
+# Cloud Hypervisor like `kata`, but virtiofsd runs with --xattr, so files in the image keep their extended
+# attributes (file capabilities) inside the guest. Only the RIPE Atlas probe needs it. Unlike the two above, the
+# handler is not the extension's: talos/patches/kata-xattr.yaml registers it on the workers, so a pod on a node
+# without that patch fails to start its sandbox. The control plane is tainted, so no pod lands there.
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: kata-xattr
+handler: kata-xattr
 overhead:
   podFixed:
     memory: 130Mi

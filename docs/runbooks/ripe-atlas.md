@@ -7,7 +7,7 @@ connects to it.
 
 | Piece | File |
 |---|---|
-| Deployment, one replica, `Recreate`, `runtimeClassName: kata` | `kubernetes/apps/ripe-atlas/deployment.yaml` |
+| Deployment, one replica, `Recreate`, `runtimeClassName: kata-xattr` | `kubernetes/apps/ripe-atlas/deployment.yaml` |
 | Egress to public IPv4 only, no ingress | `kubernetes/apps/ripe-atlas/networkpolicy.yaml` |
 | The one ingress exception: ICMP errors from public routers | `kubernetes/apps/ripe-atlas/ciliumnetworkpolicy.yaml` |
 | The probe key (its identity), SOPS | `kubernetes/overlays/homelab/apps/ripe-atlas-probe-key.sops.yaml` |
@@ -19,8 +19,11 @@ one key confuse RIPE's controller. For a lab test, use a throwaway key (registra
 ## Pre-checks
 
 - The homelab cluster is up and Flux is reconciling.
-- The `kata` RuntimeClass exists and the nodes have `/dev/kvm`:
-  `kubectl --context homelab get runtimeclass kata`.
+- The `kata-xattr` RuntimeClass exists and the nodes have `/dev/kvm`:
+  `kubectl --context homelab get runtimeclass kata-xattr`.
+- Both workers run the `talos/patches/kata-xattr.yaml` machine config, which registers that handler. Without
+  it the pod stays in `ContainerCreating` with `FailedCreatePodSandBox`. Check each worker:
+  `talosctl -n <worker> read /etc/kata-containers/configuration-xattr.toml | grep virtio_fs_extra_args`.
 - The probe's public key was submitted at `https://atlas.ripe.net/apply/swprobe` (done 2026-11-04) and the
   SOPS file holds its private half. Check without printing the private key:
 
@@ -52,7 +55,7 @@ one key confuse RIPE's controller. For a lab test, use a throwaway key (registra
 ```sh
 kubectl --context homelab -n ripe-atlas get pods
 kubectl --context homelab -n ripe-atlas get pod -l app.kubernetes.io/name=ripe-atlas \
-  -o jsonpath='{.items[0].spec.runtimeClassName}{"\n"}'          # kata
+  -o jsonpath='{.items[0].spec.runtimeClassName}{"\n"}'          # kata-xattr
 kubectl --context homelab -n ripe-atlas logs deploy/ripe-atlas --tail=50
 ```
 
@@ -69,8 +72,8 @@ ctr-<site>.atlas.prod.ripe.net`. After that the log goes quiet, and that is the 
 Built-in measurements start reporting results within the hour.
 
 **Measurements and isolation.** These checks are run by the owner; they exec into the live pod. First, the
-measurement binary keeps its raw-socket capability (Kata needs virtiofsd's `--xattr` for that, set by the pod
-annotation), and ping and ICMP traceroute work:
+measurement binary keeps its raw-socket capability (Kata needs virtiofsd's `--xattr` for that, set by the
+`kata-xattr` runtime), and ping and ICMP traceroute work:
 
 ```sh
 kubectl --context homelab -n ripe-atlas exec -i deploy/ripe-atlas -- sh -s <<'EOF'
@@ -88,7 +91,7 @@ Expected:
 - The ping RESULT JSON has `"rcvd":2`.
 - The traceroute shows the public Telenet hops by address and the private first hops as `*`.
 
-If every ping fails with "socket failed: Operation not permitted", the annotation did not reach Kata (see Risks).
+If every ping fails with "socket failed: Operation not permitted", virtiofsd runs without `--xattr` (see Risks).
 
 Then the network is internet only. Every line must print `BLOCKED` except the last one:
 
@@ -177,11 +180,14 @@ new probe with the new key, and mail `atlas@ripe.net` to retire the old probe ID
   layers are Kata, internet-only egress, no ingress except the ICMP errors, non-root, read-only root and no
   service-account token. A probe that misbehaves on the internet still does so from the household's public
   IP; if RIPE or the ISP complains, take step 1 of the rollback first.
-- **The `--xattr` annotation** replaces the Talos kata extension's `virtio_fs_extra_args` wholesale. Its first
-  two entries copy the extension's defaults (checked 2026-11-04). After a Talos or kata extension upgrade,
-  compare them with `/usr/local/share/kata-containers/configuration.toml` on a node, and rerun the
-  capability check above. If the extension ever drops `virtio_fs_extra_args` from `enable_annotations`, the
-  pod still starts but every measurement fails.
+- **The `kata-xattr` runtime is a copy of the extension's Kata config** (`talos/patches/kata-xattr.yaml`),
+  identical except for `--xattr`. It does not follow Talos or kata extension upgrades by itself. After each
+  one, run the drift diff in that file's header on a worker; the only hunk should be `--xattr`. Copy any other
+  change into the patch, `just talos-regen`, apply to both workers, then rerun the capability check above.
+  History: until kata-containers 3.32.0 (Talos v1.14.5, 2026-11-11) the pod set `--xattr` itself with the
+  `virtio_fs_extra_args` annotation. 3.32.0 dropped that annotation from `enable_annotations`, and Kata then
+  refused to start the sandbox at all (`annotation ... is not enabled`), so the probe was down until the
+  node-side runtime replaced it.
 - **Seccomp is not applied** inside the guest (`disable_guest_seccomp=true` in the kata extension). The pod's
   `RuntimeDefault` is there for PSA; the VM boundary stands in for it.
 - **Traceroutes show only public hops.** The private hops (the cluster gateway, the ISP modem) stay `*` on
