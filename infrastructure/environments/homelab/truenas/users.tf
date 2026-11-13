@@ -57,12 +57,15 @@ import {
   id = tostring(data.truenas_user.arthur.id)
 }
 
-# Only username is set, because it must match. Everything that decides whether the owner can still log
-# in (builtin_administrators in `groups`, sudo, shell, password, home, lock state, UID) is ignored, so no
-# plan can ever change it, even if the attribute is later added here by mistake. The rest is left
-# unset: an unset optional attribute keeps the imported value and never shows a diff.
+# Only username and full_name are set: username because it must match, full_name because provider 1.6.0
+# made it required. full_name is the value already on the NAS, so the import plans no change. Everything
+# that decides whether the owner can still log in (builtin_administrators in `groups`, sudo, shell,
+# password, home, lock state, UID) is ignored, so no plan can ever change it, even if the attribute is
+# later added here by mistake. The rest is left unset: an unset optional attribute keeps the imported
+# value and never shows a diff.
 resource "truenas_user" "arthur" {
-  username = "arthur"
+  username  = "arthur"
+  full_name = "Arthur De Witte"
 
   lifecycle {
     prevent_destroy = true
