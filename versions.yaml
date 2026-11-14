@@ -151,7 +151,7 @@ app_images:
   immich_public_proxy: "docker.io/alangrainger/immich-public-proxy:4.1.2@sha256:d6480d1e6beb3da661cb895e1b368340df48904ecbfe53ece2d5da343e78b857"
   # Prometheus data-dir chown initContainer (kubernetes/infrastructure/monitoring/release.yaml)
   # renovate: datasource=docker depName=docker.io/library/busybox
-  busybox: "docker.io/library/busybox:1.38@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e"
+  busybox: "docker.io/library/busybox:1.38@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4"
   # Technitium zone-bootstrap CronJob (kubernetes/infrastructure/technitium/bootstrap-zone.yaml)
   # renovate: datasource=docker depName=curlimages/curl
   curl: "curlimages/curl:8.23.0@sha256:a134550be58ab783810e613ae96fd253c38f7bdd16d9bf9be350700c7a29ac06"
