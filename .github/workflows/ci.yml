@@ -23,7 +23,7 @@ env:
   # renovate: datasource=pypi depName=yamllint
   YAMLLINT_VERSION: "1.38.0"
   # renovate: datasource=npm depName=renovate
-  RENOVATE_VERSION: "44.181.9"
+  RENOVATE_VERSION: "44.199.2"
 
 jobs:
   # GitHub-only: gitleaks-action can't be cloned anonymously, so `act` skips it.
