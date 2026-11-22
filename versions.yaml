@@ -102,7 +102,7 @@ app_images:
   # Authentik dump CronJob (kubernetes/apps/authentik/backup.yaml) and scripts/backup/db-restore-test.sh,
   # which reuses the CronJob images (the immich one above, and this one). Same major as the chart's PostgreSQL.
   # renovate: datasource=docker depName=docker.io/library/postgres
-  authentik_postgres: "docker.io/library/postgres:18.4-trixie@sha256:a02db8cac496f15b094798a38254f14d6e00741f709360e5e00bb6668ea31636"
+  authentik_postgres: "docker.io/library/postgres:18.6-trixie@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42"
   # Seafile (kubernetes/apps/seafile). The all-in-one CE image; its local_settings.py mount path embeds the
   # version, so bump the mount in seafile.yaml together with this tag.
   # renovate: datasource=docker depName=docker.io/seafileltd/seafile-mc
