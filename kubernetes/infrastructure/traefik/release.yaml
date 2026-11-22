@@ -49,9 +49,11 @@ spec:
     # LoadBalancer Service with a FIXED address from the MetalLB pool (configs/metallb-pool.yaml), so
     # Technitium's *.lab.ardw.be records can point at it. `${TRAEFIK_LB_IP}` is per-cluster
     # (cluster-settings). `metallb.io/loadBalancerIPs` is the current MetalLB annotation; the old
-    # `metallb.universe.tf/*` prefix is deprecated.
+    # `metallb.universe.tf/*` prefix is deprecated. The type lives under `service.spec` (chart 42.3.1+ rejects
+    # the old top-level `service.type`, which earlier versions silently ignored).
     service:
-      type: LoadBalancer
+      spec:
+        type: LoadBalancer
       annotations:
         metallb.io/loadBalancerIPs: ${TRAEFIK_LB_IP}
     ports:
