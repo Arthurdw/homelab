@@ -265,6 +265,13 @@
       automerge: false,
     },
     {
+      // Docker Hub gives no date for a digest refresh of the same tag, so timestamp-required left
+      // every digest PR pending forever (#83, #85). Same tag, so the owner's review is the gate.
+      description: 'Digest updates: no release date, so no age gate',
+      matchUpdateTypes: ['digest'],
+      minimumReleaseAgeBehaviour: 'timestamp-optional',
+    },
+    {
       description: 'RIPE Atlas probe (docs/decisions.md §5.19): a one-person community image that runs internet-scheduled measurements with NET_RAW, so a human reads the diff first',
       matchDepNames: ['docker.io/jamesits/ripe-atlas'],
       automerge: false,
