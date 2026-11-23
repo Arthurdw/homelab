@@ -23,7 +23,7 @@ env:
   # renovate: datasource=pypi depName=yamllint
   YAMLLINT_VERSION: "1.38.0"
   # renovate: datasource=npm depName=renovate
-  RENOVATE_VERSION: "44.199.2"
+  RENOVATE_VERSION: "44.222.5"
 
 jobs:
   # GitHub-only: gitleaks-action can't be cloned anonymously, so `act` skips it.
@@ -61,7 +61,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: opentofu/setup-opentofu@v2
         with:
-          tofu_version: "v1.13.2"
+          tofu_version: "v1.13.9"
       - name: tofu fmt
         run: tofu fmt -check -recursive
       - name: tofu validate per root
