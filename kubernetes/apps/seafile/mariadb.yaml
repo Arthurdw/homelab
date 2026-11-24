@@ -151,7 +151,7 @@ spec:
       containers:
         - name: memcached
           # versions.yaml app_images.seafile_memcached
-          image: docker.io/library/memcached:1.6.45-alpine@sha256:9e4de012dc607573052061c0bcb38abc775e1dd59b24e7ac38d1892842094aaf
+          image: docker.io/library/memcached:1.6.45-alpine@sha256:084fb554292d1447bc2c68b80c2331b98834514f56c866bc21a61be3c2ee376d
           imagePullPolicy: IfNotPresent
           args: ["-m", "64"]
           ports:
