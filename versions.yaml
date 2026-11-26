@@ -132,7 +132,7 @@ app_images:
   ollama: "docker.io/ollama/ollama:0.40.16@sha256:910d0d8107b538fb0894e63163eb195de0cc7aefcbc666dc62d3b18f71124592"
   # Open WebUI (kubernetes/apps/ollama), the chat page and model manager for Ollama. v0.12.3 is from 2026-10-16.
   # renovate: datasource=docker depName=ghcr.io/open-webui/open-webui
-  open_webui: "ghcr.io/open-webui/open-webui:v0.13.4@sha256:d5168bfbc28609eff5bea1b438dd864cf64d185cf6582c02244865e18385b901"
+  open_webui: "ghcr.io/open-webui/open-webui:v0.13.5@sha256:e0dc5a8bf5c71cadf339d1e7b9408b357da75fb2854f82cad57a1609fadf2a22"
   # Homepage dashboard (kubernetes/apps/homepage); v2.4.0 is from 2026-09-17; v2.5.0
   # (2026-10-10) was under two weeks old when this was pinned.
   # renovate: datasource=docker depName=ghcr.io/gethomepage/homepage
